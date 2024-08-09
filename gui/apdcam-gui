@@ -1,0 +1,10 @@
+#!/bin/bash
+
+while true; do
+    python3 apdcam-gui.py
+    status=$?
+    if [ $status != 123 ] ; then
+        break
+    fi
+done
+

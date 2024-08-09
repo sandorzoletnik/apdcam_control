@@ -1,0 +1,10 @@
+- MainPage: show interface obtained automatically.
+- Connect-disconnect-connect kills the app
+- LED1, LED2 - what are these? Apparently not SATA1/SATA2 data out
+- read settings from last saved settings file upon connection,
+- ADC/Test pattern: combo box for pre-set values. Ask Sanyi.
+- FIR/Rec frequency --> coeffs. Ask Sanyi about the formula/code
+- ADC: Enable trigger/channel, crashes, o
+- ADC frequency: Mult/Div/Freq: frequency should not go above 30 MHz. 
+- Save/Load settings: crash if cancelled file selector
+
