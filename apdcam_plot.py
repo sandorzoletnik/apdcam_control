@@ -828,7 +828,7 @@ def plot_gui():
      
     global root
     root = tk.Tk()
-    print("Creating flap_apdcam plot GUI")
+    print("Creating APDCAM plot GUI")
     pgui = APDCAM_Plot_class(root=root)
     GUI_frame_widg = tk.Frame(root)
     GUI_frame_widg.grid()
@@ -836,7 +836,7 @@ def plot_gui():
     GUI_exit_widg.grid(row=0,column=0,sticky='e')
     w = tk.Frame(GUI_frame_widg)
     w.grid(row=1,column=0)
-    root.title(string='flap_apdcam plot graphical interface')
+    root.title(string='APDCAM plot graphical interface')
     thisdir = os.path.dirname(os.path.realpath(__file__))
     if (os.name == 'nt'):
         root.iconbitmap(os.path.join(thisdir,'flap_apdcam_icon.ico'))

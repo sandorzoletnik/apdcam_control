@@ -21,9 +21,6 @@ import re
 
 import matplotlib.pyplot as plt
 
-# from ..flap_apdcam import register
-# register()
-
 from .APDCAM10G_control import *
 from .apdcam_plot import * 
 from .apdcam10g_channel_map import apdcam10g_channel_map
