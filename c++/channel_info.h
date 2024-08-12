@@ -13,6 +13,18 @@ namespace apdcam10g
 
     struct channel_info
     {
+        channel_info &assign(const channel_info &rhs)
+            {
+                board_number = rhs.board_number;
+                chip_number = rhs.chip_number;
+                channel_number = rhs.channel_number;
+                absolute_channel_number = rhs.absolute_channel_number;
+                byte_offset = rhs.byte_offset;
+                nbytes = rhs.nbytes;
+                shift = rhs.shift;
+                return *this;
+            }
+
         // The number (0..3) of the ADC board of this channel
         unsigned int board_number;
 

@@ -1,6 +1,8 @@
 #ifndef __APDCAM10G_CHANNEL_DATA_EXTRACTOR_H__
 #define __APDCAM10G_CHANNEL_DATA_EXTRACTOR_H__
 
+#include "config.h"
+
 /*
 
   A worker class derived from data_consumer, which consumes APDCAM data (UDP packets) from the ring buffer,
@@ -28,15 +30,15 @@ namespace apdcam10g
         
         packet *packet_ = 0, *next_packet_ = 0;
 
-        data_type *channel_data_[32] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // 32 buffers for the 32 channels
+        data_type *channel_data_[config::chips_per_board*config::channels_per_chip] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // 32 buffers for the 32 channels
         unsigned int channel_data_capacity_ = 0;  // Capacity of the buffers (each channel) to store the channel samples
-        unsigned int channel_data_size_[32];      // Actual size of (number of samples stored in) the buffer per channel
+        unsigned int channel_data_size_[config::chips_per_board*config::channels_per_chip];      // Actual size of (number of samples stored in) the buffer per channel
 
-        std::ofstream *output_file_[32];
+        std::ofstream *output_file_[config::chips_per_board*config::channels_per_chip];
 
-        // The offset within the packet in the ring buffer, where the next sample
+        // The offset within the packet in the ring buffer, where the next shot
         // will start. 
-        unsigned int sample_offset_within_adc_data_ = 0;
+        unsigned int shot_offset_within_adc_data_ = 0;
 
         // Append the value to the array of values of the given channel in the buffer, and if the buffer is full,
         // automatically write it to the corresponding file, and empty the buffer
@@ -71,7 +73,7 @@ namespace apdcam10g
 
         ~channel_data_extractor();
 
-        void stream(daq *s) { daq_ = s; }
+        void set_daq(daq *s) { daq_ = s; }
       
         // Flush the buffers of all channels
         void flush();
@@ -79,7 +81,10 @@ namespace apdcam10g
         // Flush the buffer of one channel
         void flush(unsigned int channel_number);
 
-        unsigned int run(ring_buffer<std::byte> &buffer);
+        // Extract the channel data from the available packets in the network ring buffer,
+        // and remove those packets from the ring buffer which have been processed.
+        // This function blocks the calling thread until new packets arrive
+        unsigned int run(ring_buffer<std::byte*> &buffer);
     };
 }
 

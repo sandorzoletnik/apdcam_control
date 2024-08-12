@@ -13,27 +13,19 @@
 using namespace std;
 //using namespace apdcam10g;
 
-class A
+class empty
+{};
+
+class A : public empty
 {
 public:
-    A() { cerr<<"A default ctor"<<endl; }
-    A(const A &rhs) { cerr<<"A copy ctor"<<endl; }
+    int i;
 };
-
-class B
-{
-public:
-    A a;
-    B() { cerr<<"B default ctor"<<endl; }
-    B(const B &rhs) { cerr<<"B copy ctor"<<endl; }
-};
-
 
 int main()
 {
-    B b1;
-    cerr<<"---------"<<endl;
-    B b2(b1);
+    A a;
+    cerr<<sizeof(A)<<endl;
 
     return 0;
 }

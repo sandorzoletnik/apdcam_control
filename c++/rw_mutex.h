@@ -78,7 +78,8 @@ namespace apdcam10g
                 while( waiting_writers != 0 )
                     readerQ.wait(lk);
                 ++active_readers;
-                lk.unlock();
+                // This is not needed, destructor anyway unlocks [D.Barna]
+                //lk.unlock();
             }
         
         void unlock_read() 
@@ -96,7 +97,20 @@ namespace apdcam10g
                 while( active_readers != 0 || active_writers != 0 )
                     writerQ.wait(lk);
                 ++active_writers;
-                lk.unlock();
+                // This is not needed, destructor anyway unlocks [D.Barna]
+                //lk.unlock();
+            }
+
+        bool try_lock_write()
+            {
+                std::unique_lock<std::mutex> lk(shared);
+                ++waiting_writers;
+                if(active_readers==0 && active_writers==0)
+                {
+                    ++active_writers;
+                    return true;
+                }
+                return false;
             }
 
         void unlock_write() 
@@ -108,10 +122,18 @@ namespace apdcam10g
                     writerQ.notify_one();
                 else
                     readerQ.notify_all();
-                lk.unlock();
+                // This is not needed, destructor anyway unlocks [D.Barna]
+                //lk.unlock();
             }
 
-        
+        // The function 'lock()' and 'unlock()' are simply aliases for lock_write and unlock_write to satisfy the Requirement 'BasicLockable'
+        // needed for this mutex being able to work with unique_lock, etc
+        void lock()    {lock_write();}
+        void unlock()  {unlock_write();}
+
+        // To satisfy the Requirement 'Lockable'
+        bool try_lock() { return try_lock_write(); }
+
 
 private:
     std::mutex              shared;

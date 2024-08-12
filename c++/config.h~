@@ -1,0 +1,12 @@
+#ifndef __APDCAM10G_CONFIG_H__
+#define __APDCAM10G_CONFIG_H__
+
+namespace apdcam10g
+{
+  namespace config
+  {
+    
+  }
+}
+
+#endif

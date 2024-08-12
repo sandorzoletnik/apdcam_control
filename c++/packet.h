@@ -46,9 +46,9 @@ namespace apdcam10g
         // Converter objects to extract/write data directly in the memory buffer, taking into account the
         // number of bytes representing the number, and endianness. These members can be assigned using = operator,
         // or queried (they automatically convert to the corresponding native integers)
-        
+    
         byte_converter<4,std::endian::big> serial_number;  // Serial number from the CC packet header. I assume big endian, not sure. 
-        byte_converter<6,std::endian::big> packet_counter; // Packet number (counter) from the CC header. I assume big endian, not sure
+        byte_converter<6,std::endian::big> packet_counter; // Packet number (counter) from the CC header. I assume big endian, not sure  --- What is the difference bewteen serial_number and packet_counter???x
         byte_converter<6,std::endian::big> sample_counter; // Sample number (counter) from the CC header. I assume big endian, not sure. Is this the first sample in the packet? First full, or even first partial?
 
         // Decoders for the S1 bytes

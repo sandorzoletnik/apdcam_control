@@ -7,7 +7,7 @@ namespace apdcam10g
 
     namespace
     {
-        const apdcam10g::safeness default_safeness = unsafe;
+        const apdcam10g::safeness default_safeness = safe;
     }
 }
 

@@ -65,71 +65,69 @@ namespace apdcam10g
     }
 
     template <safeness S>
-    unsigned int channel_data_extractor<S>::run(ring_buffer<std::byte> &buffer)
+    unsigned int channel_data_extractor<S>::run(ring_buffer<std::byte*> &buffer)
     {
+        buffer.wait_push([this]{...});
+
         // We will use the maximum udp packet size, since the ring buffer is allocated to contain set of full max-sized udp packets
         const unsigned int udp_packet_size = daq_->max_udp_packet_size();
 
         const unsigned int board_bytes_per_shot = daq_->board_bytes_per_shot(adc_);
 
-        // Get the available number of bytes in the buffer
-        const int size = buffer.size();
-
         // The number of available packets
-        if(S==safe && size%udp_packet_size!=0) APDCAM_ERROR("Data available in the ring buffer is not an integer multiple of the packet size");
-        const int npackets = size/udp_packet_size; // integer division
+        const int npackets = buffer.packets.size();
 
-        if(udp_packet_size*npackets != size) APDCAM_ERROR("Not a full package received...");
-        
         unsigned int removed_packets = 0;
 
         for(int ipacket=0; ipacket<npackets; )
         {
-            auto [ptr1,size1,ptr2,size2] = buffer.read_region(udp_packet_size);
-            if(size1!=udp_packet_size) APDCAM_ERROR("Oops");
-            packet_->data(ptr1,size1);
+	    {
+	      const auto p = buffer.packets[0];  // Get the front element
+              packet_->data(p.address,p.size);
+	    }
 
             const auto &chinfo = daq_->channelinfo(adc_);
 
-            // Loop over the samples stored in this packet
+            // Loop over the shots stored in this packet
             while(true)
             {
-                // if the entire sample fits into this packet
-                if(packet_->adc_data_start()+sample_offset_within_adc_data_+board_bytes_per_shot <= packet_->end())
+                // if the entire shot fits into this packet
+                if(packet_->adc_data_start()+shot_offset_within_adc_data_+board_bytes_per_shot <= packet_->end())
                 {
-                    for(auto c : chinfo) store_channel_data_(c.channel_number, get_channel_value_(packet_->adc_data_start()+sample_offset_within_adc_data_+c.byte_offset,c));
+                    for(auto c : chinfo) store_channel_data_(c.channel_number, get_channel_value_(packet_->adc_data_start()+shot_offset_within_adc_data_+c.byte_offset,c));
 
-                    // Advance the offset within the packet by the length of one sample
-                    sample_offset_within_adc_data_ += board_bytes_per_shot;
+                    // Advance the offset within the packet by the length of one shot
+                    shot_offset_within_adc_data_ += board_bytes_per_shot;
                     
                     // if by this we finished processing the given UDP packet, then reset the offset to zero, and
                     // remove this UDP packet from the buffer
                     // (the > should never happen in this condition, only =, but let's be sure)
-                    if(packet_->adc_data_start()+sample_offset_within_adc_data_ >= packet_->end())
+                    if(packet_->adc_data_start()+shot_offset_within_adc_data_ >= packet_->end())
                     {
                         // Remove the packet from the ring buffer
-                        buffer.increment_read_ptr(udp_packet_size);
-                        ++ipacket;
-                        ++removed_packets;
-                        // Set the pointer-within-packet to zero
-                        sample_offset_within_adc_data_ = 0;
-                        break;
+  		      buffer.packets.pop_front();
+		      ++ipacket;
+		      ++removed_packets;
+		      // Set the pointer-within-packet to zero
+		      shot_offset_within_adc_data_ = 0;
+		      break;
                     }
 
                     // If we have not reached the end of the packet (and have quite the loop-over-samples loop), 
-                    // then go to the next sample
+                    // then go to the next shot
                     continue;
                 }
 
-                // If we are here, then the current, entire sample did not fit into this packet, but extends into the next one
+                // If we are here, then the current shot did not fit entirely into this packet, but extends into the next one
                 // Check if there is a next packet.
                 if(ipacket+1<npackets)
                 {
                     // Initialize a next packet within the buffer, without actually incrementing the read pointer
                     // of the ring buffer
-                    auto [p1,n1,p2,n2] = buffer.read_region(udp_packet_size,udp_packet_size);
-                    if(n1 != udp_packet_size) APDCAM_ERROR("Opps");
-                    next_packet_->data(p1,udp_packet_size);
+  		    {
+		      const auto p = buffer.packets[1];
+		      next_packet_->data(p.address,p.size);
+		    }
                                      
                     for(auto c : chinfo)
                     {
@@ -161,15 +159,15 @@ namespace apdcam10g
                         }
                     }
                     
-                    // We can safely assume that if a sample was extending into the next packet, it is entirely contained there,
+                    // We can safely assume that if a shot was extending into the next packet, it is entirely contained there,
                     // and does not extend into a further packet. 
                     // Remove the packet from the ring buffer
-                    buffer.increment_read_ptr(udp_packet_size);
+                    buffer.packets.pop_front(); 
                     ++ipacket;
                     ++removed_packets;
 
                     // Set the pointer-within-packet to zero
-                    sample_offset_within_adc_data_ = sample_offset_within_adc_data_ + board_bytes_per_shot - packet_->adc_data_size();
+                    shot_offset_within_adc_data_ = shot_offset_within_adc_data_ + board_bytes_per_shot - packet_->adc_data_size();
 
                     // Break looping over the samples within the current packet, go to the next one (which has already been partially processed,
                     // but this is taken care of by sample_offset_within_adc_data_ being set to some positive offset)

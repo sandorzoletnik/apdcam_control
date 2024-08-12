@@ -6,6 +6,7 @@
 #include "error.h"
 #include "pstream.h"
 #include "channel_signal_extractor.h"
+#include <memory>
 
 //#include <stdio.h>
 //#include <stdlib.h>
@@ -63,7 +64,7 @@ namespace apdcam10g
 
 
     template <safeness S>
-    daq &daq::initialize(bool dual_sata, const std::vector<std::vector<std::vector<bool>>> &channel_masks, const std::vector<unsigned int> &resolution_bits, version ver)
+    daq &daq::init(bool dual_sata, const std::vector<std::vector<std::vector<bool>>> &channel_masks, const std::vector<unsigned int> &resolution_bits, version ver)
     {
         if(mtu_ == 0) APDCAM_ERROR("MTU has not been set");
         if(channel_masks.size() != resolution_bits.size()) APDCAM_ERROR("Masks and resolution sizes do not agree");
@@ -81,30 +82,35 @@ namespace apdcam10g
         for(auto e: extractors_) delete e;
         extractors_.resize(nof_adc);
         sockets_.resize(nof_adc);
-
-        //network_buffers_.resize(nof_adc);
-
+	network_buffers_.resize(nof_adc);
         calculate_channel_info();
+
+        channel_data_buffers_.resize(nof_adc);
+        channel_data_buffers_map_.clear();
 
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
-            // Open sockets
-            if(dual_sata)
-            {
-                cerr<<"Listening on port "<<ports_[i_adc*2]<<endl;
-                sockets_[i_adc].open(ports_[i_adc*2]);
-            }
-            else
-            {
-                cerr<<"Listening on port "<<ports_[i_adc*2]<<endl;
-                sockets_[i_adc].open(ports_[i_adc]  );
-            }
+            const int port_index = (dual_sata ? i_adc*2 : i_adc);
+	    cerr<<"Listening on port "<<ports_[i_adc*2]<<endl;
+	    sockets_[i_adc].open(ports_[port_index]);
 
-            // initialize ring buffers
-            network_buffers_[i_adc].resize(network_buffer_size_*max_udp_packet_size_);
+	    network_buffers_[i_adc].resize(network_buffer_size_,max_udp_packet_size);
 
             extractors_[i_adc] = new channel_data_extractor<S>(i_adc,ver,sample_buffer_size_);
-            extractors_[i_adc]->stream(this);
+            extractors_[i_adc]->set_daq(this);
+
+            channel_data_buffers_[i_adc].resize(channelinfo_[i_adc].size());
+
+            // Now loop over all enabled channels of this ADC board
+            for(unsigned int i_enabled_channel=0; i_enabled_channel<channelinfo_[i_adc].size(); ++i_enabled_channel)
+            {
+                // Resize the corresponding ring buffer
+                channel_data_buffers_[i_adc][i_enabled_channel].resize(sample_buffer_size_,2*process_period_);
+                channel_data_buffers_[i_adc][i_enabled_channel].channel_info::assign(channelinfo_[i_adc][i_enabled_channel]);
+                channel_data_buffers_[i_adc][i_enabled_channel].
+                // And index the set of ring buffers by absolute channel number
+                channel_data_buffers_map_[channelinfo_[i_adc][i].absolute_channel_number] = std::addressof(channel_data_buffers_[i_adc][i]);
+            }
         }
 
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
@@ -124,80 +130,12 @@ namespace apdcam10g
     template <safeness S>
     daq &daq::start(bool wait)
     {
-        producer_threads_.clear();
-        consumer_threads_.clear();
+        network_threads_.clear();
+        extractor_threads_.clear();
 
-        // Start the producer (reading from the UDP sockets) threads
-        if(separate_network_threads_)  // Start one thread for each socket
-        {
-            for(unsigned int i=0; i<sockets_.size(); ++i)
-            {
-                // Make the corresponding socket blocking. This thread is reading only from one socket, so
-                // we can safely be blocked until data is available 
-                sockets_[i].blocking(true);
+	// Start creating the threads from tne end-consumer end, i.e. backwards, so that consumers are ready (should we ensure
+	// syncing?) and listening by the time data starts to arrive.
 
-                network_threads_.push_back(std::jthread( [this, i](std::stop_token stok)
-                    {
-                        try
-                        {
-                            while(!stok.stop_requested())
-                            {
-                                cerr<<"getting write region..."<<endl;
-                                // if there is a continuous free region of 'udp_packet_size_' bytes in the buffer, receive data into it
-                                auto [ptr1,size1,ptr2,size2] = network_buffers_[i].write_region(max_udp_packet_size_);
-                                cerr<<"done: "<<size1<<endl;
-                                if(size1==max_udp_packet_size_)
-                                {
-                                    // Increment the write pointer of the ring buffer only if we received an entire packet
-                                    const auto received_packet_size = sockets_[i].recv<S>(ptr1,max_udp_packet_size_);
-                                    cerr<<"Received packet size: "<<received_packet_size<<endl;
-                                    if(received_packet_size<0) APDCAM_ERROR_ERRNO(errno);
-                                    if(received_packet_size>0)
-                                    {
-                                        cerr<<"Incrementing write ptr..."<<endl;
-                                        network_buffers_[i].increment_write_ptr(received_packet_size);
-                                        cerr<<"FINISHED"<<endl;
-                                    }
-                                    // If a partial packet was received, we reached the end of data transfer (remainig data could not fill the packet entirely)
-                                    if(received_packet_size != max_udp_packet_size_) break;
-                                }
-                                // else there was no room in the ring buffer, so just keep looping
-                            }
-                        }
-                        catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
-                    }));
-            }
-        }
-        else
-        {
-            // First, make all input sockets non-blocking, because we continuously loop
-            // over all of them, and if there is no data in one of them, that should not block
-            // the loop from trying to read from the others
-            for(unsigned int i=0; i<sockets_.size(); ++i) sockets_[i].blocking(false);
-
-            network_threads_.push_back(std::jthread( [this](std::stop_token stok)
-                {
-                    try
-                    {
-                        while(!stok.stop_requested())
-                        {
-                            for(unsigned int i=0; i<sockets_.size(); ++i)
-                            {
-                                auto [ptr1,size1,ptr2,size2] = network_buffers_[i].write_region(max_udp_packet_size_);
-                                if(size1==max_udp_packet_size_)
-                                {
-                                    // Increment the write pointer of the ring buffer only if we received an entire packet
-                                    const auto received_packet_size = sockets_[i].recv<S>(ptr1,max_udp_packet_size_);
-                                    cerr<<"Received packet: "<<received_packet_size<<endl;
-                                    if(received_packet_size>0) network_buffers_[i].increment_write_ptr(received_packet_size);
-                                    if(received_packet_size != max_udp_packet_size_) break;
-                                }
-                            }
-                        }
-                    }
-                    catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
-                }));
-        }
 
         // Start the producer (reading from the UDP sockets) threads
         if(separate_extractor_threads_)  // Start one thread for each socket
@@ -208,7 +146,10 @@ namespace apdcam10g
                     {
                         try
                         {
-                            while(!stok.stop_requested()) extractors_[i_socket]->run(network_buffers_[i_socket]);
+                            while(!stok.stop_requested())
+			    {
+				extractors_[i_socket]->run(network_buffers_[i_socket]);
+			    }
                         }
                         catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
                     }));
@@ -231,6 +172,72 @@ namespace apdcam10g
                     catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
                 }));
         }
+
+
+        // Start the producer (reading from the UDP sockets) threads
+        if(separate_network_threads_)  // Start one thread for each socket
+        {
+            for(unsigned int i=0; i<sockets_.size(); ++i)
+            {
+                // Make the corresponding socket blocking. This thread is reading only from one socket, so
+                // we can safely be blocked until data is available 
+                sockets_[i].blocking(true);
+
+                network_threads_.push_back(std::jthread( [this, i](std::stop_token stok)
+                    {
+                        try
+                        {
+                            while(!stok.stop_requested())
+                            {
+			      // We should set a timeout for the receive, in which case we break the loop
+			      // (the camera does not give any signal of having finished the data stream,
+			      // it simply ceases sending data)
+			      // Implement a "first" flag. If this is true, timeout can be long (waiting for the first event),
+			      // but when it's false, we should not wait too much. 
+			      const auto received_packet_size = network_buffers_[i].receive(sockets_[i]);
+
+			      // Reached the end of the stream
+			      if(received_packet_size != max_udp_packet_size_) break;
+                            }
+                        }
+                        catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
+                    }));
+            }
+        }
+        else
+        {
+            // First, make all input sockets non-blocking, because we continuously loop
+            // over all of them, and if there is no data in one of them, that should not block
+            // the loop from trying to read from the others
+            for(unsigned int i=0; i<sockets_.size(); ++i) sockets_[i].blocking(false);
+
+            network_threads_.push_back(std::jthread( [this](std::stop_token stok)
+                {
+                    try
+                    {
+                        std::vector<bool> socket_active(sockets_.size(),true);
+		      
+                        while(!stok.stop_requested())
+                        {
+             		  unsigned int n_active_sockets = 0;
+			  for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
+                            {
+			      if(!socket_active[i_socket]) continue;
+			      // We should set a timeout here as well.
+			      const auto received_packet_size = network_buffers_[i].receive(sockets_[i]);
+			      
+			      if(received_packet_size != max_udp_packet_size_) socket_active[i_socket] = false;
+			      else ++n_active_sockets;
+                            }
+
+			  // stop the thread if there are no more active sockets 
+			  if(n_active_sockets == 0) break;
+                        }
+                    }
+                    catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
+                }));
+        }
+
 
 	// Create 
 	{

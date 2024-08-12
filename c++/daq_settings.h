@@ -41,7 +41,7 @@ namespace apdcam10g
         std::vector<unsigned int>                   board_bytes_per_shot_;    // index is ADC number
         std::vector<std::vector<unsigned int>>      chip_bytes_per_shot_;     // indices are ADC number (0..3max) and chip nummber (0..3)
         std::vector<std::vector<unsigned int>>      chip_offset_;             // Offset of the first data byte of the chip w.r.t. the board's first data byte, indices are ADC number and chip number
-        std::vector<std::vector<channel_info>>      channelinfo_;             // Indices: ADC number, and a counter over the enabled channels (of all chips)
+        std::vector<std::vector<channel_info>>      channelinfo_;             // Indices: ADC number, and a counter over the enabled channels (of all chips of that ADC board)
                                                                               // Example: channelinfo_[0][3] describes the 3rd ENABLED channel (and not the 3rd channel) of the 0th ADC board
         const int ports_[4] = {10000, 10001, 10002, 10003};
 

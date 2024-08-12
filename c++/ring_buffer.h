@@ -25,7 +25,13 @@
   
   Whenever the container is full, no more push_back operations are possible, apdcam10g::error will be thrown.
   Similarly, if the buffer is empty, pop_front() will throw apdcam10g::error
-  
+
+  There are 3 template arguments of ring_buffer:
+  1. the type it stores
+  2. the safeness, a constant, either 'apdcam10g::safe' or 'apdcam10g::unsafe'. The default is 'apdcam10g::safe'
+  3. a type that the ring_buffer will derive from. By default it is an auxiliary empty class so that the user does not
+     need to care about it. By using this, one can add extra functionality, store extra info along with the ring buffer
+     very easily, using classes defined and used elsewhere
   
  */
 
@@ -36,17 +42,27 @@
 #include <sys/mman.h>
 #include <tuple>
 #include <atomic>
+#include <condition_variable>
 
 #include <iostream>
 using namespace std;
 
+
+
 namespace apdcam10g
 {
-    template <typename T = std::byte, safeness S=safe>
-    class ring_buffer
+
+    // An empty class to serve as the default 3rd template argument of ring_buffer
+    class EMPTY {};
+
+    template <typename T = std::byte, safeness S=apdcam10g::safe, typename BASE=EMPTY>
+    class ring_buffer : public BASE
     {
     private:
         mutable rw_mutex mutex_;
+
+        condition_variable popped_;
+        condition_variable pushed_;
 
         // The capacity (allocated continuous memory) to store data in a cyclic way
         unsigned int capacity_ = 0;
@@ -85,6 +101,22 @@ namespace apdcam10g
             ::munlock(buffer_,sizeof(T)*capacity_);
             delete [] buffer_; 
         }
+
+        // Block the calling thread until the predicate returns true. The predicate is called initially, and
+        // if it returns false, it is repeatedly called upon push/pop operations, respectively. 
+        template <typename Predicate>
+        void wait_push(Predicate predicate)
+            {
+                std::unique_lock<rw_mutex> lock;
+                pushed_.wait(lock,predicate);
+            }
+
+        template <typename Predicate>
+        void wait_pop(Predicate pred)
+            {
+                std::unique_lock<rw_mutex> lock;
+                popped_.wait(lock,predicate);
+            }
 
         // Remember to explicitly call the constructor of mutex_(). If it is not called, it is not initialized
         // and will be in an undefinite state
@@ -385,6 +417,7 @@ namespace apdcam10g
             back_index_ = (back_index_+n)%capacity_;
             back_counter_ += n;
             empty_ = false;
+            pushed_.notify_all();
             return true;
         }
 
@@ -423,7 +456,7 @@ namespace apdcam10g
             if(tmp1==tmp2) empty_ = true;
             front_index_ = (front_index_+n)%capacity_;
             front_counter_ += n;
-            
+            popped_.notify_all();
             return true;
         }
 
