@@ -126,7 +126,12 @@ class ControlTiming(QtWidgets.QWidget):
                 self.sampleFreqRef.setValue(self.extClockFreqScaled.value())
             else:
                 self.sampleFreqRef.setValue(float(self.adcPllFreq.currentText()))
-            self.sampleFreq.setValue(self.sampleFreqRef.value()/self.sampleDiv.value())
+            #self.sampleFreq.setValue(self.sampleFreqRef.value()/self.sampleDiv.value())
+
+            if self.extSample.isChecked():
+                self.sampleFreq.setText("EXT. SIGNAL")
+            else:
+                self.sampleFreq.setText(frequencyFormat.format(self.sampleFreqRef.value()/self.sampleDiv.value()))
         except:
             pass
 
@@ -366,7 +371,7 @@ class ControlTiming(QtWidgets.QWidget):
         self.sampleFreqRef = QtWidgets.QDoubleSpinBox()
         self.sampleFreqRef.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
         #self.sampleFreqRef.setToolTip("Reference frequency [MHz] of the sampling: either the ADC of the external clock's frequency (depending on the checkbox 'ADC Clock Ext.'), to be divided by the divider on the right")
-        self.sampleFreqRef.setToolTip("Reference frequency [MHz] of the sampling: either the ADC of the external clock's frequency (depending on the checkbox 'Use external ADC clock'), to be divided by the divider on the right")
+        self.sampleFreqRef.setToolTip("Reference frequency [MHz] of the sampling: either the ADC of the external clock's frequency (depending on the checkbox 'Use external clock for ADC'), to be divided by the divider on the right")
         g.addWidget(self.sampleFreqRef,4,1)
         readOnly(self.sampleFreqRef)
         self.sampleFreqRef.setValue(float(self.adcPllFreq.currentText()))
@@ -381,10 +386,11 @@ class ControlTiming(QtWidgets.QWidget):
         self.sampleDiv.lineEdit().returnPressed.connect(self.setSampleDivider)
         self.sampleDiv.setToolTip("Sample clock divider (sampling frequency w.r.t. true ADC frequency, APDCAM User Guide Fig. 6). Takes effect when you press Enter")
 
-        self.sampleFreq = QtWidgets.QDoubleSpinBox()
-        self.sampleFreq.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
+        #self.sampleFreq = QtWidgets.QDoubleSpinBox()
+        #self.sampleFreq.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
+        #self.sampleFreq.setValue(float(frequencyFormat.format(2)))
+        self.sampleFreq = QtWidgets.QLineEdit()
         readOnly(self.sampleFreq)
-        self.sampleFreq.setValue(float(frequencyFormat.format(2)))
         g.addWidget(self.sampleFreq,4,4)
 
         g.addWidget(QtWidgets.QLabel("ADC out (EIO):"),5,0)
@@ -407,7 +413,7 @@ class ControlTiming(QtWidgets.QWidget):
         l.addWidget(g)
 
         #self.adcClockExt = QtWidgets.QCheckBox("ADC Clock Ext.")
-        self.adcClockExt = QtWidgets.QCheckBox("Use external ADC clock")
+        self.adcClockExt = QtWidgets.QCheckBox("Use external clock for ADC")
         self.adcClockExt.settingsName = "External ADC clock"
         self.adcClockExt.setToolTip("Use external clock if checked, and internal clock if unchecked")
         self.adcClockExt.stateChanged.connect(lambda: self.updateSamplingFrequency() and self.setAdcClockParameters())
@@ -422,6 +428,7 @@ class ControlTiming(QtWidgets.QWidget):
         self.extSample = QtWidgets.QCheckBox("Ext. Sample")
         self.extSample.settingsName = "External sampling signal"
         self.extSample.setToolTip("Use external signal for sampling, rather than ADC frequency divided by SAMPLEDIVIDER")
+        self.extSample.stateChanged.connect(lambda: self.updateSamplingFrequency())
         g.addWidget(self.extSample)
 
 
