@@ -54,7 +54,11 @@ class APDCAM10G_register:
                  Otherwise, 'data' must be a byte array holding the contenet of the entire register table,
                  in which the 'startByte', 'numberOfBytes' etc are interpreted
         """
-        return int.from_bytes(self.bytes if data is None else data[self.startByte:self.startByte+self.numberOfBytes],signed=self.signed,byteorder=self.byteOrder)
+        if data is not None:
+            return int.from_bytes(data[self.startByte:self.startByte+self.numberOfBytes],signed=self.signed,byteorder=self.byteOrder)
+        if hasattr(self,'bytes'):
+            return int.from_bytes(self.bytes                                            ,signed=self.signed,byteorder=self.byteOrder)
+        return 0;
 
     def store_value(self,registerBytes):
         """
@@ -79,7 +83,11 @@ class APDCAM10G_register_str(APDCAM10G_register):
 
     def display_value(self,data=None):
         try:
-            return (self.bytes if data is None else data[self.startByte:self.startByte+self.numberOfBytes]).decode('utf-8')
+            if data is not None:
+                return data[self.startByte:self.startByte+self.numberOfBytes].decode('utf-8')
+            if hasattr(self,'bytes'):
+                return self.bytes.decode('utf-8')
+            return ""
         except:
             return ">>> can not decode string <<<"
 
@@ -106,7 +114,12 @@ class APDCAM10G_register_ip(APDCAM10G_register):
         for i in range(4):
             if i>0:
                 result += "."
-            result += str(int.from_bytes(self.bytes[i:i+1] if data is None else data[self.startByte+i:self.startByte+i+1]))
+            if data is not None:
+                result += str(int.from_bytes(data[self.startByte+i:self.startByte+i+1]))
+            elif hasattr(self,'bytes'):
+                result += str(int.from_bytes(self.bytes[i:i+1]))
+            else:
+                result += "0"
         return result
         
 class APDCAM10G_register_mac(APDCAM10G_register):
@@ -118,7 +131,12 @@ class APDCAM10G_register_mac(APDCAM10G_register):
         for i in range(6):
             if i>0:
                 result += ":"
-            result += hex(self.bytes[i] if data is None else data[self.startByte+i])[2:]
+            if data is not None:
+                result += hex(data[self.startByte+i])[2:]
+            elif hasattr(self,'bytes'):
+                result += hex(self.bytes[i])
+            else:
+                result += "00"
         return result
 
 class APDCAM10G_register_bits(APDCAM10G_register):
@@ -142,8 +160,11 @@ class APDCAM10G_register_bits(APDCAM10G_register):
             data - a byte array holding the entire register table of the given board. If None, the parent register (APDCAM10G_register object)
                    must have been set to store the corresponding bytes locally
             """
-            int_value = int.from_bytes(self.parent.bytes if data is None else data[self.parent.startByte:self.parent.startByte+self.parent.numberOfBytes],\
-                                       signed=False,byteorder=self.parent.byteOrder)
+            int_value = 0
+            if data is not None:
+                int_value = int.from_bytes(data[self.parent.startByte:self.parent.startByte+self.parent.numberOfBytes], signed=False, byteorder=self.parent.byteOrder)
+            elif hasattr(self.parent,'bytes'):
+                int_value = int.from_bytes(self.parent.bytes, signed=False, byteorder=self.parent.byteOrder)
             return (int_value>>self.firstBit)&self.mask
 
         def display_value(self,data=None):
@@ -913,6 +934,7 @@ class APDCAM10G_adc_registers_v1(APDCAM10G_register_table):
     OVDLEVEL   = b(0xC0, 2, 'Overload level', [ ['LEVEL',0,13,''],['OVDPOLARITY',14,14,'Overload polarity'],['ENABLE',15,15,'Overload enable'] ],'msb?')
     OVDSTATUS  = b(0xC2, 1, 'Overload status', [ ['OVDEV',0,0,'Overload event'] ])
     OVDTIME    = i(0xC3, 2, 'Overload time [10 us units]', 'msb?')
+
     COEFF_01 = i(0x00D0,2,'Filter coefficient 1','lsb?')
     COEFF_02 = i(0x00D2,2,'Filter coefficient 2','lsb?')
     COEFF_03 = i(0x00D4,2,'Filter coefficient 3','lsb?')
@@ -921,6 +943,8 @@ class APDCAM10G_adc_registers_v1(APDCAM10G_register_table):
     COEFF_06 = i(0x00DA,2,'Filter coefficient 6','lsb?')
     COEFF_07 = i(0x00DC,2,'Filter coefficient 7','lsb?')
     COEFF_08_FILTERDIV = i(0x00DE,2,'Filter divide factor (0..11)','lsb?')
+    # An array'ed version(index starting from zero!) of these individual COEFFs
+    COEFF = [APDCAM10G_register_int(0x00D0+j*2,2,'Filter coefficient '+str(j+1),'lsb?') for j in range(8)]
 
 class APDCAM10G_adc_registers_v2(APDCAM10G_register_table):
     # typedefs/shorthands
@@ -994,5 +1018,7 @@ class APDCAM10G_adc_registers_v2(APDCAM10G_register_table):
     COEFF_06 = i(0x00DA,2,'Filter coefficient 6','lsb?')
     COEFF_07 = i(0x00DC,2,'Filter coefficient 7','lsb?')
     COEFF_08_FILTERDIV = i(0x00DE,2,'Filter divide factor (0..11)','lsb?')
+    # An array'ed version (index starting from zero!) of these individual COEFFs
+    COEFF = [APDCAM10G_register_int(0x00D0+j*2,2,'Filter coefficient '+str(j+1),'lsb?') for j in range(8)]
     #FACTCALTABLE = r(0x0100, 256, 'Factory calibration data space')
         

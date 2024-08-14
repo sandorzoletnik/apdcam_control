@@ -83,8 +83,8 @@ class MainPage(QtWidgets.QWidget):
         #self.messages.setText("") # clear previous messages
         self.cameraType.setText("")
 
-        # Check if the IP Address if of the right format: 4 integers separated by dot
-        if not re.search("^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$",self.addressEntry.text()):
+        # Check if the IP Address is of the right format: 4 integers separated by dot
+        if not re.search(r"^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$",self.addressEntry.text()):
             self.messages.append("Bad IP address: '" + self.addressEntry.text() + "'")
             QtWidgets.QApplication.processEvents()
             return

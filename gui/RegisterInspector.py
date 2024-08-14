@@ -38,10 +38,6 @@ class RegisterInspector(QtWidgets.QWidget):
 
         def __call__(self,register):
 
-            #print("-----")
-            #print("symbol: " + register.symbol)
-            #print("shortd: " + str(register.shortDescription))
-
             regexp = None
             if self.regexp:
                 regexp = re.compile(self.pattern)
@@ -158,15 +154,20 @@ class RegisterInspector(QtWidgets.QWidget):
         buttons.addWidget(self.exportButton)
         self.exportButton.clicked.connect(self.export)
 
-        self.registerTable = QtWidgets.QScrollArea()
-        layout.addWidget(self.registerTable)
-        self.registerTable.setWidgetResizable(True)
+        self.registerTableScrollArea = QtWidgets.QScrollArea()
+        layout.addWidget(self.registerTableScrollArea)
+        self.registerTableScrollArea.setWidgetResizable(True)
         self.registerTableWidget = QtWidgets.QWidget()
-        self.registerTable.setWidget(self.registerTableWidget)
+        self.registerTableScrollArea.setWidget(self.registerTableWidget)
+
         self.registerTableLayout = QtWidgets.QGridLayout()
         self.registerTableLayout.setContentsMargins(0,0,0,0)
         self.registerTableLayout.setSpacing(0)
-        self.registerTableWidget.setLayout(self.registerTableLayout)
+#        self.registerTableWidget.setLayout(self.registerTableLayout)
+        tmpLayout = QtWidgets.QVBoxLayout()
+        self.registerTableWidget.setLayout(tmpLayout)
+        tmpLayout.addLayout(self.registerTableLayout)
+        tmpLayout.addStretch(1)
 
     def loadSettingsFromCamera(self):
         n = len(self.gui.camera.status.ADC_address)
@@ -217,11 +218,6 @@ class RegisterInspector(QtWidgets.QWidget):
         file.close()
 
     def showRegisterSearch(self,showAll=False):
-        #self.gui.camera.ADC_register_table = APDCAM10G_adc_registers_v1()
-        #self.gui.camera.CC_settings_table  = APDCAM10G_cc_settings_v1()
-        #self.gui.camera.CC_variables_table = APDCAM10G_cc_variables_v1()
-        #self.gui.camera.PC_register_table  = APDCAM10G_pc_registers_v1()
-
         self.defaultExportFileName = "register-search.html"
 
         pattern = self.searchPattern.text()
@@ -238,57 +234,112 @@ class RegisterInspector(QtWidgets.QWidget):
         if showAll==False:
             filter = self.RegisterSearch(pattern=pattern,regexp=regexp,name=name,shortDescription=shortDescription,longDescription=longDescription)
 
-        register_table = self.gui.camera.ADC_registers.filter(filter)
-        nbytes = register_table.size()
-        if nbytes > 0:
+        version = self.registerVersionSelector.currentText()
+
+        register_table = self.getAdcRegisterTable()
+        filtered_register_table = register_table.filter(filter)
+        if filtered_register_table.size() > 0:
             found = True
             for i_adc in range(len(self.gui.camera.status.ADC_address)):
                 adc_address = self.gui.camera.status.ADC_address[i_adc]
-                err,d = self.gui.camera.readPDI(adc_address,0,numberOfBytes=nbytes,arrayData=True)
-                #err = ''
-                #d = [bytearray(nbytes)]
-                if err != "":
-                    self.gui.show_error(err)
-                else:
-                    self.showRegisterTable(register_table,d[0],title='ADC ' + str(i_adc+1) + ' registers',clear=False)
+                # Create a dummy (zero-filled), fake result of the self.gui.camera.readPDI instruction below, so that
+                # if we do not show the actual camera's register table (but the theoretical one), we do have some
+                # valid but zero result
+                d = [bytearray(register_table.size())]
+                if version == "Actual camera":
+                    err,d = self.gui.camera.readPDI(adc_address,0,numberOfBytes=register_table.size(),arrayData=True)
+                    if err != "":
+                        self.gui.show_error(err)
+                        continue
+                self.showRegisterTable(filtered_register_table,d[0],title='ADC ' + str(i_adc+1) + ' registers',clear=False)
 
-        register_table = self.gui.camera.PC_registers.filter(filter)
-        nbytes = register_table.size()
-        if nbytes > 0:
+        register_table = self.getPcRegisterTable()
+        filtered_register_table = register_table.filter(filter)
+        if filtered_register_table.size() > 0:
             found = True
-            err,d = self.gui.camera.readPDI(self.gui.camera.codes_PC.PC_CARD,0,numberOfBytes=nbytes,arrayData=True)
-            #err = ''
-            #d = [bytearray(nbytes)]
+            err = ""
+            # Create a dummy (zero-filled), fake result of the self.gui.camera.readPDI instruction below, so that
+            # if we do not show the actual camera's register table (but the theoretical one), we do have some
+            # valid but zero result
+            d = [bytearray(register_table.size())]
+            if version == "Actual camera":
+                err,d = self.gui.camera.readPDI(self.gui.camera.codes_PC.PC_CARD,0,numberOfBytes=register_table.size(),arrayData=True)
             if err != "":
                 self.gui.show_error(err)
             else:
-                self.showRegisterTable(register_table,d[0],title='PC card registers',clear=False)
+                self.showRegisterTable(filtered_register_table,d[0],title='PC card registers',clear=False)
 
-        register_table = self.gui.camera.CC_settings.filter(filter)
-        nbytes = register_table.size()
-        if nbytes > 0:
+        register_table = self.getCCSettingsTable()
+        filtered_register_table = register_table.filter(filter)
+        if filtered_register_table.size() > 0:
             found = True
-            err= self.gui.camera.readCCdata(dataType=0)
-            #err = ''
+            err = ""
+            if version == "Actual camera":
+                err= self.gui.camera.readCCdata(dataType=0)
             if err != "":
                 self.gui.show_error(err)
             else:
-                self.showRegisterTable(register_table,self.gui.camera.status.CC_settings,title='Communication & Control Card settings',clear=False)
+                self.showRegisterTable(filtered_register_table,self.gui.camera.status.CC_settings,title='Communication & Control Card settings',clear=False)
 
-        register_table = self.gui.camera.CC_variables.filter(filter)
-        nbytes = register_table.size()
-        if nbytes > 0:
+        register_table = self.getCCVariablesTable()
+        filtered_register_table = register_table.filter(filter)
+        if filtered_register_table.size() > 0:
             found = True
-            err= self.gui.camera.readCCdata(dataType=1)
-            #err = ''
+            err = ""
+            if version == "Actual camera":
+                err= self.gui.camera.readCCdata(dataType=1)
             if err != "":
                 self.gui.show_error(err)
             else:
-                self.showRegisterTable(register_table,self.gui.camera.status.CC_settings,title='Communication & Control Card variables',clear=False)
+                self.showRegisterTable(filtered_register_table,self.gui.camera.status.CC_variables,title='Communication & Control Card variables',clear=False)
 
         if not found:
             self.registerTableLayout.addWidget(QtWidgets.QLabel("No matches found"),self.registerTableLayout.rowCount(),0,1,5)
 
+
+    def getAdcRegisterTable(self):
+        v = self.registerVersionSelector.currentText()
+        if v=="Actual camera":
+            return self.gui.camera.ADC_registers
+        elif v=="Firmware <=1.03":
+            return APDCAM10G_adc_registers_v1()
+        elif v=="Firmware >=1.05":
+            return APDCAM10G_adc_registers_v2()
+        else:
+            self.gui.show_error("Invalid register version selector (this should never happen)")
+
+    def getPcRegisterTable(self):
+        v = self.registerVersionSelector.currentText()
+        if v=="Actual camera":
+            return self.gui.camera.PC_registers
+        elif v=="Firmware <=1.03":
+            return APDCAM10G_pc_registers_v1()
+        elif v=="Firmware >=1.05":
+            return APDCAM10G_pc_registers_v2()
+        else:
+            self.gui.show_error("Invalid register version selector (this should never happen)")
+
+    def getCCSettingsTable(self):
+        v = self.registerVersionSelector.currentText()
+        if v=="Actual camera":
+            return self.gui.camera.CC_settings
+        elif v=="Firmware <=1.03":
+            return APDCAM10G_cc_settings_v1()
+        elif v=="Firmware >=1.05":
+            return APDCAM10G_cc_settings_v2()
+        else:
+            self.gui.show_error("Invalid register version selector (this should never happen)")
+
+    def getCCVariablesTable(self):
+        v = self.registerVersionSelector.currentText()
+        if v=="Actual camera":
+            return self.gui.camera.CC_variables
+        elif v=="Firmware <=1.03":
+            return APDCAM10G_cc_variables_v1()
+        elif v=="Firmware >=1.05":
+            return APDCAM10G_cc_variables_v2()
+        else:
+            self.gui.show_error("Invalid register version selector (this should never happen)")
 
     def showAdcRegisterTable(self,adcNumber):
 

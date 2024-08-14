@@ -266,7 +266,7 @@ class Infrastructure(QtWidgets.QWidget):
             self.gui.show_error("Failed to read calibration light intensity from camera: " + err)
 
         ccDualSata = bool(self.gui.camera.status.CC_settings[self.gui.camera.codes_CC.CC_REGISTER_SATACONTROL] & 1)
-        err,adcDualSata = self.gui.camera.getAdcRegisterBit('all',self.gui.camera.ADC_registers.CONTROL.DSM)
+        err,adcDualSata = self.gui.camera.getAdcRegisterBit(self.gui.camera.ADC_registers.CONTROL.DSM)
         dualSataOk = True
         for aaa in adcDualSata:
             if bool(aaa) != ccDualSata:

@@ -101,17 +101,17 @@ class Adc(QtWidgets.QWidget):
         values[5] = self.iirCoeff.value()
         values[6] = 0 # reserved for later use, not used now
         values[7] = self.internalFilterDiv.value()
-        self.gui.camera.setFilterCoeffs(self.number,values)
+        self.gui.camera.setFilterCoeffs(values,adcBoardNo=self.number)
 
     def setTestPattern(self):
         values = self.testPattern.text().split()
         if len(values) == 1:
-            error = self.gui.camera.setTestPattern(adcBoardNo=self.number,value=values[0])
+            error = self.gui.camera.setTestPattern(value=values[0],adcBoardNo=self.number)
         else:
             if len(values) != 4:
                 self.gui.show_error("Test pattern must be a single or four integers")
                 return
-            error = self.gui.camera.setTestPattern(adcBoardNo=self.number,value=values)
+            error = self.gui.camera.setTestPattern(value=values,adcBoardNo=self.number)
         return error
 
     def calculateFilterCoeffs(self,f_fir,f_recurs):
@@ -318,23 +318,15 @@ class Adc(QtWidgets.QWidget):
         topRow.addWidget(g)
         self.sataOn = QtWidgets.QCheckBox("SATA On")
         self.sataOn.setToolTip("Switch on SATA (must be done for ALL ADCs!)")
-        self.sataOn.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setSataOn(self.number,self.sataOn.isChecked())))
+        self.sataOn.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setSataOn(self.sataOn.isChecked(),self.number)))
         self.sataOn.clicked.connect(self.sata_on_onclick)
         self.sataOn.guiMode = GuiMode.factory
         g.addWidget(self.sataOn,0,0)
 
-        # this is removed here, one can not set it on a per-ADC basis (it would break the system). The tab "Control & Timing"
-        # has a global switch, which sets this flag in the CC board and all ADC boards as well.
-        # self.dualSata = QtWidgets.QCheckBox("Dual SATA")
-        # self.dualSata.setToolTip("Switch dual SATA mode on (must be done for ALL ADCs!)")
-        # self.dualSata.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setAdcDualSata(self.number,self.dualSata.isChecked())))
-        # self.dualSata.guiMode = GuiMode.factory
-        # g.addWidget(self.dualSata,1,0)
-        
         self.sataSync = QtWidgets.QCheckBox("SATA Sync")
         self.sataSync.settingsName = "SATA sync"
         self.sataSync.setToolTip("Switch SATA sync for this ADC (if Shift+clicked, change for all ADC boards)")
-        self.sataSync.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setSataSync(self.number,self.sataSync.isChecked())))
+        self.sataSync.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setSataSync(self.sataSync.isChecked(),adcBoardNo=self.number)))
         self.sataSync.clicked.connect(self.sata_sync_onclick)
         g.addWidget(self.sataSync,2,0)
 
@@ -342,7 +334,7 @@ class Adc(QtWidgets.QWidget):
         self.test.settingsName = "Test"
         self.test.setToolTip("Switch Test mode on. (Set for all ADC boards if Shift-clicked)")
         # the real action toward the camera: set the "test pattern mode" bit in the corresponding register
-        self.test.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setTestPatternMode(self.number,self.test.isChecked())))
+        self.test.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setTestPatternMode(self.test.isChecked(),adcBoardNo=self.number)))
         # We capture the click event so that we can check modifier keys, and set test mode for all other ADCs  as well if Shift is pressed
         self.test.clicked.connect(self.test_mode_onclick)
         g.addWidget(self.test,3,0)
@@ -350,14 +342,14 @@ class Adc(QtWidgets.QWidget):
         self.internalTrigger = QtWidgets.QCheckBox("Internal trigger")
         self.internalTrigger.settingsName = "Internal trigger"
         self.internalTrigger.setToolTip("Enable internal trigger output from this ADC board")
-        self.internalTrigger.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setInternalTriggerAdc(adcBoardNo=self.number,enable=self.internalTrigger.isChecked())))
+        self.internalTrigger.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setInternalTriggerAdc(enable=self.internalTrigger.isChecked(),adcBoardNo=self.number)))
         self.internalTrigger.clicked.connect(self.internal_trigger_onclick)
         g.addWidget(self.internalTrigger,4,0)
 
         self.reverseBitOrder = QtWidgets.QCheckBox("Rev. bitord.")
         self.reverseBitOrder.settingsName = "Reverse bit order"
         self.reverseBitOrder.setToolTip("Set reverse bit order in the stream. If checked, least significant bit comes first.")
-        self.reverseBitOrder.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setReverseBitord(self.number,self.reverseBitOrder.isChecked())))
+        self.reverseBitOrder.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setReverseBitord(self.reverseBitOrder.isChecked(),adcBoardNo=self.number)))
         self.reverseBitOrder.clicked.connect(self.reverse_bit_order_onclick)
         self.reverseBitOrder.guiMode = GuiMode.factory
         g.addWidget(self.reverseBitOrder,5,0)
@@ -382,7 +374,7 @@ class Adc(QtWidgets.QWidget):
         self.ringBuffer.setMaximum(1023)
         self.ringBuffer.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
         self.ringBuffer.setToolTip("Ring buffer size. Ring buffer is disabled if zero. Takes effect when you press Enter")
-        self.ringBuffer.editingFinished.connect(self.gui.call(lambda: self.gui.camera.setRingBufferSize(self.number,self.ringBuffer.value()),name="setRingBufferSize",where=__file__))
+        self.ringBuffer.editingFinished.connect(self.gui.call(lambda: self.gui.camera.setRingBufferSize(self.ringBuffer.value(),self.number),name="setRingBufferSize",where=__file__))
         g.addWidget(self.ringBuffer,1,1)
 
         # g.addWidget(QtWidgets.QLabel("SATA CLK Mult (REDUNDANT?):"),2,0)
@@ -469,7 +461,7 @@ class Adc(QtWidgets.QWidget):
         self.filterEnable = QtWidgets.QCheckBox("Enable")
         self.filterEnable.settingsName = "Enable filter"
         self.filterEnable.setToolTip("Enable the filter (takes immediate effect)")
-        self.filterEnable.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setFilterOn(self.number,self.filterEnable.isChecked()),name="APDCAM10G.filterOnOff",where=__file__))
+        self.filterEnable.stateChanged.connect(self.gui.call(lambda: self.gui.camera.setFilterOn(self.filterEnable.isChecked(),adcBoardNo=self.number),name="APDCAM10G.filterOnOff",where=__file__))
         g.addWidget(self.filterEnable,4,2,1,2)
         
         g.setRowStretch(g.rowCount(),1)
@@ -592,7 +584,7 @@ class Adc(QtWidgets.QWidget):
         setBoardDacButton = QtWidgets.QPushButton("Set all board channels")
         def setBoardDac():
             value = self.allDacValues.value()
-            self.gui.call(lambda: self.gui.camera.setOffsets(self.number,[value]*32))()
+            self.gui.call(lambda: self.gui.camera.setOffsets([value]*32,self.number))()
             for ch in range(32):
                 self.dac[ch].setValue(value)
         setBoardDacButton.clicked.connect(setBoardDac)
@@ -604,7 +596,7 @@ class Adc(QtWidgets.QWidget):
             value = self.allDacValues.value()
             # loop over all ADC boards of the parent tab
             for board in range(len(self.adcControl.adc)):
-                self.gui.call(lambda: self.gui.camera.setOffsets(self.adcControl.adc[board].number,[value]*32))()
+                self.gui.call(lambda: self.gui.camera.setOffsets([value]*32,self.adcControl.adc[board].number))()
                 # set the "All DAC values" user input in all ADC tabs
                 self.adcControl.adc[board].allDacValues.setValue(value)
                 # loop over the 32 channels of the GUI and change the values
@@ -676,7 +668,7 @@ class Adc(QtWidgets.QWidget):
     def set_adc_resolution(self):
         self.bytes_per_sample.setText("")
         self.bytes_per_chip.setText("")
-        err = self.gui.camera.setAdcResolution(self.number,int(self.bits.currentText()))
+        err = self.gui.camera.setAdcResolution(int(self.bits.currentText()),self.number)
         if err != "":
             return err
         self.show_bytes_per_sample()
@@ -686,7 +678,7 @@ class Adc(QtWidgets.QWidget):
 
         # channelOn checkboxes
 
-        err,regs = self.gui.camera.getAdcRegister(self.number,self.gui.camera.ADC_registers.CHENABLE)
+        err,regs = self.gui.camera.getAdcRegister(self.gui.camera.ADC_registers.CHENABLE,self.number)
         if err == "":
             for i_chip in range(4):
                 for i_channel in range(8):

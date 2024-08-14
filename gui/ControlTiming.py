@@ -177,7 +177,8 @@ class ControlTiming(QtWidgets.QWidget):
 
         # external clock in MHz (register value is in kHz)
         extClockFreq = int.from_bytes(v[c.CC_REGISTER_EXTCLKFREQ:c.CC_REGISTER_EXTCLKFREQ:2],'big')/1000.0
-        self.extClockFreq.setValue(extClockFreq*self.extClockMult.value()/self.extClockDiv.value())
+        self.extClockFreq.setValue(extClockFreq)
+        self.extClockFreqScaled.setValue(extClockFreq*self.extClockMult.value()/self.extClockDiv.value())
 
     def __init__(self,parent):
         super(ControlTiming,self).__init__(parent)
@@ -324,7 +325,7 @@ class ControlTiming(QtWidgets.QWidget):
 
         # ----------------------- External clock parameters/frequency -----------------------------------------
         
-        g.addWidget(QtWidgets.QLabel("Ext. clock:"),3,0)
+        g.addWidget(QtWidgets.QLabel("External clock:"),3,0)
 
         self.extClockFreq = QtWidgets.QDoubleSpinBox()
         self.extClockFreq.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
@@ -364,7 +365,8 @@ class ControlTiming(QtWidgets.QWidget):
 
         self.sampleFreqRef = QtWidgets.QDoubleSpinBox()
         self.sampleFreqRef.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
-        self.sampleFreqRef.setToolTip("Reference frequency [MHz] of the sampling: either the ADC of the external clock's frequency (depending on the checkbox 'ADC Clock Ext.'), to be divided by the divider on the right")
+        #self.sampleFreqRef.setToolTip("Reference frequency [MHz] of the sampling: either the ADC of the external clock's frequency (depending on the checkbox 'ADC Clock Ext.'), to be divided by the divider on the right")
+        self.sampleFreqRef.setToolTip("Reference frequency [MHz] of the sampling: either the ADC of the external clock's frequency (depending on the checkbox 'Use external ADC clock'), to be divided by the divider on the right")
         g.addWidget(self.sampleFreqRef,4,1)
         readOnly(self.sampleFreqRef)
         self.sampleFreqRef.setValue(float(self.adcPllFreq.currentText()))
@@ -404,7 +406,8 @@ class ControlTiming(QtWidgets.QWidget):
         g = QVGroupBox()
         l.addWidget(g)
 
-        self.adcClockExt = QtWidgets.QCheckBox("ADC Clock Ext.")
+        #self.adcClockExt = QtWidgets.QCheckBox("ADC Clock Ext.")
+        self.adcClockExt = QtWidgets.QCheckBox("Use external ADC clock")
         self.adcClockExt.settingsName = "External ADC clock"
         self.adcClockExt.setToolTip("Use external clock if checked, and internal clock if unchecked")
         self.adcClockExt.stateChanged.connect(lambda: self.updateSamplingFrequency() and self.setAdcClockParameters())
@@ -430,18 +433,17 @@ class ControlTiming(QtWidgets.QWidget):
         self.sataPllLocked.setToolTip("Indicator for the serial (SATA) PLL being in lock")
         g.addWidget(self.sataPllLocked)
 
-        self.basicPllLocked = QtWidgets.QCheckBox("Internal ADC frequency valid")
+        self.basicPllLocked = QtWidgets.QCheckBox("Internal clock frequency valid")
         readOnly(self.basicPllLocked)
-        self.basicPllLocked.setToolTip("Indicator for the basic (ADC) PLL being in lock")
+        self.basicPllLocked.setToolTip("Indicator for the base (ADC) PLL being in lock")
         g.addWidget(self.basicPllLocked)
         
-        
-        self.extDcmLocked = QtWidgets.QCheckBox("External ADC frequency valid")
+        self.extDcmLocked = QtWidgets.QCheckBox("External clock frequency valid")
         readOnly(self.extDcmLocked)
-        self.extDcmLocked.setToolTip("Indicator for the external clock module (DCM) PLL being in lock")
+        self.extDcmLocked.setToolTip("Indicator for the external clock module PLL being in lock")
         g.addWidget(self.extDcmLocked)
         
-        self.extClockValid = QtWidgets.QCheckBox("Ext. Clock Valid")
+        self.extClockValid = QtWidgets.QCheckBox("External clock valid")
         readOnly(self.extClockValid)
         self.extClockValid.setToolTip("Indicator for the external clock giving a valid clock signal")
         g.addWidget(self.extClockValid)

@@ -218,7 +218,7 @@ class UdpPacketInspector(QtWidgets.QWidget):
             error,origTestPatterns = self.gui.camera.getTestPattern('all')
             print("---------------")
             print(origTestPatterns)
-            self.gui.camera.setTestPattern('all',6)
+            self.gui.camera.setTestPattern(6)
 
         for i in range(4):
             self.summary_display[i].setText("")
@@ -324,7 +324,7 @@ class UdpPacketInspector(QtWidgets.QWidget):
                     self.summary_display[i_adc].append("<font color='red'>Pattern match failed for some channels</font>")
                 else:
                     self.summary_display[i_adc].append("<font color='green'>Pattern match OK for all channels</font>")
-            self.gui.camera.setTestPattern('all',origTestPatterns)
+            self.gui.camera.setTestPattern(origTestPatterns)
 
 
 

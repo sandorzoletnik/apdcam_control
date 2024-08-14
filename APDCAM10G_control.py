@@ -870,7 +870,7 @@ class APDCAM10G_control:
         self.dualSATA = ds
 
         if self.version >= 105:
-            self.setAdcStreamMode('all','off')
+            self.setAdcStreamMode('off')
 
         return ""
         
@@ -1260,11 +1260,11 @@ class APDCAM10G_control:
             return err
 
         # Reset the ADCs
-        err = self.setAdcRegister('all',self.ADC_registers.RESET_FACTORY,0xcd,noReadBack=True)
+        err = self.setAdcRegister(self.ADC_registers.RESET_FACTORY,0xcd,noReadBack=True)
         if err != "":
             return err
         time.sleep(2)
-        err = self.setAdcRegister('all',self.ADC_registers.RESET_FACTORY,0,   noReadBack=True)
+        err = self.setAdcRegister(self.ADC_registers.RESET_FACTORY,0,   noReadBack=True)
         if err != "":
             return err
         
@@ -2061,7 +2061,7 @@ class APDCAM10G_control:
         err = self.sendCommand(self.codes_CC.OP_SETSATACONTROL,bytes([0x1 if dual_SATA_state else 0x0]),sendImmediately=True)
         if (err != ""):
            return err
-        return self.setAdcDualSata('all',dual_SATA_state)
+        return self.setAdcDualSata(dual_SATA_state)
 
     def sendADCIstruction(self,address,instruction):    
         """ Sends an instruction in to the ADC board. 
@@ -2075,13 +2075,13 @@ class APDCAM10G_control:
         err = self.sendCommand(self.codes_CC.OP_WRITEPDI,data,sendImmediately=True)
         return err
 
-    def setAdcStreamMode(self,adcBoardNo,mode):
+    def setAdcStreamMode(self,mode,adcBoardNo='all'):
         """
         Sets the stream mode of the given ADC.
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int(1..4) or the string 'all'
+        adcBoardNo: int(1..4) or the string 'all' (default)
             The ADC board number (1..4) or 'all' if the stream mode of all ADC board is to be set
         mode: string or integer
             Possible string values: 'Off', 'Continuous', 'Gated', 'Triggered' (case insensitive)
@@ -2099,24 +2099,24 @@ class APDCAM10G_control:
             return "ADC stream mode can only be set for version >=1.05"
 
         if mode == 0b00 or mode.lower() == 'off':
-            return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.STREAMCONTROL.STREAMMODE,0)
+            return self.setAdcRegisterBit(self.ADC_registers.STREAMCONTROL.STREAMMODE,value=0,adcBoardNo=adcBoardNo)
         if mode == 0b01 or mode.lower() == 'continuous':
-            return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.STREAMCONTROL.STREAMMODE,0b01)
+            return self.setAdcRegisterBit(self.ADC_registers.STREAMCONTROL.STREAMMODE,value=0b01,adcBoardNo=adcBoardNo)
         if mode == 0b10 or mode.lower() == 'gated':
-            return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.STREAMCONTROL.STREAMMODE,0b10)
+            return self.setAdcRegisterBit(self.ADC_registers.STREAMCONTROL.STREAMMODE,value=0b10,adcBoardNo=adcBoardNo)
         if mode == 0b11 or mode.lower() == 'triggered':
-            return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.STREAMCONTROL.STREAMMODE,0b11)
+            return self.setAdcRegisterBit(self.ADC_registers.STREAMCONTROL.STREAMMODE,value=0b11,adcBoardNo=adcBoardNo)
 
         return "Bad mode: " + str(mode)
 
 
-    def setAdcResolution(self,adcBoardNo,bits):
+    def setAdcResolution(self,bits,adcBoardNo='all'):
         """
         Set the data resolution
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int(1..4) or string the string 'all'
+        adcBoardNo: int(1..4) or string the string 'all' (default)
             The ADC board number (1..4) or 'all' if the resolution of all ADC boards is to be set
         bits: 8, 12 or 14
             The number of bits (resolution)
@@ -2134,7 +2134,7 @@ class APDCAM10G_control:
             value = 1
         if bits == 8:
             value = 2
-        return self.setAdcRegister(adcBoardNo,self.ADC_registers.RESOLUTION,value)
+        return self.setAdcRegister(self.ADC_registers.RESOLUTION,value=value,adcBoardNo=adcBoardNo)
 
     def getAdcResolution(self,adcBoardNo):
         """
@@ -2173,16 +2173,16 @@ class APDCAM10G_control:
             return "",reg[0]
         return "",reg
         
-    def setRingBufferSize(self,adcBoardNo,size):
+    def setRingBufferSize(self,size,adcBoardNo='all'):
         """
         Sets the ring buffer size
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int (1..4)
-            The ADC board number
         size: int
             The buffer size. Ring buffer is disabled if zero
+        adcBoardNo: int (1..4) or the string 'all' (default)
+            The ADC board number
 
         Returns
         ^^^^^^^
@@ -2192,8 +2192,8 @@ class APDCAM10G_control:
         print("Setting ring buffer size of adc: " + str(adcBoardNo) + " --> " + str(size))
 
         if hasattr(self.ADC_registers,'RINGBUFSIZE'):
-            return self.setAdcRegister(adcBoardNo,self.ADC_registers.RINGBUFSIZE,size)
-        return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.STREAMCONTROL.RBSIZE,size)
+            return self.setAdcRegister(self.ADC_registers.RINGBUFSIZE,value=size,adcBoardNo=adcBoardNo)
+        return self.setAdcRegisterBit(self.ADC_registers.STREAMCONTROL.RBSIZE,value=size,adcBoardNo=adcBoardNo)
 
     def getRingBufferSize(self,adcBoardNo):
         """
@@ -2219,7 +2219,7 @@ class APDCAM10G_control:
                 return err,reg()
             return err,[r() for r in reg]
         else:  #v105 and after (hopefully)
-            return self.getAdcRegisterBit(adcBoardNo,self.ADC_registers.STREAMCONTROL.RBSIZE)
+            return self.getAdcRegisterBit(self.ADC_registers.STREAMCONTROL.RBSIZE,adcBoardNo=adcBoardNo)
     
     def initDAC(self,address):
         """ Sets the configuration of the DAC chips
@@ -2229,17 +2229,17 @@ class APDCAM10G_control:
         return self.sendADCIstruction(address,dac_instr)
 
         
-    def setOffsets(self,adcBoardNo,user_offsets):
+    def setOffsets(self,user_offsets,adcBoardNo='all'):
         """
         Sets all the offsets of the ADC channels
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int (1..)
-            The ADC board number, in the range 1..4, should correspond to a physically existing board
-
         offsets
             List of offsets (integers) for the ADC channels
+
+        adcBoardNo: int (1..) or the string 'all' (default)
+            The ADC board number, in the range 1..4, should correspond to a physically existing board
 
         Returns
         ^^^^^^^
@@ -2305,7 +2305,7 @@ class APDCAM10G_control:
         return ""
 
     
-    def getOffsets(self,adcBoardNo):
+    def getOffsets(self,adcBoardNo='all'):
         """
         Get all of the offset values on the channels.
 
@@ -2388,14 +2388,14 @@ class APDCAM10G_control:
     #     return "",data
 
     
-    def getTestPattern(self,adcBoardNo):
+    def getTestPattern(self,adcBoardNo='all'):
         """ 
         Get all of the test pattern settings in the ADCs
             
         Parameters
         ^^^^^^^^^^
         adcBoardNo
-            The number of the ADC board (1..4), or the string 'all' to set the pattern for all ADCs
+            The number of the ADC board (1..4), or the string 'all' (default) to get the pattern for all ADCs
             
         Returns
         ^^^^^^^
@@ -2425,13 +2425,11 @@ class APDCAM10G_control:
             return "",result[0]
         return "",result
 
-    def setTestPattern(self,adcBoardNo='all',value=0):
+    def setTestPattern(self,value=0,adcBoardNo='all'):
         """ Set the test pattern of the ADCs.
         
         Parameters
         ^^^^^^^^^^
-        adcBoardNo
-            The number of the ADC (1..4), or the string 'all' to set the pattern for all ADCs
         value : list or int/string
             If adcBoardNo is 'all', then
               If single integer, all block of all ADCs will be set to this test pattern
@@ -2443,6 +2441,9 @@ class APDCAM10G_control:
               If a list with 4 elements, the 8-channel blocks are set to these values
             The values can be given as strings as well, in which case they are safely converted to integers,
             returning an error if the conversion fails
+
+        adcBoardNo
+            The number of the ADC (1..4), or the string 'all' (default) to set the pattern for all ADCs
 
         Returns
         ^^^^^^^
@@ -2686,17 +2687,18 @@ class APDCAM10G_control:
         else:
             return self.writePDI(boardAddress,registerAddress,register.bytes,numberOfBytes=numberOfBytes,byteOrder=byteOrder,arrayData=True,noReadBack=noReadBack)
 
-    def getAdcRegister(self,adcBoardNo,register):
+    def getAdcRegister(self,register,adcBoardNo='all'):
         """
         Get the value of a register of a single or multiple ADC board(s)
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int(1..4) or string
-            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
         register:
             an APDCAM10G_register object which stores info about the register
             (start address, num. of bytes, how to interpret), or a list of such objects
+
+        adcBoardNo: int(1..4) or the string 'all' (default)
+            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
 
         Returns
         ^^^^^^^
@@ -2721,19 +2723,21 @@ class APDCAM10G_control:
             return "",result[0]
         return "",result
         
-    def setAdcRegister(self,adcBoardNo,register,value=None,noReadBack=False):
+    def setAdcRegister(self,register,value=None,adcBoardNo='all',noReadBack=False):
         """
         Set a given register to a given value
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int(1..4) or the string 'all'
-            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
         register:
             An APDCAM10G_register object which stores both the address and the number of bytes. 
+
         value:
             Value to be written to the register. If it is None (default), the value stored
             in 'register' is used
+
+        adcBoardNo: int(1..4) or the string 'all' (default)
+            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
 
         Returns
         ^^^^^^^
@@ -2796,20 +2800,20 @@ class APDCAM10G_control:
         return self.getAdcOrPcRegister(self.codes_PC.PC_CARD,register)
         
     
-    def setAdcRegisterBit(self,adcBoardNo,register_bit,value):
+    def setAdcRegisterBit(self,register_bit,value,adcBoardNo='all'):
         """
         Set a single bit (or a group of bits) in the given register of the ADC. To do so, it first reads the value of the register,
         changes the given bit to the desired value, and then writes it back to the register
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int (1..4) or the string 'all'
-            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
         register_bit:
             An APDCAM10G_register_bits.Bits object which stores info about register address, and the sub-bits
         value:
             The value to be stored in the given number of bits. It is treated bit-by-bit, i.e. specifying
             a value of '2' for a single-bit target, the result will be a zero  bit!
+        adcBoardNo: int (1..4) or the string 'all'
+            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
 
         Returns
         ^^^^^^^
@@ -2843,7 +2847,7 @@ class APDCAM10G_control:
             bit.set(value)
 
             # write the value stored in 'register' back to the camera
-            err = self.setAdcRegister(adc,register)
+            err = self.setAdcRegister(register,adcBoardNo=adc)
 
             if err != "":
                 if len(adcBoardNos) > 1:
@@ -2855,16 +2859,16 @@ class APDCAM10G_control:
 
         return ""
 
-    def getAdcRegisterBit(self,adcBoardNo, register_bit):
+    def getAdcRegisterBit(self,register_bit,adcBoardNo='all'):
         """
         Get a single ibt (ora group of bits) in the given register of the ADC.
 
         Parameters:
         ^^^^^^^^^^^
-        adcBoardNo: int (1..4) or the string 'all'
-            The ADC board number ofo 'all' to indicated that it should be made for all ADCs
         register_bit:
             An APDCAM10G_register_bits.Bits object which stores info about register address, and sub-bits
+        adcBoardNo: int (1..4) or the string 'all' (default)
+            The ADC board number ofo 'all' to indicated that it should be made for all ADCs
 
         Returns:
         ^^^^^^^^
@@ -2942,13 +2946,13 @@ class APDCAM10G_control:
             return err
         return ""
 
-    def setSataOn(self,adcBoardNo,state):
+    def setSataOn(self,state,adcBoardNo='all'):
         """
         Switches the SATA channels on/off for the given ADC board
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int (1..4) or string
+        adcBoardNo: int (1..4) or the string 'all' (default)
             The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
         state:bool
             Switch the SATA channel on if True, off if False
@@ -2958,27 +2962,27 @@ class APDCAM10G_control:
         Error message or empty string
         
         """
-        return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.SATAONOFF,1 if state else 0)
+        return self.setAdcRegisterBit(self.ADC_registers.CONTROL.SATAONOFF,1 if state else 0,adcBoardNo=adcBoardNo)
 
-    def getSataOn(self,adcBoardNo):
+    def getSataOn(self,adcBoardNo='all'):
         """
         Returns
         ^^^^^^^
         error   - error message or empty string
         on      - boolean indicating whether SataOn bit is set
         """
-        return  self.getAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.SATAONOFF)
+        return  self.getAdcRegisterBit(self.ADC_registers.CONTROL.SATAONOFF,adcBoardNo=adcBoardNo)
 
-    def setAdcDualSata(self,adcBoardNo,state):
+    def setAdcDualSata(self,state,adcBoardNo='all'):
         """
         Switches the Dual SATA mode on/off for the given ADC board, or all boards
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int (1..4) or string
-            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
         state:bool
             Switch the dual SATA mode on if True, off if False
+        adcBoardNo: int (1..4) or the string 'all' (default)
+            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
 
         Returns
         ^^^^^^^
@@ -2986,18 +2990,18 @@ class APDCAM10G_control:
         
         """
 
-        return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.DSM,1 if state else 0)
+        return self.setAdcRegisterBit(self.ADC_registers.CONTROL.DSM,1 if state else 0,adcBoardNo=adcBoardNo)
 
-    def setSataSync(self,adcBoardNo,state):
+    def setSataSync(self,state,adcBoardNo='all'):
         """
         Switches the SATA sync mode on/off for the given ADC board
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int (1..4) or string
-            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
         state:bool
             Switch the SATA sync mode on if True, off if False
+        adcBoardNo: int (1..4) or the string 'all' (default)
+            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
 
         Returns
         ^^^^^^^
@@ -3005,27 +3009,30 @@ class APDCAM10G_control:
         
         """
 
-        return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.SS,2,state)
+        # This was in the old code (before 13.08.2024) but this is apparently wrong because it has 1 more argument
+        # (it was before shifting adcBoardNo arg to the back with default 'all'.... so that's ok)
+        #return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.SS,2,state)
+        return self.setAdcRegisterBit(self.ADC_registers.CONTROL.SS,value=state,adcBoardNo=adcBoardNo)
 
-    def getSataSync(self,adcBoardNo):
+    def getSataSync(self,adcBoardNo='all'):
         """
         Returns
         ^^^^^^^
         error    - error message or empty string
         bit      - True/False indicating whether the SataSync bit is set
         """
-        return  self.getAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.SS)
+        return  self.getAdcRegisterBit(self.ADC_registers.CONTROL.SS,adcBoardNo=adcBoardNo)
 
-    def setTestPatternMode(self,adcBoardNo,state):
+    def setTestPatternMode(self,state,adcBoardNo='all'):
         """
         Switches the Test mode on/off for the given ADC board
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int (1..4) or string
-            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
         state:bool
             Switch the Test mode on if True, off if False
+        adcBoardNo: int (1..4) or the string 'all' (default)
+            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
 
         Returns
         ^^^^^^^
@@ -3033,27 +3040,27 @@ class APDCAM10G_control:
         
         """
 
-        return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.TM,1 if state else 0)
+        return self.setAdcRegisterBit(self.ADC_registers.CONTROL.TM,1 if state else 0,adcBoardNo=adcBoardNo)
     
-    def getTestPatternMode(self,adcBoardNo):
+    def getTestPatternMode(self,adcBoardNo='all'):
         """
         Returns
         ^^^^^^^
         error   - error message or empty string
         bit     - True/False indicating whether the Test Pattern Mode bit is set
         """
-        return self.getAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.TM)
+        return self.getAdcRegisterBit(self.ADC_registers.CONTROL.TM,adcBoardNo=adcBoardNo)
 
-    def setFilterOn(self,adcBoardNo,state):
+    def setFilterOn(self,state,adcBoardNo='all'):
         """
         Switches the filter on or off for the given board
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int (1..4) or string
-            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
         state:bool
             Switch the filter on if True, off if False
+        adcBoardNo: int (1..4) or the string 'all' (default)
+            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
 
         Returns
         ^^^^^^^
@@ -3061,18 +3068,18 @@ class APDCAM10G_control:
         
         """
 
-        return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.FIL,1 if state else 0)
+        return self.setAdcRegisterBit(self.ADC_registers.CONTROL.FIL,1 if state else 0,adcBoardNo=adcBoardNo)
 
-    def setReverseBitord(self,adcBoardNo,state):
+    def setReverseBitord(self,state,adcBoardNo='all'):
         """
         Switches reverse bit order on/off
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo: int (1..4) or string
-            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
         state:bool
             Switch reverse bit order if true. 
+        adcBoardNo: int (1..4) or the string 'all' (default)
+            The ADC board number (1..4) or 'all' to indicate that it should be made for all ADCs
 
         Returns
         ^^^^^^^
@@ -3080,29 +3087,26 @@ class APDCAM10G_control:
         
         """
 
-        return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.RBO,1 if state else 0)
+        return self.setAdcRegisterBit(self.ADC_registers.CONTROL.RBO,1 if state else 0,adcBoardNo=adcBoardNo)
 
-    def getReverseBitord(self,adcBoardNo):
-        return self.getAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.RBO)
+    def getReverseBitord(self,adcBoardNo='all'):
+        return self.getAdcRegisterBit(self.ADC_registers.CONTROL.RBO,adcBoardNo=adcBoardNo)
 
-    def setFilterCoeffs(self,adcBoardNo,values):
+    def setFilterCoeffs(self,values,adcBoardNo='all'):
         """
         Sets the FIR/IIR filter coefficients
 
         Parameters
         ^^^^^^^^^^
-        adcBoardNo : int (1..4)
-            ADC Board number
         values: array[8]
             Filter coefficient values
+        adcBoardNo : int (1..4)
+            ADC Board number or the string 'all' (default)
 
         Returns
         ^^^^^^^
         Error message or empty string
         """
-
-        if adcBoardNo < 1 or len(self.status.ADC_address) < adcBoardNo:
-            return "Bad ADC board number: " + str(adcBoardNo)
 
         if len(values) != 8:
             return "The number of values must be 8!"
@@ -3120,7 +3124,8 @@ class APDCAM10G_control:
         # Loop over all coeffs, and write them one-by-one to the camera. Upon writing the last one, the values are
         # written from the camera registers to the FPGA
         for i in range(8):
-            err = self.writePDI(self.status.ADC_address[adcBoardNo-1],self.codes_ADC.ADC_REG_COEFF_01+2*i,values[i],numberOfBytes=2,arrayData=False)
+            #err = self.writePDI(self.status.ADC_address[adcBoardNo-1],self.codes_ADC.ADC_REG_COEFF_01+2*i,values[i],numberOfBytes=2,arrayData=False)
+            err = self.setAdcRegister(self.ADC_registers.COEFF[i], value=values[i], adcBoardNo=adcBoardNo)
             if err != "":
                 return err
             time.sleep(0.01) # for safety, too quick writes may fail... I don't know (D. Barna)
@@ -3238,7 +3243,7 @@ class APDCAM10G_control:
         adc_no       = ((channel-1)//32)  # 0..3
         channel_no   = ((channel-1)% 32)  # 0..31
         chip_no      = channel_no//8      # 0..3
-        return self.setAdcRegisterBit(adc_no+1,self.ADC_registers.CHENABLE[chip_no].CH[channel_no%8],1 if state else 0)
+        return self.setAdcRegisterBit(self.ADC_registers.CHENABLE[chip_no].CH[channel_no%8],1 if state else 0,adcBoardNo=adc_no+1)
 
     def getCallight(self):
         """ Get the current calibration  light setting.
@@ -3337,6 +3342,43 @@ class APDCAM10G_control:
         return err
 
 
+    
+    def HVOn(self,n):
+        """
+        Switches on detector HV. It is just a wrapper around hvOnOff(n,true/false) which can parametrically switch on/off
+
+        Parameters
+        ^^^^^^^^^^
+        n : int
+            The HV generator number (1...)
+
+        Returns
+        ^^^^^^^
+        error: string
+            Error message, or empty string if no error
+        """
+
+        return self.hvOnOff(n,True)
+
+    def HVOff(self,n):
+        """
+        Switches off detector HV. It is just a wrapper around hvOnOff(n,true/false) which can parametrically switch on/off
+
+        Parameters
+        ^^^^^^^^^^
+        n : int
+            The HV generator number (1...)
+
+        Returns
+        ^^^^^^^
+        error: string
+            Error message, or empty string if no error
+        
+        """
+
+        return self.hvOnOff(n,False)
+
+    
     def hvOnOff(self,n,on):
         """
         Switches on detector HV on or off
@@ -3407,18 +3449,19 @@ class APDCAM10G_control:
             return "Error setting internal trigger:"+err
         return ""
 
-    def setInternalTriggerAdc(self, adcBoardNo, enable):
+    def setInternalTriggerAdc(self, enable, adcBoardNo='all'):
         """
         Enable/Disable trigger output in one or all ADC blocks.
 
         Parameters
         ^^^^^^^^^^
-        adcBoard: int(1..4) or the string 'all'
-            The ADC board number
         enable : boolean, optional
             True: Enable trigger. 
             False: Disable trigger.
                    The default is True.
+
+        adcBoard: int(1..4) or the string 'all' (default)
+            The ADC board number
 
         Returns
         ^^^^^^^
@@ -3426,10 +3469,10 @@ class APDCAM10G_control:
 
         """
 
-        return self.setAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.ITE,1 if enable else 0)
+        return self.setAdcRegisterBit(self.ADC_registers.CONTROL.ITE,1 if enable else 0,adcBoardNo=adcBoardNo)
 
     def getInternalTriggerAdc(self,adcBoardNo):
-        return self.getAdcRegisterBit(adcBoardNo,self.ADC_registers.CONTROL.ITE)
+        return self.getAdcRegisterBit(self.ADC_registers.CONTROL.ITE,adcBoardNo=adcBoardNo)
     
     def setGate(self, externalGateEnabled=False, externalGateInverted=False, internalGateEnabled=False, internalGateInverted=False, camTimer0Enabled=False, camTimer0Inverted=False, swGate=False):
         """
@@ -3568,7 +3611,7 @@ class APDCAM10G_control:
                 error += ("\n" if error != "" else "") + "clearTriggerStatus can not be set for this firmware. Ignoring"
                 
         # enable outputting the internal trigger on all ADC boards as well (still not on the channel-level!)
-        err = self.setInternalTriggerAdc(adcBoardNo='all',enable=internalTrigger)
+        err = self.setInternalTriggerAdc(enable=internalTrigger,adcBoardNo='all')
         if err != "":
             error += ("\n" if error != "" else "") + err
 
@@ -3620,9 +3663,9 @@ class APDCAM10G_control:
         data = bytes([15])
         self.sendCommand(self.codes_CC.OP_SETSTREAMCONTROL,data,sendImmediately=True)
 
-        self.setAdcStreamMode('all','off')
+        self.setAdcStreamMode('off')
         time.sleep(1)
-        self.setAdcStreamMode('all','gated')
+        self.setAdcStreamMode('gated')
 
         #             SWT     Delay    
         data = bytes([0x20,   0,0,0,0,   0,0,0,0,0,0x64])
@@ -3779,7 +3822,7 @@ class APDCAM10G_control:
             self.measurePara.sampleDiv =  int(self.status.CC_settings[self.codes_CC.CC_REGISTER_SAMPLEDIV])
 
         if (bits != None):
-            err = self.setAdcResolution('all',bits)
+            err = self.setAdcResolution(bits)
             if err!='':
                 logger.showError(err)
                 return err,"",None
@@ -4324,6 +4367,8 @@ class APDCAM10G_control:
             self.connect(self.APDCAM_IP)
         return ""
 
+# In order to remain compatible with old code, an alias type to APDCAM10G_control    
+APDCAM10G_regCom = APDCAM10G_control    
     
 
 # end of class controller
@@ -4929,7 +4974,7 @@ class APDCAM10G_data:
         # are first enabled, waiting for the BURST_START issued by the ADC cards when they are set to any of the transmitting modes
 #        if streamMode is not None:
 #            print("Setting ADC stream modes to OFF")
-#            self.APDCAM.setAdcStreamMode('all','off')
+#            self.APDCAM.setAdcStreamMode('off')
 
         self.stop_stream()
         
@@ -4949,7 +4994,7 @@ class APDCAM10G_data:
 
         # now, if streamMode is given (i.e. FW>=1.05, where ADC boards have different stream modes), then set them
         if streamMode is not None:
-            err = self.APDCAM.setAdcStreamMode('all',streamMode)
+            err = self.APDCAM.setAdcStreamMode(streamMode)
         if err != "":
             return err
 
@@ -4973,7 +5018,7 @@ class APDCAM10G_data:
         # for firmware version >=1.05 the ADC stream mode needs to be set to 'Off' as well
         if self.APDCAM.version >= 105:
             print("Setting all ADC stream modes to OFF")
-            self.APDCAM.setAdcStreamMode('all','off')
+            self.APDCAM.setAdcStreamMode('off')
 
         # disable all streams
         return self.APDCAM.sendCommand(self.APDCAM.codes_CC.OP_SETSTREAMCONTROL,bytes([0]),sendImmediately=True)
