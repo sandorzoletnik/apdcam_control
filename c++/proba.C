@@ -7,25 +7,43 @@
 #include <tuple>
 #include <deque>
 //#include "error.h"
-//#include "ring_buffer.h"
+#include "ring_buffer.h"
 //#include "safe_semaphore.h"
 #include <string.h>
 using namespace std;
-//using namespace apdcam10g;
+using namespace apdcam10g;
 
-class empty
-{};
 
-class A : public empty
-{
-public:
-    int i;
-};
+
 
 int main()
 {
-    A a;
-    cerr<<sizeof(A)<<endl;
+
+    ring_buffer<char> buffer(10);
+
+    std::jthread consumer([&]{
+        while(true)
+        {
+            buffer.wait_for_size();
+            char c = buffer.front();
+            if(c=='\r') break;
+            cerr<<c;
+            buffer.pop_front();
+        }
+    });
+
+    std::jthread producer([&]{
+        std::string text = "Hol volt, hol nem volt, volt egyszer egy kislany, aki elment vadaszni. Az erdoben talalkozott a nagy buidos farkassal. Hogy vagy kislany? Kredezte a farkas. Csak nem vadaszol? Azzal bekapta";
+        for(int i=0; i<text.size(); ++i)
+        {
+            buffer.wait_for_space();
+            buffer.push_back(text[i]);
+        }
+        buffer.push_back('\r');
+    });
+
+    producer.join();
+    consumer.join();
 
     return 0;
 }

@@ -106,7 +106,8 @@ namespace apdcam10g
             {
                 // Resize the corresponding ring buffer
                 channel_data_buffers_[i_adc][i_enabled_channel].resize(sample_buffer_size_,2*process_period_);
-                channel_data_buffers_[i_adc][i_enabled_channel].channel_info::assign(channelinfo_[i_adc][i_enabled_channel]);
+                // Copy the inherited properties channel_info::XXX
+                channel_data_buffers_[i_adc][i_enabled_channel] = channelinfo_[i_adc][i_enabled_channel];
                 channel_data_buffers_[i_adc][i_enabled_channel].
                 // And index the set of ring buffers by absolute channel number
                 channel_data_buffers_map_[channelinfo_[i_adc][i].absolute_channel_number] = std::addressof(channel_data_buffers_[i_adc][i]);

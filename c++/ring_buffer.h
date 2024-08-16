@@ -61,8 +61,8 @@ namespace apdcam10g
     private:
         mutable rw_mutex mutex_;
 
-        condition_variable popped_;
-        condition_variable pushed_;
+        condition_variable_any popped_;
+        condition_variable_any pushed_;
 
         // The capacity (allocated continuous memory) to store data in a cyclic way
         unsigned int capacity_ = 0;
@@ -85,10 +85,12 @@ namespace apdcam10g
 
         // Two absolute counters, keeping track of the counts of objects going through the
         // buffer since its last reset.
-        unsigned int back_counter_, front_counter_;
+        int back_counter_=-1, front_counter_=0;
 
         bool empty_ = true;
 
+        int wait_for_counter_ = -1;
+        
     public:
         typedef T type;
 
@@ -105,17 +107,39 @@ namespace apdcam10g
         // Block the calling thread until the predicate returns true. The predicate is called initially, and
         // if it returns false, it is repeatedly called upon push/pop operations, respectively. 
         template <typename Predicate>
-        void wait_push(Predicate predicate)
+        void wait_push(Predicate pred)
             {
-                std::unique_lock<rw_mutex> lock;
-                pushed_.wait(lock,predicate);
+                std::unique_lock<rw_mutex> lock(mutex_);
+                pushed_.wait(lock,pred);
+            }
+
+        // Block the calling thread until 'count' new data is available since the last call or since
+        // the empty state. The calling thread is blocked, and 
+        void wait_for_new(unsigned int count)
+            {
+                std::unique_lock<rw_mutex> lock(mutex_);
+                wait_for_counter_ += count;
+                pushed_.wait(lock,[this]{return back_counter_ >= wait_for_counter_;});
+            }
+
+        void wait_for_size(unsigned int count=1)
+            {
+                std::unique_lock<rw_mutex> lock(mutex_);
+                pushed_.wait(lock, [this,count]{return size_nolock() >= count; });
             }
 
         template <typename Predicate>
         void wait_pop(Predicate pred)
             {
                 std::unique_lock<rw_mutex> lock;
-                popped_.wait(lock,predicate);
+                popped_.wait(lock,pred);
+            }
+
+        // Block the calling thread until there is available space of size 'count'
+        void wait_for_space(unsigned int count=1)
+            {
+                std::unique_lock<rw_mutex> lock(mutex_);
+                popped_.wait(lock,[this,count]{return available_nolock() >= count; });
             }
 
         // Remember to explicitly call the constructor of mutex_(). If it is not called, it is not initialized
@@ -153,18 +177,25 @@ namespace apdcam10g
             }
 
         // Return the size of data actually available in the buffer
+        inline unsigned int size_nolock() const
+        {
+            return (empty_ ? 0 : (back_index_ + (back_index_<front_index_?capacity_:0))-front_index_+1);
+        }
         inline unsigned int size() const
         {
             rw_mutex::read_lock rl(mutex_);
-            return (empty_ ? 0 : (back_index_ + (back_index_<front_index_?capacity_:0))-front_index_+1);
+            return size_nolock();
         }
 
+                    
+        inline unsigned int available_nolock() const
+        {
+            return capacity_ - size_nolock();
+        }
         inline unsigned int available() const
         {
             rw_mutex::read_lock rl(mutex_);
-            return capacity_ - (empty_ ? 0 : (back_index_ + (back_index_<front_index_?capacity_:0))-front_index_+1);
-            //                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-            // This is just the same code (should be) as 'size()'
+            return available_nolock();
         }
 
         // Allocate memory for storing the data. The size of the allocated memory that will be available for
@@ -200,7 +231,7 @@ namespace apdcam10g
             empty_ = true;
 
             front_counter_ = 0;
-            back_counter_ = (unsigned int)-1; // to ensure that the first increment brings it to zero
+            back_counter_ = (unsigned int)(-1); // to ensure that the first increment brings it to zero
 
             // This is not an error - we allow initialization by 0 capacity (if the buffer is for example
             // contained in a vector<ring_buffer>, default constructible is a requirement), it can then be
@@ -464,13 +495,13 @@ namespace apdcam10g
         // associated with the front and back elements.
         // Note that these return invalid values when called on an empty buffer
         // If S==safe, apdcam10g::error is thrown if the buffer is empty
-        unsigned int front_counter() const 
+        int front_counter() const 
             {
                 rw_mutex::read_lock rl(mutex_);
                 if(S == safe && empty_) APDCAM_ERROR("Empty ring buffer, ring_buffer::front_counter() must not be called");
                 return front_counter_;
             }
-        unsigned int back_counter() const 
+        int back_counter() const 
             {
                 rw_mutex::read_lock rl(mutex_);
                 if(S == safe && empty_) APDCAM_ERROR("Empty ring buffer, ring_buffer::front_counter() must not be called");
@@ -506,6 +537,10 @@ namespace apdcam10g
             }
             return buffer_[(front_index_+offset)%capacity_];
         }
+
+        // Create an operator to assign a BASE type object to this ring_buffer (the aim is to simply copy
+        // all properties of BASE in a single statement)
+        const BASE &operator=(const BASE &base) { BASE::operator=(base); return base; }
     };
 
 

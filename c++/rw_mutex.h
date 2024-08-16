@@ -81,7 +81,18 @@ namespace apdcam10g
                 // This is not needed, destructor anyway unlocks [D.Barna]
                 //lk.unlock();
             }
-        
+
+        bool try_lock_read()
+            {
+                std::unique_lock<std::mutex> lk(shared);
+                if(waiting_writers == 0)
+                {
+                    ++active_readers;
+                    return true;
+                }
+                return false;
+            }
+
         void unlock_read() 
             {
                 std::unique_lock<std::mutex> lk(shared);
@@ -104,9 +115,9 @@ namespace apdcam10g
         bool try_lock_write()
             {
                 std::unique_lock<std::mutex> lk(shared);
-                ++waiting_writers;
                 if(active_readers==0 && active_writers==0)
                 {
+                    ++waiting_writers;
                     ++active_writers;
                     return true;
                 }
@@ -115,7 +126,8 @@ namespace apdcam10g
 
         void unlock_write() 
             {
-                std::unique_lock<std::mutex> lk(shared);
+                
+std::unique_lock<std::mutex> lk(shared);
                 --waiting_writers;
                 --active_writers;
                 if(waiting_writers > 0)
@@ -126,13 +138,13 @@ namespace apdcam10g
                 //lk.unlock();
             }
 
-        // The function 'lock()' and 'unlock()' are simply aliases for lock_write and unlock_write to satisfy the Requirement 'BasicLockable'
+        // The function 'lock()' and 'unlock()' are simply aliases for lock_read and unlock_read to satisfy the Requirement 'BasicLockable'
         // needed for this mutex being able to work with unique_lock, etc
-        void lock()    {lock_write();}
-        void unlock()  {unlock_write();}
+        void lock()    {lock_read();}
+        void unlock()  {unlock_read();}
 
         // To satisfy the Requirement 'Lockable'
-        bool try_lock() { return try_lock_write(); }
+        bool try_lock() { return try_lock_read(); }
 
 
 private:
