@@ -1,3 +1,6 @@
+a.out : proba.C ring_buffer.h
+	g++ -std=c++20 -Wno-interference-size proba.C
+
 SRCS = $(wildcard *.C)
 DEPS = $(SRCS:.C=.d)
 OBJS = $(SRCS:.C=.o)
@@ -12,11 +15,12 @@ clean :
 	rm -f *.o *.so *.d *~
 	cd test; $(MAKE) clean
 
+# uncomment this
 include $(DEPS)
 
 
 %.o : %.C
-	g++ -DFOR_PYTHON -fPIC -O2 -std=c++20 -c -o $@ $<
+	g++ -DFOR_PYTHON -fPIC -O2 -std=c++20 -Wno-interference-size -c -o $@ $<
 
 %.d : %.C
 	g++ -DFOR_PYTHON -M -MF $@ $^

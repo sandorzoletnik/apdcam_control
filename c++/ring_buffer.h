@@ -1,552 +1,338 @@
+/*
+
+  ring_buffer is a fixed-size buffer offering a cyclic push-pop operation. It is only thread-safe in a
+  single-producer/single-consumer scheme. 
+
+  Instead of cyclically reset the push/pop indices to zero whenever they reach the end of the buffer
+  (this should be checked by an if statement every time these indices are updated, i.e. an element is
+  pushed or popped), we keep track of the actual data stored in the buffer using two counters which
+  keep running continuously/infinitely (they will of course overflow at some point). This solves two problems
+  at the same time:
+
+  1 - If the pop and push indices were limited to [0..buffersize[, pop_index==push_index could
+      indicate either a full or empty buffer. An extra flag would be needed to keep track,
+      causing further complications. With the chosen scheme, push_counter==pop_counter
+      indicates empty buffer, whereas push_counter==pop_counter+buffersize indicates full buffer.
+  2 - Data from different channels may come through different sockets from the camera. The camera
+      raw data format does not include timestamps or other means of synchronization. It is only
+      the count of data of the individual channels that can be used. The above scheme (i.e. a
+      continuously running counter for both push and pop positions) automatically provides
+      this feature
+  
+ */
+  
 #ifndef __APDCAM10G_RING_BUFFER_H__
 #define __APDCAM10G_RING_BUFFER_H__
 
-/*
-
-  A templated ring-buffer, which automatically calls 'mlock' on the reserved memory to
-  inhibit swapping it out to disk. It is implementing a FIFO queue on a fixed-size pre-allocated
-  memory buffer in a cyclic way. The C++ STL container concepts are adopted (in terms of member functions
-  and naming conventions - see front, back, push_back, pop_front, size, empty --- the member functions required
-  for a container to be the underlying container of a std::queue (https://cplusplus.com/reference/queue/queue/)
-
-  The data (*) can be laid out in memory (non-used bytes are shown by -) as follows
-
-                begin()                                end()
-                front()                            back()|
-                  v                                     vv
-  ----------------***************************************-------------------------------
-
-            back                                          front
-             v                                              v
-  ************----------------------------------------------****************************
-
-  front() and back() access the extreme elements in the buffer. begin() and end() return iterators, similarly to STL
-  containers, which point to the front() element, and one beyond the back() element
-  
-  Whenever the container is full, no more push_back operations are possible, apdcam10g::error will be thrown.
-  Similarly, if the buffer is empty, pop_front() will throw apdcam10g::error
-
-  There are 3 template arguments of ring_buffer:
-  1. the type it stores
-  2. the safeness, a constant, either 'apdcam10g::safe' or 'apdcam10g::unsafe'. The default is 'apdcam10g::safe'
-  3. a type that the ring_buffer will derive from. By default it is an auxiliary empty class so that the user does not
-     need to care about it. By using this, one can add extra functionality, store extra info along with the ring buffer
-     very easily, using classes defined and used elsewhere
-  
- */
-
-#include "error.h"
-#include "safeness.h"
-#include "rw_mutex.h"
-#include <bit>
-#include <sys/mman.h>
-#include <tuple>
-#include <atomic>
-#include <condition_variable>
-
 #include <iostream>
+#include <atomic>
+#include <new>
+#include <sys/mman.h>
+#include "error.h"
+
 using namespace std;
-
-
 
 namespace apdcam10g
 {
+    class EMPTY_RING_BUFFER_BASE {};
 
-    // An empty class to serve as the default 3rd template argument of ring_buffer
-    class EMPTY {};
-
-    template <typename T = std::byte, safeness S=apdcam10g::safe, typename BASE=EMPTY>
-    class ring_buffer : public BASE
+    template<typename T, typename BASE=EMPTY_RING_BUFFER_BASE>
+    class ring_buffer : EMPTY
     {
     private:
-        mutable rw_mutex mutex_;
 
-        condition_variable_any popped_;
-        condition_variable_any pushed_;
+        // Both pop_counter_ and push_counter_ are read by both the producer and consumer threads,
+        // so ensure these two atomic variables are in the same cache-line to avoid the need to
+        // synchronize two cache-lines
+        alignas(std::hardware_destructive_interference_size) std::atomic<size_t> pop_counter_;
+        std::atomic<size_t> push_counter_;
 
-        // The capacity (allocated continuous memory) to store data in a cyclic way
-        unsigned int capacity_ = 0;
+        // mask_ is the buffersize-1. Buffersize must be power of 2 so mask will be used to
+        // enforce cyclic indexing (modulo buffersize of the continuously running counters)
+        size_t              mask_;
 
-        // The user can request to allocate an extended continuous memory region for the following purpose.
-        // The data will normally still be only stored in the 'normal' memory region, i.e.
-        // in the range [0..capacity_[, but the underlying continuous memory region will be longer, so that
-        // if some client can only handle a continuous memory region when reading, and it wants to access
-        // a range of data that is split (at the end of the buffer, and at the beginning), then instead
-        // of copying/merging both of these two data segments into a newly allocated continuous memory,
-        // only the segment at the beginning of the ring buffer needs to be copied to the end (if there is
-        // sufficient space available)
-        unsigned int extended_capacity_ = 0;
+        // Extra size at the end of the buffer so that if a continuous range of elements is
+        // required, those elements which eventually happen to be at the front, can be copied
+        // to the extra space at the end
+        size_t extra_size_;
 
-        T *buffer_= 0; // Pointer to the first object of the available buffer space
+        // dynamically allocated buffer to store the data
+        T*     buffer_ = 0;
 
-        // Offsets (with respect to the buffer's start address) of the front and back elements
-        // Note that 'back' is not "past the last element", but the last one
-        unsigned int back_index_, front_index_; 
+        // A true/false flag to communicate from the producer thread to the consumer thread that
+        // the data flow is terminated, no more data than that available currently in the buffer
+        // will be produced
+        std::atomic_flag        terminated_;
 
-        // Two absolute counters, keeping track of the counts of objects going through the
-        // buffer since its last reset.
-        int back_counter_=-1, front_counter_=0;
+        ring_buffer(ring_buffer const&);
+        void operator = (ring_buffer const&);
 
-        bool empty_ = true;
-
-        int wait_for_counter_ = -1;
-        
     public:
-        typedef T type;
-
-        ring_buffer(unsigned int capacity=0, unsigned int extended_capacity=0)
+        void resize(size_t buffer_size, size_t extra_size=0)
         {
-            resize(capacity,extended_capacity);
-        }
-        ~ring_buffer()  
-        { 
-            ::munlock(buffer_,sizeof(T)*capacity_);
-            delete [] buffer_; 
-        }
-
-        // Block the calling thread until the predicate returns true. The predicate is called initially, and
-        // if it returns false, it is repeatedly called upon push/pop operations, respectively. 
-        template <typename Predicate>
-        void wait_push(Predicate pred)
+            if(buffer_ != 0)
             {
-                std::unique_lock<rw_mutex> lock(mutex_);
-                pushed_.wait(lock,pred);
-            }
-
-        // Block the calling thread until 'count' new data is available since the last call or since
-        // the empty state. The calling thread is blocked, and 
-        void wait_for_new(unsigned int count)
-            {
-                std::unique_lock<rw_mutex> lock(mutex_);
-                wait_for_counter_ += count;
-                pushed_.wait(lock,[this]{return back_counter_ >= wait_for_counter_;});
-            }
-
-        void wait_for_size(unsigned int count=1)
-            {
-                std::unique_lock<rw_mutex> lock(mutex_);
-                pushed_.wait(lock, [this,count]{return size_nolock() >= count; });
-            }
-
-        template <typename Predicate>
-        void wait_pop(Predicate pred)
-            {
-                std::unique_lock<rw_mutex> lock;
-                popped_.wait(lock,pred);
-            }
-
-        // Block the calling thread until there is available space of size 'count'
-        void wait_for_space(unsigned int count=1)
-            {
-                std::unique_lock<rw_mutex> lock(mutex_);
-                popped_.wait(lock,[this,count]{return available_nolock() >= count; });
-            }
-
-        // Remember to explicitly call the constructor of mutex_(). If it is not called, it is not initialized
-        // and will be in an undefinite state
-        ring_buffer(const ring_buffer<T,S> &rhs) : mutex_() 
-        {
-            resize(rhs.capacity_,rhs.extended_capacity_);
-            for(unsigned int i=rhs.front_index_; i%capacity_<rhs.back_index_; ++i)
-            {
-                buffer_[i%capacity_] = rhs.buffer_[i%capacity_];
-                back_index_ = rhs.back_index_;
-                front_index_ = rhs.front_index_;
-                back_counter_ = rhs.back_counter_;
-                front_counter_ = rhs.front_counter_;
-            }
-        }
-
-
-        inline bool empty() const
-        {
-            rw_mutex::read_lock rl(mutex_);
-            return empty_;
-        }
-        inline bool full() const
-        {
-            rw_mutex::read_lock rl(mutex_);
-            return capacity_==0 || (!empty_ && back_index_==(front_index_+capacity_-1)%capacity_);
-        }
-
-        // Get the capacity (i.e. the physical size of the buffer, irrespectively of how full it is)
-        unsigned int capacity() const 
-            { 
-                rw_mutex::read_lock rl(mutex_);
-                return capacity_; 
-            }
-
-        // Return the size of data actually available in the buffer
-        inline unsigned int size_nolock() const
-        {
-            return (empty_ ? 0 : (back_index_ + (back_index_<front_index_?capacity_:0))-front_index_+1);
-        }
-        inline unsigned int size() const
-        {
-            rw_mutex::read_lock rl(mutex_);
-            return size_nolock();
-        }
-
-                    
-        inline unsigned int available_nolock() const
-        {
-            return capacity_ - size_nolock();
-        }
-        inline unsigned int available() const
-        {
-            rw_mutex::read_lock rl(mutex_);
-            return available_nolock();
-        }
-
-        // Allocate memory for storing the data. The size of the allocated memory that will be available for
-        // writing data is 'capacity', but if the argument 'extended_capacity' is not zero (and in this case must
-        // be larger or equal to capacity), then in fact a larger memory region of size extended_capacity is
-        // allocated. This extra space will allow copying data segments from the beginning of the buffer
-        // to the end to make data available in a continuous way for clients that only can use data this way.
-        // That is, we do not need to copy two data segments (from the end and from the beginning of the buffer)
-        // to a newly allocated continuous memory in this case, but only the segment from the beginning of the buffer.
-        // Initialize the write/read pointers to the beginning of the buffer. Reset the counter to zero.
-        void resize(unsigned int capacity,unsigned int extended_capacity=0) 
-        {
-            if(extended_capacity==0) extended_capacity=capacity;
-            if(extended_capacity<capacity) APDCAM_ERROR("Extended capacity must not be smaller than capacity");
-
-            rw_mutex::write_lock wl(mutex_);
-
-            // If there is previously reserved buffer, unlock it first, and then free it
-            if(buffer_)
-            {
-                if(::munlock(buffer_,sizeof(T)*extended_capacity_) != 0) APDCAM_ERROR_ERRNO(errno);
+                ::munlock(buffer_,mask_+1+extra_size_);
                 delete [] buffer_;
             }
+            // Ensure buffer_size is power of 2
+            if(buffer_size>=2 && (buffer_size&(buffer_size-1))!=0) APDCAM_ERROR("Ring buffer size must be a power of 2");
 
-            capacity_ = capacity;
-            extended_capacity_ = extended_capacity_;
-
-            // These settings themselves would be equivalent to a full buffer, but the empty_ flag indicates
-            // it is in fact empty.
-            // These initial values ensure that subsequent front/back increments result in a valid state
-            front_index_ = 0;
-            back_index_ = capacity_-1;
-            empty_ = true;
-
-            front_counter_ = 0;
-            back_counter_ = (unsigned int)(-1); // to ensure that the first increment brings it to zero
-
-            // This is not an error - we allow initialization by 0 capacity (if the buffer is for example
-            // contained in a vector<ring_buffer>, default constructible is a requirement), it can then be
-            // resized later
-            if(capacity_==0) return;
-
-            buffer_ = new T[extended_capacity];
-            if(::mlock(buffer_,sizeof(T)*extended_capacity) != 0) APDCAM_ERROR_ERRNO(errno);
-        }
-
-        // WARNING! This function is not thread-safe in the sense that even though it returns low-level memory pointers
-        // for low-level write operations (to be done by the user, outside of the scope of the class) in a thread-safe way
-        // (i.e. the returned pointers and size values are calculated without race condition), but exactly since the write
-        // operation is outside of the scope of the class, by the user, it can get in race condition with other eventual
-        // write operations on the same buffer. If there are no parallel threads that use low-level writing using this
-        // function, there is no problem.
-        //
-        // Return one or two continuous memory regions for low-level writing of new data directly into memory, 
-        // at the 'back' of the buffer. 
-        // If the required size is available without splitting
-        // (i.e. without jumping to the start), only the first pair (T*,int) is non-zero. Otherwise both pointers and integers
-        // are non-zero, and data must be written to these two regions, in a split way. Note that this function DOES NOT INCREMENT
-        // the write pointer, it must be done by the user. If the required size 'write_size' is not available, both
-        // returned pointers and sizes are zero.
-        // The two regions starting at buf1 (and eventually at buf2) are continuous and can be read/written by low-level
-        // memcpy etc functions as well, if needed
-        // Better explained through an example:
-        // auto [buf1,size1,buf2,size2] = the_ring_buffer.write_region(100);
-        // if(buf1==0) APDCAM_ERROR("No room to write 100 objects"); // buf1=buf1=0, size1=size2=0
-        // // Here, size1+size2=100. Write 'size1' objects to the memory starting at buf1, and IF buf2!=0,
-        // // write the remaining objecs (size2=100-size1) to the memory starting at buf2
-        // the_ring_buffer.increment_write_ptr(100); // if successfully written
-        std::tuple<T*,unsigned int,T*,unsigned int> write_region(unsigned int write_size)
-        {
-            // We only create a read_lock (!) and not a write lock, to ensure that we calculate the
-            // pointers/sizes for the low-level memory write operations without race conditions.
-            rw_mutex::read_lock rl(mutex_);
+            // The mask to realize modulo buffer_size operations efficiently (bitwise mask)
+            mask_ = buffer_size-1;
             
-            // If the required size does not fit into the available free buffer (even if split), return zero
-            if(write_size > available()) return {0,0,0,0};
+            // Store extra size
+            extra_size_ = extra_size;
 
-            // If the requested size fits into a single contiguous domain at the back, return one chunk
-            const int start = (back_index_+1)%capacity_; // The start pointer for the write region
-            if(start+write_size<capacity_) return {buffer_+start,write_size,0,0};
+            // Allocate buffer with extra space for flattening
+            buffer_ = new T[buffer_size+extra_size];
 
-            // Otherwise return 2 chunks
-            const unsigned int size1 = capacity_ - start; // back_index_ is less than capacity_, guaranteed, so subtracting these unsigned ints is ok
-            const unsigned int size2 = write_size-size1;
-            return {buffer_+start,size1,buffer_,size2};
+            // Prevent the buffer memory from beeing swapped to disk
+            if(::mlock(buffer_,buffer_size+extra_size) != 0) APDCAM_ERROR_ERRNO(errno);
+
+            // Initialize counters and terminated flag
+            push_counter_.store(0, std::memory_order_relaxed);
+            pop_counter_.store(0, std::memory_order_relaxed);
+            terminated_.clear(std::memory_order_relaxed);
         }
 
-        // Analogue of write_region(unsigned int size) - return one or two contiguous memory regions for reading, starting at the
-        // front of the buffer
-        // 'offset' is an optional offset value counted from the front of the buffer
-        std::tuple<T*,unsigned int, T*,unsigned int> read_region(unsigned int read_size, unsigned int offset=0)
+        ~ring_buffer()
         {
-            rw_mutex::read_lock rl(mutex_);
-            if((empty_ ? 0 : (back_index_ + (back_index_<front_index_?capacity_:0))-front_index_+1) < offset+read_size) return {0,0,0,0};
-            //  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  this is equivalent to 'size()'
-            const unsigned int start = (front_index_+offset)%capacity_;
-            if(start+read_size <= capacity_) return {buffer_+start,read_size,0,0};
-            const unsigned int size1 = capacity_ - start; // front_index_ is less than capacity_, guaranteed, so subtracting these two unsigned ints is ok
-            const unsigned int size2 = read_size-size1;
-            return {buffer_+start,size1,buffer_,size2};
-        }
-
-        // The same as read_region, but if the requested data is only available in a split way, copy
-        // the segment from the beginng of the buffer to the end (into the extended memory region), if it fits.
-        // If it does not fit, or if the required amount of data is not available, return zero
-        // Note that data copying is made by memcpy, i.e. not by object copy constructors. 
-        T* read_region_continuous(unsigned int read_size, unsigned int offset=0)
-        {
-            rw_mutex::read_lock rl(mutex_);
-            if((empty_ ? 0 : (back_index_ + (back_index_<front_index_?capacity_:0))-front_index_+1) < offset+read_size) return 0;
-            //  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  this is equivalent to 'size()'
-            const unsigned int start = (front_index_+offset)%capacity_;
-
-            // If this size is available continuously, just return
-            if(start+read_size <= capacity_) return buffer_+start;
-
-            // If the flattened data would not fit into the extended range, return zero
-            if(start+read_size >= extended_capacity_) return 0;
-
-
-            const unsigned int size1 = capacity_ - start; // front_index_ is less than capacity_, guaranteed, so subtracting these two unsigned ints is ok
-            const unsigned int size2 = read_size-size1;
-            memcpy(buffer_+capacity_,buffer_,size2*sizeof(T));
-            return buffer_+start;
-        }
-
-        // The same as read_region_continuous, but accessing a data range by the absolute object counter.
-        T *operator()(unsigned int counter_from, unsigned int counter_to)
-        {
-            if(S==safe)
+            if(buffer_ != 0)
             {
-                if(counter_from < front_counter_ || back_counter_ <= counter_to) APDCAM_ERROR("Trying to access out-of-range data by counter in ring buffer");
+                ::munlock(buffer_,mask_+1+extra_size_);
+                delete [] buffer_;
             }
-            unsigned int offset = counter_from - front_counter_;
-            unsigned int read_size = counter_to - counter_from + 1;
-            return read_region_continuous(read_size,offset);
         }
-        
-        // Iterators
-        
-        class iterator
+
+        const EMPTY &operator=(const EMPTY &rhs)
         {
-        private:
-            ring_buffer<T,safe> *buffer_ = 0;
-            // The index does not cycle back to the start when incremented, so that we can
-            // discrimintate begin() and end() in the case of a full buffer (when the wo would be equal)
-            // Remember that end() is pointing one behind the back, so for a full buffer it would be
-            // the same as begin()
-            unsigned int index_;
-        public:
-            iterator(ring_buffer<T,safe> *b,unsigned int index) : buffer_(b),index_(index) {}
-            const iterator &operator++() { ++index_; return *this; }
-            T &operator*()  { return buffer_->buffer_[index_%buffer_->capacity_]; }
-            T *operator->() { return buffer_->buffer_ + (index_%buffer_->capacity_); }
-            bool operator==(const iterator &rhs) { return index_==rhs.index_ && buffer_==rhs.buffer_; }
-            bool operator!=(const iterator &rhs) { return index_!=rhs.index_ || buffer_!=rhs.buffer_; }
-
-            // Return the global, absolute object counter associated with the object pointed to
-            unsigned int counter() 
-            {
-                if(index_>=buffer_->front_index_) return buffer_->front_counter_ + index_-buffer_->front_index_;
-                return buffer_->front_counter_ + index_ + buffer_->capacity_ - buffer_->front_index_;
-            }
-        };
-
-        friend iterator;
-
-        iterator begin() { rw_mutex::read_lock rl(mutex_); if(empty_) return end(); return iterator(this,front_index_);}
-        iterator end()   { rw_mutex::read_lock rl(mutex_); return iterator(this,back_index_+(back_index_<front_index_?capacity_:0)+1); }
-
-        T &front() 
-        { 
-            rw_mutex::read_lock rl(mutex_);
-            if(S==safe && empty_) APDCAM_ERROR("Empty ring buffer in ring_buffer::front()");
-            return buffer_[front_index_]; 
-        }
-        T &back() 
-        { 
-            rw_mutex::read_lock rl(mutex_);
-            if(S==safe && empty_) APDCAM_ERROR("Empty ring buffer in ring_buffer::back()");
-            return buffer_[back_index_]; 
+            EMPTY::operator=(rhs);
+            return rhs;
         }
 
-        // Append a new object to the back of the buffer. 
-        // If S==safe, it never returns false but throws apdcam10g::error instead
-        void push_back(const T& obj) 
+        bool terminated() const
         {
-            rw_mutex::write_lock wl(mutex_);
-            // Since we already created a write lock, we call the 'increment_write_ptr<false>' template function
-            // to avoid a second lock
-            if(increment_write_ptr_nolock(1)) buffer_[back_index_] = obj;
+            return terminated_.test(std::memory_order_acquire);
         }
 
-        // Remove the front element from the queue. Returns true if success (i.e. the queue was not empty),
-        // false otherwise
-        // If S==safe, it never returns false but throws apdcam10g::error instead
-        bool pop_front()
+        void terminate()
         {
-            // increment_read_ptr itself creates a lock, and we do not do any extra here,
-            // so no need to lock here
-            return increment_read_ptr(1); // This will set empty condition as well, if needed
+            terminated_.test_and_set(std::memory_order_release);
         }
 
-        // Remove n elements from the front. Returns true if success (i.e. there were enough elements to be
-        // popped), false otherwise
-        // If S==safe, it never returns false but throws apdcam10g::error instead
-        bool pop_front(unsigned int n)
+        size_t pop_counter() const 
         {
-            // increment_read_ptr itself creates a lock, and we do not do any extra here,
-            // so no need to lock here
-            return increment_read_ptr(n); // This will set empty condition as well, if needed
+            return pop_counter_.load(std::memory_order_acquire);
+        }
+        size_t push_counter() const 
+        {
+            return push_counter_.load(std::memory_order_acquire);
         }
 
-        // Clear the buffer: remove all elements, make it empty
-        void clear()
+        ring_buffer(size_t buffer_size, size_t extra_size) 
         {
-            rw_mutex::write_lock wl(mutex_);
-            
-            front_index_=0;
-            back_index_=capacity_-1;
-            empty_ = true;
-
-            // This is an invalid state! front_counter_ > back_counter_. Reason: upon writing to the buffer,
-            // only the back_counter_ is incremented, the front_counter_ not. In order to keep this, 
-            // we anticipate, and set front_counter_ to the value it should have after the next write operations.
-            // In an empty state, accessing these counters is anyway meaningless.
-            front_counter_ = back_counter_+1;
+            resize(buffer_size,extra_size);
         }
 
-        // Increment the write pointer by 'n', returns true if it could be done without
-        // going beyond the read pointer, false otherwise.
-        // If S==safe, the function does not return false but throws an apdcam10g::error instead
-        bool increment_write_ptr_nolock(unsigned int n)
+
+        bool push(T const& value)
         {
-            if(n==0) return false;
-            
-            if(n>capacity_)
-            {
-                if(S==safe) APDCAM_ERROR("Can not increment write pointer of ring buffer by more than its capacity");
-                return false;
-            }
-            
-            if(!empty_ && back_index_+n >= front_index_+(back_index_>=front_index_?capacity_:0))
-            {
-                if(S==safe) APDCAM_ERROR("Can not increment write pointer of ring buffer by this amount");
-                return false;
-            }
-            // else -- return false if we want to increase by more than capacity, but this has already been treated
-            
-            back_index_ = (back_index_+n)%capacity_;
-            back_counter_ += n;
-            empty_ = false;
-            pushed_.notify_all();
+            // Take a snapshot of the current status. Read pop_index as second to very slightly increase the chance
+            // that the consumer thread liberates space
+            const size_t push_counter = push_counter_.load(std::memory_order_relaxed);
+            // Pop operations (which update pop_counter) do not have any side effect (they do not even call the destructors
+            // of the objects of type T !) so we can load pop_counter relaxed
+            const size_t pop_counter = pop_counter_.load(std::memory_order_relaxed);
+
+            // Buffer is full
+            if(push_counter >= pop_counter+mask_+1) return false;
+
+            // We are the only producers, and we have room. No other thread will produce data into the buffer, i.e.
+            // no other thread will decrease the available space. Just write to the new place
+            buffer_[push_counter&mask_] = value;
+
+            // We are the only producers, no other thread has changed push_counter_ in the meantime, so use the snapshot value 'push_counter', incremented
+            push_counter_.store(push_counter+1,std::memory_order_release);
             return true;
         }
 
-        bool increment_write_ptr(unsigned int n)
+        bool pop(T &value)
         {
-            rw_mutex::write_lock wl(mutex_);
-            return increment_write_ptr_nolock(n);
-        }    
-        
+            // Take a snapshot of the current status. Read push_counter as second to very slightly increase the chance that the producer thread added new data
+            // and the queue is not empty
+            const size_t pop_counter = pop_counter_.load(std::memory_order_relaxed);
+            const size_t push_counter = push_counter_.load(std::memory_order_acquire);
 
-        // Increment the read pointer by 'n'. Returns true if there were enough elements for the required
-        // increment, false otherwise
-        // If S==safe, the function will never return false but throw an apdcam10g::error instead
-        bool increment_read_ptr(unsigned int n=1)
-        {
-            rw_mutex::write_lock wl(mutex_);
-            if(empty_)
-            {
-                if(S==safe) APDCAM_ERROR("Can not call increment_read_ptr on an empty ring buffer");
-                return false;
-            }
+            // Buffer is empty
+            if(push_counter == pop_counter) return false;
 
-            // Remember not to subtract unsigned ints, transform your formulae to use only addition
-            const unsigned int tmp1 = front_index_+n;
-            const unsigned int tmp2 = back_index_+(front_index_>back_index_?capacity_:0)+1;
+            // We are the only consumers, no other thread has removed data from the front
+            value = buffer_[pop_counter&mask_];
 
-            // We can not increment by this amount, there are not so many elements available
-            if(tmp1>tmp2)
-            {
-                if(S==safe) APDCAM_ERROR("Can not call increment_read_ptr on an empty ring buffer");
-                return false;
-            }
+            // We are the only consumers, no other thread has changed pop_counter_, so use the cached snapshot value 'pop_counter', incremented
+            // We do not produce any side effect that should be propagated to the producer thread (copying the value of the just-popped
+            // element into 'value' is local to this thread) so store relaxed
+            pop_counter_.store(pop_counter+1,std::memory_order_relaxed);
 
-            // front_index exceeds back_index by one. This would be equivalent to a full buffer, but now
-            // it means we popped all elements, so switch on the empty state
-            if(tmp1==tmp2) empty_ = true;
-            front_index_ = (front_index_+n)%capacity_;
-            front_counter_ += n;
-            popped_.notify_all();
             return true;
         }
 
-        // Return the counters (sequential number of the going-through objects starting from 0)
-        // associated with the front and back elements.
-        // Note that these return invalid values when called on an empty buffer
-        // If S==safe, apdcam10g::error is thrown if the buffer is empty
-        int front_counter() const 
-            {
-                rw_mutex::read_lock rl(mutex_);
-                if(S == safe && empty_) APDCAM_ERROR("Empty ring buffer, ring_buffer::front_counter() must not be called");
-                return front_counter_;
-            }
-        int back_counter() const 
-            {
-                rw_mutex::read_lock rl(mutex_);
-                if(S == safe && empty_) APDCAM_ERROR("Empty ring buffer, ring_buffer::front_counter() must not be called");
-                return back_counter_;
-            }
-
-
-        // Access objects based on the absolute object counter. 
-        // If the template parameter 'S' is 'safe', range-checking is done, out-of-range access will throw apdcam10g::error
-        // Otherwise no check is made, and out-of-range access will result in undefined behavior
-        T &operator()(unsigned int counter)
+        // Pop the elements from the front of the buffer up to (including) counter
+        void pop_to(size_t counter)
         {
-            rw_mutex::read_lock rl(mutex_);
-            if(S == safe) // Optimized out if not true
-            {
-                if(counter<front_counter_ || back_counter_<counter) APDCAM_ERROR("Trying to access out-of-range data in ring_buffer by the () operator");
-            }
-            return buffer_[(front_index_+counter-front_counter_)%capacity_];
+            pop_counter_.store(counter, std::memory_order_relaxed);
+        }
+        
+        // To be called by the consumer only.
+        // Return the pointer to the nth element beyond the back of the buffer. With n=0 returns the first future element.
+        // If the buffer is full, returns zero
+        // This function is useful to write (prepare) data without "publishing" it, i.e. without making it available yet
+        // for the consumer thread
+        T *future_element(size_t n)
+        {
+            // Take a snapshot of the current status. Read pop_index as second to very slightly increase the chance
+            // that the consumer thread liberates space
+            // push_counter is our own variable, no other thread is changing it, so load relaxed
+            const size_t push_counter = push_counter_.load(std::memory_order_relaxed);
+
+            // Spin-lock wait for a free slot for the future element
+            // Pop only liberates slots, but does not have side effects, so load relaxed
+            while( pop_counter_.load(std::memory_order_relaxed)+mask_+1 <= push_counter_+n );
+
+            return buffer_+((push_counter_+n)&mask_);
         }
 
-        
-        
-
-        // Access objects indexed from the front of the buffer. That is, offset=0 will return the front object
-        // With 'S'=='safe', range checking is done and out-of-range access will throw apdcam10g::error
-        // Otherwise no range-checking is made and out-of-range access will result in undefined behavior
-        T &operator[](unsigned int offset)
+        // "Publish" n new elements. That is, if you have prepared data in the 'future' domain, you can now make it available
+        // to the consumer thread. Note that 'n' here is the number of elements to publish, whereas in 'future_element(n)' it
+        // was an index in the future region. So that if you prepared the last data at future_element(n), you should call
+        // publish(n+1);
+        // This function does not check for consistency! Only use it in the following scenario: future_element(n) was successful
+        // (i.e. returned a non-zero pointer), and no push or publish operations were made by this (producer) thread, then 
+        // you can call publish(n+1);
+        // The successful call to future_element ensures that the region to be published is indeed free, and this programming strategy
+        // is also matching practice: you obtain a slot in the future region via future_element, you do your own data manipulation on it
+        // (for example swap some future elements, etc, or store values in them), then publish them. 
+        void publish(size_t n)
         {
-            rw_mutex::read_lock rl(mutex_);
-            if(S == safe)
-            {
-                if(front_index_+offset > back_index_+(front_index_>back_index_?capacity_:0)) APDCAM_ERROR("Trying to access out-of-range data in ring_buffer by the [] operator");
-            }
-            return buffer_[(front_index_+offset)%capacity_];
+            // release --> purge all previous writes to the data buffer
+            push_counter_.fetch_add(n, std::memory_order_release);
         }
 
-        // Create an operator to assign a BASE type object to this ring_buffer (the aim is to simply copy
-        // all properties of BASE in a single statement)
-        const BASE &operator=(const BASE &base) { BASE::operator=(base); return base; }
-    };
+        // This function must be called only from a single consumer thread
+        // It spin-lock waits (1) for data to become available up to (exclusive) counter_to. When this holds,
+        // and if the data range is flat (i.e. it does not fold over to the beginning), the first value
+        // of the returned tuple is set to the start of the range and the second value to the number elements (equal to
+        // counter_to-counter_from), and the second two values are zero. If the range folds back to the
+        // front, the folded-back interval is memcpy-d to the extra space at the end of the queue, if it fits
+        // (it is the user's responsibility to request a range that surely fits into the extra space), 
+        // and the pointer to the first element of the range is returned, together with the number of elements (equal
+        // to counter_to-counter_from)
+        // If the 'terminated' flag is set by the producer before or after spin-lock waiting (1), the wait loop is broken
+        // and the available number of elemens is returned in the second value
+        std::tuple<T*,size_t> operator()(size_t counter_from, size_t counter_to)
+        {
+            // We assume the user is not stupid... we do not check, for performance reasons
+            //if(counter_to < counter_from) APDCAM_ERROR("counter_to is less than counter_from");
+
+            // Pop operation does not have side effects relevant to us (and we are anyway the consumer thread
+            // which is calling pop), so load relaxed
+            const size_t pop_counter = pop_counter_.load(std::memory_order_relaxed);
+
+            // Normally, the user would query sequentially increasing ranges. That is, query 0-100, 100-200, 200-300, etc
+            // and pop these ranges onces processed.
+            // If 0-100 is popped (100 exclusive...), and the queue is empty, but user is requesting 100-200, we do not check
+            // the pop-counter, only the push-counter. Once this is available, and the user has not cut the tree on which he
+            // was sitting (i.e. did not pop a range, say, 0-200, and then requests 100-200), then this ensures consistency.
+            // If the queue is still empty when the second range 100-200 is queried, we just wait for the push-counter to
+            // reach 200.
+            // However, the user must not query a range (a,b) such that a<pop_counter. It is his responsibility to not
+            // query a range starting from a value which he already popped. 
+            // So we can get granted that counter_from>=pop_counter
+
+            // Storing snapshot of the terminated flag
+            bool term = false;
+
+            // spin-lock wait for the required data to become available
+            while( push_counter_.load(std::memory_order_acquire) < counter_to )
+            {
+                // but break the link if the queue is terminated. The 'terminated' flag indicates that
+                // no more data will ever arrive into the queue
+                if( (term=terminated()) == true )
+                {
+                    // Re-query the push_counter, more data may have arrived in the meantime
+                    const size_t push_counter = push_counter_.load(std::memory_order_acquire);
+                    // and limit counter_to to push_counter if needed
+                    if(push_counter < counter_to) counter_to = push_counter;
+                }
+            }
+
+            // Here: do not get granted that data is available up to the requested counter_to !
+
+            // If the requested range cyclically goes to the front... copy that data to the extra space
+            if((counter_to&mask_) < (counter_from&mask_))
+            {
+                // The number of requested elements
+                const size_t n = counter_to-counter_from;
+
+                // Calculate the number of elements that fit continuously up to the end
+                const size_t n_back = (mask_+1)-(counter_from&mask_);
+
+                // Number of elements which are at the front
+                const size_t n_front = n-n_back;
+
+                // If the requested number of elements do not fit into the extra space, punish the user
+                // (he should make sure he never requests too much which would not fit into the extra space)
+                if(n_front > extra_size_) APDCAM_ERROR("Requested range does not fit into extra space of the ring_buffer");
+
+                // Bitwise copy the front elements into the extra space
+                memcpy(buffer_+mask_+1,buffer_,n_front*sizeof(T));
+            }
+
+            
+            return 
+            {
+                // if no data is available and we return because of being terminated, make sure the user does not get a non-zero pointer
+                (counter_to>counter_from?buffer_+(counter_from&mask_):0), 
+                counter_to-counter_from
+            };
+        }
 
 
+        // Does not make any checks!
+        T &operator()(size_t counter)
+        {
+            return buffer_[counter&mask_];
+        }
 
-             
-
+        void dump()
+        {
+            auto push_counter = push_counter_.load(std::memory_order_seq_cst);
+            auto pop_counter  = pop_counter_.load(std::memory_order_seq_cst);
+            std::cerr<<"---------------------------------"<<std::endl;
+            std::cerr<<"Push position: "<<push_counter<<" ("<<(push_counter&mask_)<<")"<<std::endl;
+            std::cerr<<"Pop position: "<<pop_counter<<" ("<<(pop_counter&mask_)<<")"<<std::endl;
+            for(size_t p=0; p<=mask_; ++p)
+            {
+                // Buffer is full
+                if(push_counter == pop_counter+mask_+1) 
+                {
+                    cerr<<"** ";
+                }
+                else if( (push_counter&mask_)>(pop_counter&mask_) )
+                {
+                    if((pop_counter&mask_)<=p && p<(push_counter&mask_)) cerr<<"** ";
+                    else cerr<<"   ";
+                }
+                else
+                {
+                    if( (pop_counter&mask_)<=p || p<(push_counter&mask_)) cerr<<"** ";
+                    else cerr<<"   ";
+                }
+                cerr<<buffer_[p]<<endl;
+            }
+        }
+    }; 
 }
 
 #endif

@@ -2,6 +2,7 @@
 #define __APDCAM10G_CHANNEL_DATA_EXTRACTOR_H__
 
 #include "config.h"
+#include "udp_packet_buffer.h"
 
 /*
 
@@ -17,7 +18,7 @@
 
 namespace apdcam10g
 {
-    template <safeness S = default_safeness>
+    template <safeness S>
     class channel_data_extractor 
     {
     private:
@@ -30,16 +31,13 @@ namespace apdcam10g
         
         packet *packet_ = 0, *next_packet_ = 0;
 
-        data_type *channel_data_[config::chips_per_board*config::channels_per_chip] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; // 32 buffers for the 32 channels
-        unsigned int channel_data_capacity_ = 0;  // Capacity of the buffers (each channel) to store the channel samples
-        unsigned int channel_data_size_[config::chips_per_board*config::channels_per_chip];      // Actual size of (number of samples stored in) the buffer per channel
-
-        std::ofstream *output_file_[config::chips_per_board*config::channels_per_chip];
+        unsigned int packet_counter_ = 0;
 
         // The offset within the packet in the ring buffer, where the next shot
         // will start. 
         unsigned int shot_offset_within_adc_data_ = 0;
 
+        /*
         // Append the value to the array of values of the given channel in the buffer, and if the buffer is full,
         // automatically write it to the corresponding file, and empty the buffer
         inline void store_channel_data_(unsigned int channel_number, data_type value)
@@ -47,10 +45,11 @@ namespace apdcam10g
                 channel_data_[channel_number][channel_data_size_[channel_number]++] = value;
                 if(channel_data_size_[channel_number] == channel_data_capacity_) flush(channel_number);
             }
+        */
         
-        // Get the channel value from the byte array pointed to by 'ptr', which is the first byte
+        // Get the channel value from the byte array pointed to by 'ptr', which is the first (potentially incomplete) byte
         // of the encoded channel value. 
-        inline data_type get_channel_value_(std::byte *ptr, channel_info &c)
+        inline data_type get_channel_value_(std::byte *ptr, const channel_info &c)
             {
                 switch(c.nbytes)
                 {
@@ -69,22 +68,16 @@ namespace apdcam10g
         // adc -- ADC number (0..3)
         // ver -- version (from version.h)
         // sample_buffer_size -- buffer capacity for the channel samples, before writing to file
-        channel_data_extractor(unsigned int adc, version ver, unsigned int sample_buffer_size);
+        channel_data_extractor(daq *d,unsigned int adc, version ver);
 
         ~channel_data_extractor();
 
-        void set_daq(daq *s) { daq_ = s; }
-      
-        // Flush the buffers of all channels
-        void flush();
-
-        // Flush the buffer of one channel
-        void flush(unsigned int channel_number);
+        void init() {}
 
         // Extract the channel data from the available packets in the network ring buffer,
         // and remove those packets from the ring buffer which have been processed.
         // This function blocks the calling thread until new packets arrive
-        unsigned int run(ring_buffer<std::byte*> &buffer);
+        unsigned int run(udp_packet_buffer<default_safeness> &network_buffer, std::vector<daq::channel_data_buffer_t> &channel_data_buffer);
     };
 }
 

@@ -44,6 +44,14 @@ namespace apdcam10g
 {
     class rw_mutex 
     {
+    private:
+        std::mutex              shared;
+        std::condition_variable readerQ;
+        std::condition_variable writerQ;
+        int                     active_readers;
+        int                     waiting_writers;
+        int                     active_writers;
+        
     public:
 
         rw_mutex() : 
@@ -62,6 +70,9 @@ namespace apdcam10g
         public:
             read_lock(rw_mutex &m) : mutex_(m) { mutex_.lock_read(); }
             ~read_lock()  { mutex_.unlock_read(); }
+            void lock() { mutex_.lock_read(); }
+            void try_lock() { mutex_.try_lock_read(); }
+            void unlock() { mutex_.unlock_read(); }
         };
         class write_lock
         {
@@ -70,6 +81,9 @@ namespace apdcam10g
         public:
             write_lock(rw_mutex &m) : mutex_(m) { mutex_.lock_write(); }
             ~write_lock()  { mutex_.unlock_write(); }
+            void lock() { mutex_.lock_write(); }
+            void try_lock() { mutex_.try_lock_write(); }
+            void unlock() { mutex_.unlock_write(); }
         };
 
         void lock_read() 
@@ -127,7 +141,7 @@ namespace apdcam10g
         void unlock_write() 
             {
                 
-std::unique_lock<std::mutex> lk(shared);
+                std::unique_lock<std::mutex> lk(shared);
                 --waiting_writers;
                 --active_writers;
                 if(waiting_writers > 0)
@@ -140,21 +154,14 @@ std::unique_lock<std::mutex> lk(shared);
 
         // The function 'lock()' and 'unlock()' are simply aliases for lock_read and unlock_read to satisfy the Requirement 'BasicLockable'
         // needed for this mutex being able to work with unique_lock, etc
-        void lock()    {lock_read();}
-        void unlock()  {unlock_read();}
+//        void lock()    {lock_read();}
+//        void unlock()  {unlock_read();}
 
         // To satisfy the Requirement 'Lockable'
-        bool try_lock() { return try_lock_read(); }
+//        bool try_lock() { return try_lock_read(); }
 
 
-private:
-    std::mutex              shared;
-    std::condition_variable readerQ;
-    std::condition_variable writerQ;
-    int                     active_readers;
-    int                     waiting_writers;
-    int                     active_writers;
-};
+    };
 
 }
 

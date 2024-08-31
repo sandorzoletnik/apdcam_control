@@ -1,0 +1,315 @@
+#ifndef __APDCAM10G_RING_BUFFER_H__
+#define __APDCAM10G_RING_BUFFER_H__
+
+#include <iostream>
+#include <atomic>
+#include "error.h"
+
+using namespace std;
+
+namespace apdcam10g
+{
+    class EMPTY {};
+
+    // MP = multiple producer
+    // MC = multiple consumer
+    // C = counter type: the integral type to keep track of the number of elements passing through the buffer
+    template<typename T, typename BASE=EMPTY, bool MP=false, bool MC=false>
+    class ring_buffer : EMPTY
+    {
+    private:
+        static size_t const     cacheline_size = 64;
+        typedef char            cacheline_pad_t [cacheline_size];
+        cacheline_pad_t         pad0_; // I assume this here is needed to separate the members of this class from any other thing in memory
+        size_t                  mask_;
+        size_t                  extra_size_;
+        T*                      buffer_ = 0;
+        std::atomic_flag*       free_ = 0;
+        cacheline_pad_t         pad1_;
+        std::atomic<size_t>     push_index_; // index within the buffer where the next push operation should occur
+        cacheline_pad_t         pad2_;
+        std::atomic<size_t>     pop_index_;  // index within the buffer where the next pop operation should occur
+        cacheline_pad_t         pad3_;  // I assume this is needed to separate members from anything else in memory
+        std::atomic<long int>   front_counter_, back_counter_;
+        std::atomic_flag        terminated_;
+        ring_buffer(ring_buffer const&);
+        void operator = (ring_buffer const&);
+        
+
+    public:
+        void resize(size_t buffer_size, size_t extra_size)
+        {
+            delete [] buffer_;
+            delete [] free_;
+            if(buffer_size>=2 && (buffer_size&(buffer_size-1))!=0) APDCAM_ERROR("Ring buffer size must be a power of 2");
+            mask_ = buffer_size-1;
+            extra_size_ = extra_size;
+            buffer_ = new T[buffer_size+extra_size];
+            free_ = new std::atomic_flag[buffer_size];
+            for(size_t i=0; i!=buffer_size; ++i) free_[i].test_and_set(std::memory_order_seq_cst);
+            push_index_.store(0, std::memory_order_seq_cst);
+            pop_index_.store(0, std::memory_order_seq_cst);
+            terminated_.clear();
+        }
+
+        bool terminated()
+        {
+            return terminated_.test(std::memory_order_seq_cst);
+        }
+
+        void terminate()
+        {
+            terminated_.test_and_set();
+        }
+
+        long int front_counter() const 
+        {
+            return front_counter_.load(std::memory_order_seq_cst);
+        }
+        long int back_counter() const 
+        {
+            return back_counter_.load(std::memory_order_seq_cst);
+        }
+
+        ring_buffer(size_t buffer_size, size_t extra_size) 
+        {
+            resize(buffer_size,extra_size);
+        }
+
+        ~ring_buffer()
+        {
+            delete [] buffer_;
+            delete [] free_;
+        }
+
+        bool push(T const& value)
+        {
+            // Since MP is a constant, the compiler will optimize out the unused case
+            if(MP)
+            {
+                size_t pos = push_index_.load(std::memory_order_seq_cst);
+                for (;;)
+                {
+                    if(!free_[pos&mask_].test()) return false;
+                    
+                    // Atomically check if push_index_ has not changed in the meantime. If it hasn't, increment it, and break the loop.
+                    // If it has, then update 'pos' to the new value of push_index_, and keep looping.
+                    //if (push_index_.compare_exchange_strong (pos, pos + 1, std::memory_order_relaxed)) break;
+                    if (push_index_.compare_exchange_strong (pos, pos+1, std::memory_order_seq_cst))
+                    {
+                        buffer_[pos&mask_] = value;
+                        free_[pos&mask_].clear(std::memory_order_seq_cst);
+                        return true;
+                    }
+                }
+            }
+            else
+            {
+                const size_t pos = push_index_.load(std::memory_order_seq_cst);
+                if(!free_[pos&mask_].test()) return false;
+                ++push_index_;
+                buffer_[pos&mask_] = value;
+                free_[pos&mask_].clear(std::memory_order_seq_cst);
+                return true;
+            }
+            return false;
+        }
+
+        // Return the counter of the element at the back of the buffer which is for sure available
+        // (The reserve operation advances push_index_ by one, and only then stores the value at this slot,
+        // so in an unlucky case 'push_index_' is not yet fully available in a race condition)
+        size_t push_index() const 
+        {
+            return push_index_.load(std::memory_order_seq_cst)-1;
+        }
+
+        size_t pop_index() const
+        {
+            return pop_index_.load(std::memory_order_seq_cst);
+        }
+
+        // This function must be called only from a single consumer thread
+        // Return a pointer containing a continuous chunk of data between the counters (inclusive).
+        T *operator()(size_t counter_from, size_t counter_to)
+        {
+/*
+            std::cerr<<endl;
+            std::cerr<<"-- ("<<counter_from<<","<<counter_to<<")"<<std::endl;
+            std::cerr<<"-- mask = "<<mask_<<std::endl;
+            std::cerr<<"-- counter_from&mask = "<<(counter_from&mask_)<<std::endl;
+            std::cerr<<"-- counter_to&mask = "<<(counter_to&mask_)<<std::endl;
+*/
+            // We assume the user is not stupid... we do not check
+            //if(counter_to < counter_from) APDCAM_ERROR("counter_to is less than counter_from");
+
+            const size_t front_pos = pop_index_.load(std::memory_order_seq_cst);
+//            cerr<<"-- front_pos = "<<front_pos<<endl;
+            // If the user requests a front-index (from the single consumer thread...) which is not
+            // available anymore, we punish him throwing an exception. He should not be so stupid.
+            if(counter_from < front_pos) APDCAM_ERROR("Too low counter_from");
+
+
+            // We go safe: take a value less by one than the push_index_, because the reserve-store-publish cycle
+            // may just be after the 'reserve' operation which incremented push_index_, but has not yet stored the value
+            const size_t back_pos = push_index_.load(std::memory_order_seq_cst)-1;
+//            cerr<<"-- back_pos = "<<back_pos<<endl;
+            // If a range extending beyond push_index_ is requested, we return 0 (do not punish the user... :-)
+            // because the user may be waiting for this data to arrive, so it's normal behavior
+            if(counter_to >= back_pos)
+            {
+//                std::cerr<<"return 0 #1"<<std::endl;
+                return 0;
+            }
+
+            if(free_[counter_from&mask_].test() || free_[counter_to&mask_].test())
+            {
+//                std::cerr<<"return 0 #2"<<std::endl;
+                return 0;
+            }
+
+            // If we are here, we are in the right range
+            // If the requested range cyclically goes to the front... copy that data to the extra space
+            if((counter_to&mask_) < (counter_from&mask_))
+            {
+//                std::cerr<<"cyclic restart"<<std::endl;
+
+                // The number of requested elements
+                const size_t n = counter_to-counter_from+1;
+
+                // Calculate the number of elements that fit continuously up to the end
+                const size_t n_back = (mask_+1)-(counter_from&mask_);
+
+                // Number of elements which are at the front
+                const size_t n_front = n-n_back;
+
+/*
+                cerr<<"n = "<<n<<endl;
+                cerr<<"n_back = "<<n_back<<endl;
+                cerr<<"n_front = "<<n_front<<endl;
+                cerr<<"extra_size = "<<extra_size_<<endl;
+*/
+                
+                // If the requested number of elements do not fit into the extra space, return 0
+                if(n_front > extra_size_)
+                {
+//                    cerr<<"Not enough extra space"<<endl;
+                    return 0;
+                }
+
+                // Bitwise copy the front elements into the extra space
+                memcpy(buffer_+mask_+1,buffer_,n_front*sizeof(T));
+            }
+
+            return buffer_+(counter_from&mask_);
+        }
+
+        // Reserve room for a new element (advance push_index) at the back of the queue, if the buffer is not full, and return a pointer
+        // to the new element. Otherwise return zero pointer
+        T *reserve()
+        {
+            if(MP)
+            {
+                for(size_t pos = push_index_.load(std::memory_order_seq_cst);;)
+                {
+                    if(!free_[pos&mask_].test()) return 0;
+                    // If push_index_ has not been incremented while we checked free, then increment it and return true
+                    if (push_index_.compare_exchange_strong (pos, pos+1, std::memory_order_seq_cst)) return buffer_+(pos&mask_);
+                }
+            }
+            else
+            {
+                const size_t pos = push_index_.load(std::memory_order_seq_cst);
+                if(!free_[pos&mask_].test()) return 0;
+                ++push_index_;
+                return buffer_+(pos&mask_);
+            }
+            return 0;
+        }
+
+        // "Publish" the element pointed to by 'element'. The pointer must have been returned by 'extend' before,
+        void publish(T *element)
+        {
+            const size_t pos = element-buffer_;
+            free_[pos].clear(std::memory_order_seq_cst);
+        }
+        
+        bool pop(T &value)
+        {
+            if(MC)
+            {
+                size_t pos = pop_index_.load(std::memory_order_seq_cst);
+                for (;;)
+                {
+                    if(free_[pos&mask_].test()) return false;
+                    
+                    // Atomically check if pop_index_ has not changed in the meantime. If it hasn't (i.e. no other thread popped the element), 
+                    // increment it, and break the loop.
+                    // If it has, then update 'pos' to the new value of pop_index_, and keep looping.
+                    //if (pop_index_.compare_exchange_strong(pos, pos + 1, std::memory_order_relaxed)) break;
+                    if (pop_index_.compare_exchange_strong(pos, pos + 1, std::memory_order_seq_cst))
+                    {
+                        value = buffer_[pos&mask_];
+                        free_[pos&mask_].test_and_set(std::memory_order_seq_cst);
+                        return true;
+                    }
+                }
+            }
+            else
+            {
+                const size_t pos = pop_index_.load(std::memory_order_seq_cst);
+                if(free_[pos&mask_].test()) return false;
+                ++pop_index_;
+                value = buffer_[pos&mask_];
+                free_[pos&mask_].test_and_set(std::memory_order_seq_cst);
+                return true;
+            }
+            return false;
+        }
+
+        // Pop the elements from the front of the buffer up to (including) counter
+        void pop_to(size_t counter)
+        {
+            const auto pos = pop_index_.load(std::memory_order_seq_cst);
+            pop_index_.store(counter+1,std::memory_order_seq_cst);
+            for(size_t i=pos; i<=counter; ++i) free_[i&mask_].test_and_set();
+        }
+
+        void dump_producer()
+            {
+                std::scoped_lock lock(the_mutex);
+                dump_producer_nolock();
+            }
+        
+        void dump_producer_nolock()
+            {
+                auto p = push_index_.load(std::memory_order_seq_cst);
+                std::cerr<<"--------------- Producer ------------------"<<std::endl;
+                std::cerr<<"Push position: "<<p<<" ("<<(p&mask_)<<")"<<std::endl;
+                for(int i=0; i<=mask_; ++i)
+                {
+                    std::cerr<<buffer_[i]<<"  --  "<<free_[i].test();
+                    if(i==(p&mask_)) std::cerr<<" <--";
+                    std::cerr<<std::endl;
+                }
+            }
+        void dump_consumer()
+            {
+                std::scoped_lock lock(the_mutex);
+                dump_consumer_nolock();
+            }
+        void dump_consumer_nolock()
+            {
+                const auto p = pop_index_.load(std::memory_order_seq_cst);
+                std::cerr<<"--------------- Consumer ------------------"<<std::endl;
+                std::cerr<<"Pop position: "<<p<<" ("<<(p&mask_)<<")"<<std::endl;
+                for(int i=0; i<=mask_; ++i)
+                {
+                    std::cerr<<buffer_[i]<<"  --  "<<free_[i].test();
+                    if(i==(p&mask_)) std::cerr<<" <---";
+                    std::cerr<<std::endl;
+                }
+            }
+    }; 
+}
+
+#endif

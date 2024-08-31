@@ -1,0 +1,273 @@
+
+#include <thread>
+#include <string>
+#include <string.h>
+#include <iostream>
+#include <bit>
+#include <stdint.h>
+#include <algorithm>
+#include <tuple>
+#include <deque>
+#include <mutex>
+#include <map>
+#include <vector>
+#include <string.h>
+#include "stopper.h"
+
+//#include "error.h"
+//#include "ring_buffer.h"
+//#include "safe_semaphore.h"
+//#include "rw_mutex.h"
+//using namespace apdcam10g;
+
+using namespace std;
+
+#include <assert.h>
+#include <iostream>
+
+std::mutex the_mutex;
+
+template<typename T>
+class mpmc_bounded_queue
+{
+private:
+
+    std::mutex enqueue_mutex_;
+
+    static size_t const     cacheline_size = 64;
+    typedef char            cacheline_pad_t [cacheline_size];
+    cacheline_pad_t         pad0_; // I assume this here is needed to separate the members of this class from any other thing in memory
+    T* const                buffer_;
+    std::atomic_flag *const free_;
+    size_t const            buffer_mask_;
+    cacheline_pad_t         pad1_;
+    std::atomic<size_t>     enqueue_pos_;
+    cacheline_pad_t         pad2_;
+    std::atomic<size_t>     dequeue_pos_;
+    cacheline_pad_t         pad3_;  // I assume this is needed to separate members from anything else in memory
+    mpmc_bounded_queue(mpmc_bounded_queue const&);
+    void operator = (mpmc_bounded_queue const&);
+
+public:
+    mpmc_bounded_queue(size_t buffer_size) : buffer_(new T [buffer_size]), free_(new std::atomic_flag [buffer_size]), buffer_mask_(buffer_size - 1)
+    {
+        assert((buffer_size >= 2) && ((buffer_size & (buffer_size - 1)) == 0));
+        for (size_t i = 0; i != buffer_size; ++i)
+        {
+            free_[i].test_and_set(std::memory_order_seq_cst);
+        }
+        enqueue_pos_.store(0, std::memory_order_seq_cst);
+        dequeue_pos_.store(0, std::memory_order_seq_cst);
+    }
+
+    ~mpmc_bounded_queue()
+    {
+        delete [] buffer_;
+        delete [] free_;
+    }
+
+    void dump_producer()
+    {
+        std::scoped_lock lock(the_mutex);
+        dump_producer_nolock();
+    }
+    
+    void dump_producer_nolock()
+    {
+        auto p = enqueue_pos_.load(std::memory_order_seq_cst);
+        cerr<<"--------------- Producer ------------------"<<endl;
+        cerr<<"Enqueue position: "<<p<<" ("<<(p&buffer_mask_)<<")"<<endl;
+        for(int i=0; i<=buffer_mask_; ++i)
+        {
+            std::cerr<<buffer_[i]<<"  --  "<<free_[i].test();
+            if(i==(p&buffer_mask_)) std::cerr<<" <--";
+            std::cerr<<endl;
+        }
+    }
+    void dump_consumer()
+    {
+        std::scoped_lock lock(the_mutex);
+        dump_consumer_nolock();
+    }
+    void dump_consumer_nolock()
+    {
+        const auto p = dequeue_pos_.load(std::memory_order_seq_cst);
+        cerr<<"--------------- Consumer ------------------"<<endl;
+        cerr<<"Dequeue position: "<<p<<" ("<<(p&buffer_mask_)<<")"<<endl;
+        for(int i=0; i<=buffer_mask_; ++i)
+        {
+            std::cerr<<buffer_[i]<<"  --  "<<free_[i].test();
+            if(i==(p&buffer_mask_)) std::cerr<<" <---";
+            std::cerr<<endl;
+        }
+    }
+
+    bool enqueue(T const& value)
+    {
+        //std::scoped_lock lock(enqueue_mutex_);
+        size_t pos = enqueue_pos_.load(std::memory_order_seq_cst);
+        for (;;)
+        {
+            if(!free_[pos&buffer_mask_].test()) return false;
+
+            // Atomically check if enqueue_pos_ has not changed in the meantime. If it hasn't, increment it, and break the loop.
+            // If it has, then update 'pos' to the new value of enqueue_pos_, and keep looping.
+            //if (enqueue_pos_.compare_exchange_strong (pos, pos + 1, std::memory_order_relaxed)) break;
+            if (enqueue_pos_.compare_exchange_strong (pos, pos + 1, std::memory_order_seq_cst))
+            {
+                buffer_[pos&buffer_mask_] = value;
+                free_[pos&buffer_mask_].clear(std::memory_order_seq_cst);
+                return true;
+                break;
+            }
+        }
+        return false;
+    }
+
+    bool dequeue(T& value)
+    {
+        size_t pos = dequeue_pos_.load(std::memory_order_seq_cst);
+        for (;;)
+        {
+            if(free_[pos&buffer_mask_].test()) return false;
+
+            // Atomically check if dequeue_pos_ has not changed in the meantime. If it hasn't (i.e. no other thread dequeued the element), 
+            // increment it, and break the loop.
+            // If it has, then update 'pos' to the new value of dequeue_pos_, and keep looping.
+            //if (dequeue_pos_.compare_exchange_strong(pos, pos + 1, std::memory_order_relaxed)) break;
+            if (dequeue_pos_.compare_exchange_strong(pos, pos + 1, std::memory_order_seq_cst))
+            {
+                value = buffer_[pos&buffer_mask_];
+                free_[pos&buffer_mask_].test_and_set(std::memory_order_seq_cst);
+                return true;
+                break;
+            }
+        }
+        return false;
+    }
+
+
+}; 
+
+
+int main()
+{
+    const int BUFFERSIZE = 8;
+    mpmc_bounded_queue<int> q(BUFFERSIZE);
+
+    // Number of producer threads
+    const int NP = 3; 
+
+    // Number of data values to send through the buffers
+    const int ND = 1000;
+
+    const long int wait = 1000000000;
+
+
+    // Consume thread
+    std::jthread consumer([&q]{
+        int value;
+        int n_negative = 0;
+
+        // Count the number of data each thread has sent through the buffer
+        vector<int> last_value(NP);
+        for(int p=0; p<NP; ++p) last_value[p] = (p+1)*ND-1;
+
+        while(true)
+        {
+            long int counter=0;
+            for(; !q.dequeue(value) && counter<wait; ++counter);
+            if(counter>=wait)
+            {
+                std::scoped_lock lock(the_mutex);
+                cerr<<endl;
+                cerr<<"Consumer stalled"<<endl;
+                q.dump_consumer_nolock();
+                break;
+            }
+            else
+            {
+                int thread_number = 0;
+                if(value < 0)
+                {
+                    thread_number = -value;
+                    ++n_negative;
+                }
+                else thread_number = value/ND;
+
+                if(thread_number-1 < NP)
+                {
+                    if(value > 0)
+                    {
+                        if(value != last_value[thread_number-1]+1)
+                        {
+                            std::scoped_lock lock(the_mutex);
+                            cerr<<endl;
+                            cerr<<"Non-sequential data from thread #"<<thread_number<<endl;
+                            cerr<<"Last value: "<<last_value[thread_number-1]<<endl;
+                            cerr<<"New value: "<<value<<endl;
+                            q.dump_consumer_nolock();
+                        }
+                        last_value[thread_number-1] = value;
+                    }
+                }
+                else
+                {
+                    std::scoped_lock lock(the_mutex);
+                    cerr<<"Bad value: "<<value<<endl;
+                }
+
+                if(n_negative==NP)
+                {
+                    std::scoped_lock lock(the_mutex);
+                    cerr<<"All producers finished"<<endl;
+                    break;
+                }
+            }
+        }
+
+        {
+            std::scoped_lock lock(the_mutex);
+            for(int p=0; p<NP; ++p) cerr<<"Last value of thread #"<<p+1<<" --> "<<last_value[p]<<endl;
+        }
+    });
+
+
+    std::vector<std::jthread> producers(NP);
+
+    for(int p=0; p<NP; ++p)
+    {
+        producers[p] = std::jthread([&q,p]{
+            int ndata = 0;
+            for(int i=0; i<ND; ++i)
+            {
+                long int counter = 0;
+                for(; !q.enqueue((p+1)*ND+i) && counter<wait; ++counter);
+                if(counter>=wait)
+                {
+                    q.dump_producer();
+                    return;
+                }
+                else
+                {
+                    ++ndata;
+                }
+            }
+            {
+                std::scoped_lock lock(the_mutex);
+                cerr<<"Thread #"<<p<<" sent data: "<<ndata<<endl;
+                cerr<<"Now sending EOS"<<endl;
+            }
+            while(!q.enqueue(-(p+1)));
+            {
+                std::scoped_lock lock(the_mutex);
+                cerr<<"Thread #"<<p<<" finished"<<endl;
+            }
+        });
+    }
+
+    for(int i=0; i<NP; ++i) producers[i].join();
+    consumer.join();
+
+    return 0;
+}

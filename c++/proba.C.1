@@ -1,0 +1,449 @@
+/*
+
+Typical outputs:
+
+Non-sequential data from thread #2
+Last value: 2159
+New value: 2167
+--------------- Consumer ------------------
+Dequeue position: 637 (5)
+2163  --  0
+2164  --  0
+2165  --  0
+2166  --  0
+3105  --  0
+2160  --  0 <--- (1)
+2161  --  0
+2162  --  0
+Non-sequential data from thread #2
+Last value: 2167
+New value: 2160
+--------------- Consumer ------------------
+Dequeue position: 638 (6)
+2163  --  0
+2164  --  0
+2165  --  0
+2166  --  0
+3105  --  0
+2168  --  0
+2161  --  0 <---
+2162  --  0
+Non-sequential data from thread #2
+Last value: 2166
+New value: 2168
+--------------- Consumer ------------------
+Dequeue position: 646 (6)
+3106  --  0
+1372  --  0
+2170  --  0
+3107  --  0
+2171  --  0
+1373  --  0
+2169  --  0 <---
+1371  --  0
+Non-sequential data from thread #3
+Last value: 3232
+New value: 3237
+--------------- Consumer ------------------
+Dequeue position: 1037 (5)
+1493  --  0
+3235  --  0
+3236  --  0
+1494  --  0
+2311  --  0
+1492  --  0 <---
+3233  --  0
+3234  --  0
+Non-sequential data from thread #3
+Last value: 3237
+New value: 3233
+--------------- Consumer ------------------
+Dequeue position: 1039 (7)
+1493  --  0
+3235  --  0
+3236  --  0
+1494  --  0
+2311  --  0
+2312  --  0
+1495  --  0
+3234  --  0 <---
+Non-sequential data from thread #3
+Last value: 3236
+New value: 3238
+--------------- Consumer ------------------
+Dequeue position: 1050 (2)
+3240  --  0
+1500  --  0
+1497  --  0 <---
+2314  --  0
+1498  --  0
+3239  --  0
+1499  --  0
+2315  --  0
+Thread #0 sent data: 1000
+Now sending EOS
+Thread #0 finished
+Thread #1 sent data: 1000
+Now sending EOS
+Thread #1 finished
+Thread #2 sent data: 1000
+Now sending EOS
+Thread #2 finished
+All producers finished
+Last value of thread #1 --> 1999
+Last value of thread #2 --> 2999
+Last value of thread #3 --> 3999
+
+----------------------------------
+
+This output below is only the last few lines of a long output, full of similar errors.
+It has also got stuck at the end for a long time (until the 'wait' counter exceeded), i.e. the
+consumer never managed to get a value, and timed out. 
+
+
+Non-sequential data from thread #3
+Last value: 3988
+New value: 3981
+--------------- Consumer ------------------
+Dequeue position: 2984 (0)
+3982  --  0 <---
+3983  --  0
+3984  --  0
+3985  --  0
+3986  --  0
+3987  --  0
+3988  --  1
+3989  --  0
+Non-sequential data from thread #3
+Last value: 3987
+New value: 3996
+--------------- Consumer ------------------
+Dequeue position: 2991 (7)
+3990  --  0
+3991  --  0
+3992  --  0
+3993  --  0
+3994  --  0
+3995  --  0
+3996  --  1
+3989  --  0 <---
+Non-sequential data from thread #3
+Last value: 3996
+New value: 3989
+--------------- Consumer ------------------
+Dequeue position: 2992 (0)
+3990  --  0 <---
+3991  --  0
+3992  --  0
+3993  --  0
+3994  --  0
+3995  --  0
+3996  --  1
+3997  --  0
+Thread #2 sent data: 1000
+Now sending EOS
+Thread #2 finished
+Thread #1 finished
+--------------- Consumer ------------------
+Dequeue position: 2998 (6)
+3998  --  0
+3999  --  0
+-3  --  0
+3993  --  1
+3994  --  1
+3995  --  1
+3996  --  1 <---  (2)
+3997  --  0
+Last value of thread #1 --> 1999
+Last value of thread #2 --> 2998
+Last value of thread #3 --> 3995
+
+
+The common problem in both cases is that the 'free' flag is not in sync with the enqueue position.
+
+At the point marked with (1) the enqueue position points
+somewhere, which is a past value, i.e. the queue is empty. However, the 'free' flag is zero, indicating
+that this is a valid data. The flag should be 1, causing 'dequeue' to return false, and wait until new data is
+coming in.
+
+At the point marked by (2), the number 3996 is in the right sequence, i.e. coming after 3995, and being before 3997.
+The enqueueposition is pointing to 3996, but it is marked as free=1. 
+
+
+ */
+
+#include <thread>
+#include <string>
+#include <string.h>
+#include <iostream>
+#include <bit>
+#include <stdint.h>
+#include <algorithm>
+#include <tuple>
+#include <deque>
+#include <mutex>
+#include <map>
+#include <vector>
+#include <string.h>
+#include "stopper.h"
+
+//#include "error.h"
+//#include "ring_buffer.h"
+//#include "safe_semaphore.h"
+//#include "rw_mutex.h"
+//using namespace apdcam10g;
+
+using namespace std;
+
+#include <assert.h>
+#include <iostream>
+
+std::mutex the_mutex;
+
+
+
+template<typename T>
+class mpmc_bounded_queue
+{
+private:
+
+
+    static size_t const     cacheline_size = 64;
+    typedef char            cacheline_pad_t [cacheline_size];
+    cacheline_pad_t         pad0_; // I assume this here is needed to separate the members of this class from any other thing in memory
+    T* const                buffer_;
+    std::atomic_flag *const free_;
+    size_t const            buffer_mask_;
+    cacheline_pad_t         pad1_;
+    std::atomic<size_t>     enqueue_pos_;
+    cacheline_pad_t         pad2_;
+    std::atomic<size_t>     dequeue_pos_;
+    cacheline_pad_t         pad3_;  // I assume this is needed to separate members from anything else in memory
+    mpmc_bounded_queue(mpmc_bounded_queue const&);
+    void operator = (mpmc_bounded_queue const&);
+
+public:
+    mpmc_bounded_queue(size_t buffer_size) : buffer_(new T [buffer_size]), free_(new std::atomic_flag [buffer_size]), buffer_mask_(buffer_size - 1)
+    {
+        assert((buffer_size >= 2) && ((buffer_size & (buffer_size - 1)) == 0));
+        for (size_t i = 0; i != buffer_size; ++i)
+        {
+            free_[i].test_and_set(std::memory_order_seq_cst);
+        }
+        enqueue_pos_.store(0, std::memory_order_seq_cst);
+        dequeue_pos_.store(0, std::memory_order_seq_cst);
+    }
+
+    ~mpmc_bounded_queue()
+    {
+        delete [] buffer_;
+        delete [] free_;
+    }
+
+    void dump_producer()
+    {
+        std::scoped_lock lock(the_mutex);
+        dump_producer_nolock();
+    }
+    
+    void dump_producer_nolock()
+    {
+        auto p = enqueue_pos_.load(std::memory_order_seq_cst);
+        cerr<<"--------------- Producer ------------------"<<endl;
+        cerr<<"Enqueue position: "<<p<<" ("<<(p&buffer_mask_)<<")"<<endl;
+        for(int i=0; i<=buffer_mask_; ++i)
+        {
+            std::cerr<<buffer_[i]<<"  --  "<<free_[i].test();
+            if(i==(p&buffer_mask_)) std::cerr<<" <--";
+            std::cerr<<endl;
+        }
+    }
+    void dump_consumer()
+    {
+        std::scoped_lock lock(the_mutex);
+        dump_consumer_nolock();
+    }
+    void dump_consumer_nolock()
+    {
+        const auto p = dequeue_pos_.load(std::memory_order_seq_cst);
+        cerr<<"--------------- Consumer ------------------"<<endl;
+        cerr<<"Dequeue position: "<<p<<" ("<<(p&buffer_mask_)<<")"<<endl;
+        for(int i=0; i<=buffer_mask_; ++i)
+        {
+            std::cerr<<buffer_[i]<<"  --  "<<free_[i].test();
+            if(i==(p&buffer_mask_)) std::cerr<<" <---";
+            std::cerr<<endl;
+        }
+    }
+
+    bool enqueue(T const& value)
+    {
+        T* data=0;
+        std::atomic_flag *free=0;
+        
+        size_t pos = enqueue_pos_.load(std::memory_order_seq_cst);
+        for (;;)
+        {
+            free = std::addressof(free_[pos & buffer_mask_]);
+            if(!free->test()) return false;
+            data = std::addressof(buffer_[pos & buffer_mask_]);
+
+            // Atomically check if enqueue_pos_ has not changed in the meantime. If it hasn't, increment it, and break the loop.
+            // If it has, then update 'pos' to the new value of enqueue_pos_, and keep looping.
+            //if (enqueue_pos_.compare_exchange_strong (pos, pos + 1, std::memory_order_relaxed)) break;
+            if (enqueue_pos_.compare_exchange_strong (pos, pos + 1, std::memory_order_seq_cst)) break;
+        }
+        
+        *data = value;
+        free->clear(std::memory_order_seq_cst);
+        return true;
+    }
+
+    bool dequeue(T& value)
+    {
+        T* data=0;
+        std::atomic_flag *free=0;
+
+        size_t pos = dequeue_pos_.load(std::memory_order_seq_cst);
+        for (;;)
+        {
+            free = std::addressof(free_[pos & buffer_mask_]);
+            // This element is 'free' yet, i.e. the producer has not finished writing the data to it. 
+            if(free->test()) return false;
+            data = std::addressof(buffer_[pos & buffer_mask_]);
+
+            // Atomically check if dequeue_pos_ has not changed in the meantime. If it hasn't (i.e. no other thread dequeued the element), 
+            // increment it, and break the loop.
+            // If it has, then update 'pos' to the new value of dequeue_pos_, and keep looping.
+            //if (dequeue_pos_.compare_exchange_strong(pos, pos + 1, std::memory_order_relaxed)) break;
+            if (dequeue_pos_.compare_exchange_strong(pos, pos + 1, std::memory_order_seq_cst)) break;
+        }
+
+        value = *data;
+        // Update sequence_ to the value expected at the next enqueue operation
+        //sequence->store (pos + buffer_mask_ + 1, std::memory_order_release);
+        free->test_and_set(std::memory_order_seq_cst);
+        return true;
+    }
+
+
+}; 
+
+
+int main()
+{
+    const int BUFFERSIZE = 8;
+    mpmc_bounded_queue<int> q(BUFFERSIZE);
+
+    // Number of producer threads
+    const int NP = 3; 
+
+    // Number of data values to send through the buffers
+    const int ND = 1000;
+
+    const long int wait = 1000000000;
+
+
+    // Consume thread
+    std::jthread consumer([&q]{
+        int value;
+        int n_negative = 0;
+
+        // Count the number of data each thread has sent through the buffer
+        vector<int> last_value(NP);
+        for(int p=0; p<NP; ++p) last_value[p] = (p+1)*ND-1;
+
+        while(true)
+        {
+            long int counter=0;
+            for(; !q.dequeue(value) && counter<wait; ++counter);
+            if(counter>=wait)
+            {
+                q.dump_consumer();
+                break;
+            }
+            else
+            {
+                int thread_number = 0;
+                if(value < 0)
+                {
+                    thread_number = -value;
+                    ++n_negative;
+                }
+                else thread_number = value/ND;
+
+                if(thread_number-1 < NP)
+                {
+                    if(value > 0)
+                    {
+                        if(value != last_value[thread_number-1]+1)
+                        {
+                            std::scoped_lock lock(the_mutex);
+                            cerr<<"Non-sequential data from thread #"<<thread_number<<endl;
+                            cerr<<"Last value: "<<last_value[thread_number-1]<<endl;
+                            cerr<<"New value: "<<value<<endl;
+                            q.dump_consumer_nolock();
+                        }
+                        last_value[thread_number-1] = value;
+                    }
+                }
+                else
+                {
+                    std::scoped_lock lock(the_mutex);
+                    cerr<<"Bad value: "<<value<<endl;
+                }
+
+                if(n_negative==NP)
+                {
+                    std::scoped_lock lock(the_mutex);
+                    cerr<<"All producers finished"<<endl;
+                    break;
+                }
+            }
+        }
+
+        {
+            std::scoped_lock lock(the_mutex);
+            for(int p=0; p<NP; ++p) cerr<<"Last value of thread #"<<p+1<<" --> "<<last_value[p]<<endl;
+        }
+    });
+
+
+    std::vector<std::jthread> producers(NP);
+
+    for(int p=0; p<NP; ++p)
+    {
+        producers[p] = std::jthread([&q,p]{
+            int ndata = 0;
+            for(int i=0; i<ND; ++i)
+            {
+                long int counter = 0;
+                for(; !q.enqueue((p+1)*ND+i) && counter<wait; ++counter);
+                if(counter>=wait)
+                {
+                    q.dump_producer();
+                    return;
+                }
+                else
+                {
+                    ++ndata;
+                }
+            }
+            {
+                std::scoped_lock lock(the_mutex);
+                cerr<<"Thread #"<<p<<" sent data: "<<ndata<<endl;
+                cerr<<"Now sending EOS"<<endl;
+            }
+            while(!q.enqueue(-(p+1)));
+            {
+                std::scoped_lock lock(the_mutex);
+                cerr<<"Thread #"<<p<<" finished"<<endl;
+            }
+        });
+    }
+
+    for(int i=0; i<NP; ++i) producers[i].join();
+    consumer.join();
+
+    return 0;
+}

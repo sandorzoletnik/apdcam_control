@@ -1,49 +1,105 @@
+
 #include <thread>
 #include <string>
 #include <string.h>
 #include <iostream>
 #include <bit>
 #include <stdint.h>
+#include <algorithm>
 #include <tuple>
 #include <deque>
+#include <mutex>
+#include <map>
+#include <vector>
+#include <string.h>
+#include "stopper.h"
+
+std::mutex the_mutex;
+
+#define LOCK std::scoped_lock lock(the_mutex)
+
 //#include "error.h"
 #include "ring_buffer.h"
 //#include "safe_semaphore.h"
-#include <string.h>
-using namespace std;
+//#include "rw_mutex.h"
+
 using namespace apdcam10g;
+using namespace std;
 
-
-
+#include <iostream>
 
 int main()
+try
 {
+    const int BUFFERSIZE = 32;
+    ring_buffer<int> q(BUFFERSIZE,BUFFERSIZE);
 
-    ring_buffer<char> buffer(10);
+    const int READ_CHUNK = 8;
+    const int WRITE_CHUNK = 7;
 
-    std::jthread consumer([&]{
-        while(true)
+    // Number of producer threads
+    const int NP = 1; 
+
+    // Consume thread
+    std::jthread consumer([&q]{
+        try
         {
-            buffer.wait_for_size();
-            char c = buffer.front();
-            if(c=='\r') break;
-            cerr<<c;
-            buffer.pop_front();
+            size_t from=0, to=from+READ_CHUNK;
+            while(true)
+            {
+                auto [p,n] = q(from,to);
+                if(p)
+                {
+                    q.dump();
+                    for(int i=0; i<n; ++i)
+                    {
+                        cerr<<p[i]<<endl;
+                    }
+                }
+                else
+                {
+                    cerr<<"Queue is terminated"<<endl;
+                    break;
+                }
+                cerr<<endl;
+                q.pop_to(to);
+                from = from+n;
+                to = from+READ_CHUNK;
+
+            }
         }
+        catch(apdcam10g::error &e) { cerr<<"Consumer error: "<<e<<endl; }
     });
 
-    std::jthread producer([&]{
-        std::string text = "Hol volt, hol nem volt, volt egyszer egy kislany, aki elment vadaszni. Az erdoben talalkozott a nagy buidos farkassal. Hogy vagy kislany? Kredezte a farkas. Csak nem vadaszol? Azzal bekapta";
-        for(int i=0; i<text.size(); ++i)
-        {
-            buffer.wait_for_space();
-            buffer.push_back(text[i]);
-        }
-        buffer.push_back('\r');
-    });
 
-    producer.join();
+    std::vector<std::jthread> producers(NP);
+
+    for(int p=0; p<NP; ++p)
+    {
+        producers[p] = std::jthread([&q,p]{
+            try
+            {
+                for(int i=0; i<10; ++i)
+                {
+                    for(int j=0; j<WRITE_CHUNK; ++j)
+                    {
+                        int *p = q.future_element(j);
+                        *p = i*WRITE_CHUNK+j;
+                    }
+                    q.publish(WRITE_CHUNK);
+                }
+                q.terminate();
+            }
+            catch(apdcam10g::error &e) { cerr<<"Error in producer: "<<e<<endl; }
+        });
+    }
+
+    for(int i=0; i<NP; ++i) producers[i].join();
     consumer.join();
 
     return 0;
+}
+catch(apdcam10g::error &e)
+{
+    cerr<<e<<endl;
 }

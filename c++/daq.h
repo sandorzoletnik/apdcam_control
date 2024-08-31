@@ -14,6 +14,7 @@
 #include "channel_info.h"
 #include "typedefs.h"
 #include "udp.h"
+#include "udp_packet_buffer.h"
 #include "safeness.h"
 #include "daq_settings.h"
 #include "channel_data_extractor.h"
@@ -21,11 +22,14 @@
 
 namespace apdcam10g
 {
+    template <safeness S = default_safeness> class channel_data_extractor;
 
     // The 'daq' class handles all sockets used for data transfer between the camera and the PC
     class daq : public daq_settings
     {
     private:
+        //friend class channel_data_diskdump;
+
         // The period (number of shots) for calling the processor tasks on the channel data. The default 100 means that once there are
         // 100 new shots in the buffer, all processor tasks are triggered and run.
         unsigned int process_period_ = 100;
@@ -37,14 +41,16 @@ namespace apdcam10g
       
         // A set of buffers to store received UDP packets, transparently handling packet loss
         // (by replacing lost packets with zero-filled packets)
-        std::vector<udp_packet_buffer> network_buffers_;
+        std::vector<apdcam10g::udp_packet_buffer<default_safeness>> network_buffers_;
   
         // vector of vector of ring buffers to store data from individual channels
         // First index: adc board (0..3max, but check actual max value)
         // second index: a running index over the ENABLED channels (0..32max)
         // In order to store channel info (which ADC board this channel belongs to, channel number, chip number etc),
         // the 3rd template argument of ring_buffer is channel_info so that we derive from channel_info 
-        std::vector<std::vector<ring_buffer<apdcam10g::data_type,apdcam10g::default_safeness,channel_info>>> channel_data_buffers_;
+        
+        typedef ring_buffer<apdcam10g::data_type,channel_info> channel_data_buffer_t;
+        std::vector<std::vector<channel_data_buffer_t>> channel_data_buffers_;
 
         // A map to index (access) the channel data buffers by absolute channel number. The key is the absolute channel number (0..127max)
         std::map<int,ring_buffer<apdcam10g::data_type>*> channel_data_buffers_map_;
@@ -54,9 +60,10 @@ namespace apdcam10g
         std::jthread               processor_thread_;   // analyze the signals (search for some signature, write to disk, whatever else)
   
         // A vector of channel data extractors, one for each ADC board
-        std::vector<channel_data_extractor *> extractors_;  
+        std::vector<apdcam10g::channel_data_extractor<default_safeness> *> extractors_;  
 
-        // A vector of different channel data processors, doing different tasks (i.e. this vector is not per-channel!)
+        // A vector of different channel data processors, doing different tasks. That is, each element of this vector is doing a different
+        // analysis task on ALL channels of ALL ADC boards
         std::vector<channel_data_processor *> processors_;
 
         unsigned int network_buffer_size_ = 500;    // The size of the network input ring buffer size in terms of UDP packets (real mamory is MTU*this_value measured in bytes)
@@ -64,33 +71,36 @@ namespace apdcam10g
 
     public:
 
+        ~daq();
+
+        daq &clear_processors() { processors_.clear(); return *this; }
+        daq &add_processor(channel_data_processor *p) 
+            { 
+                p->set_daq(this);
+                processors_.push_back(p); 
+                return *this ;
+            }
+
         void flush();
 
         // Set the process period (the number of shots to trigger the processor tasks to run)
-        daq &process_period(unsigned int p) { process_period = p; return *this; }
+        // Must be called before init(...)
+        daq &process_period(unsigned int p) { process_period_ = p; return *this; }
       
         // Set the buffer size, the number of channel signal values (for each ADC separately) buffered in memory before dumping them to disk
+        // Must be called before init(...)
         daq &sample_buffer_size(unsigned int b) { sample_buffer_size_ = b; return *this; }
         unsigned int sample_buffer_size() const { return sample_buffer_size_; }
 
         // Set the size of the network input ring buffer size in terms of UDP packets (real mamory is MTU*this_value measured in bytes)
+        // Must be called before init(...)
         daq &network_buffer_size(unsigned int b) { network_buffer_size_ = b; return *this; }
         unsigned int network_buffer_size() const { return network_buffer_size_; }
 
         // Set whether the data reception (over the sockets into the ring buffers) and data processing (from the ring buffers towards whatever data consumer)
         // should be done by separate threads per ADC, or single thread.
+        // Must be called before init(...)
         daq &separate_threads(bool network, bool extractor) { separate_network_threads_ = network; separate_extractor_threads_ = extractor; return *this; }
-
-
-        // Set the MAC address in the form of a string: 6 hex numbers (without the 0x prefix) separated by colon
-        //        daq &mac(const std::string &m);
-        //        daq &mac(std::byte m[6]) { for(int i=0; i<6; ++i) mac_[i] = m[i]; return *this; }
-        //        const std::byte *mac() const { return mac_; }
-
-        // Set the IP address in the form of a string: 4 numbers separated by dots
-        //        daq &ip(const std::string &a);
-        //        daq &ip(std::byte a[4]) { for(int i=0; i<4; ++i) ip_[i] = a[i]; return *this; }
-        //        const std::byte *ip() const { return ip_; }
 
         // The specified safeness is transmitted to the signal extractor
         template <safeness S=default_safeness>
@@ -104,8 +114,6 @@ namespace apdcam10g
         // dumping to disk) threads to stop.
         template <safeness S=default_safeness>
         daq &stop(bool wait=true); 
-
-        void dump();
     };
 }
 

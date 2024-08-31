@@ -15,18 +15,20 @@ namespace apdcam10g
         daq *daq_ = 0;
         
     public:
-        channel_data_processor(daq *d) : daq_(d) {}
-
         // Initialization function called before starting the data acquisition
-        virtual void init(daq *d) {}
+        virtual void init() = 0;
+        virtual void finish() = 0;
+
+        void set_daq(daq *d) { daq_ = d; }
 
         // The actual analysis task.
         // Arguments:
-        // from_counter, to_counter -- the range of data counters [inclusive] (see ring_buffer.h about the counters) which
-        //                             is guaranteed to be available within the ring buffers of all channels
+        // from_counter, to_counter -- the range of data counters (from_counter - inclusive, to_counter - exclusive)
+        //                             which is guaranteed to be available within the ring buffers of all channels
         // Returns:
-        // The counter of the data, up to which (inclusive) channel signal data from ALL ring buffers can be dicarded
-        virtual unsigned int run(unsigned int from_counter, unsigned int to_counter) = 0;
+        // The first counter of the data that is requested to stay in the buffer. The envelopping thread can remove all data
+        // before this counter
+        virtual size_t run(size_t from_counter, size_t to_counter) = 0;
         
     };
 }

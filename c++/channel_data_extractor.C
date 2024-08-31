@@ -9,23 +9,14 @@ namespace apdcam10g
 {
 
     template <safeness S>
-      channel_data_extractor<S>::channel_data_extractor(unsigned int adc, version ver, unsigned int sample_buffer_capacity) : adc_(adc) // : data_consumer(adc,ver)
+    channel_data_extractor<S>::channel_data_extractor(daq *d,unsigned int adc, version ver) : daq_(d), adc_(adc) // : data_consumer(adc,ver)
     {
         // Create a version-specific packet handler
         packet_ = packet::create(ver);
         next_packet_ = packet::create(ver);
-
-        channel_data_capacity_ = sample_buffer_capacity;
-        for(unsigned int i=0; i<32; ++i)
-        {
-            channel_data_[i] = new data_type[channel_data_capacity_];
-            if(::mlock(channel_data_[i],sample_buffer_capacity) != 0) APDCAM_ERROR_ERRNO(errno);
-            channel_data_size_[i] = 0;
-            output_file_[i] = new std::ofstream("ADC-" + std::to_string(adc_) + "_channel-" + std::to_string(i) + ".dat");
-        }
     }
 
-  template <safeness S>
+    template <safeness S>
     channel_data_extractor<S>::~channel_data_extractor()
     {
       delete packet_;
@@ -33,59 +24,36 @@ namespace apdcam10g
     }
 
     template <safeness S>
-    void channel_data_extractor<S>::flush()
+    unsigned int channel_data_extractor<S>::run(udp_packet_buffer &network_buffer, std::vector<daq::channel_data_buffer_t> &channel_data_buffers)
     {
-        cerr<<"  flushing channel signal extractor"<<endl;
-        for(unsigned int channel_number=0; channel_number<32; ++channel_number) flush(channel_number);
-    }
+        
+        // Wait for a new packet (we have our own running counter...), and increment this counter when received
+        buffer.wait_for_counter(packet_counter_);
 
-    template <safeness S>
-    void channel_data_extractor<S>::flush(unsigned int channel_number)
-    {
-        if(channel_data_size_[channel_number] > 0)
-        {
-            for(unsigned int s=0; s<channel_data_size_[channel_number]; ++s) (*(output_file_[channel_number]))<<channel_data_[channel_number][s]<<std::endl;
-            output_file_[channel_number]->flush();
-            channel_data_size_[channel_number] = 0;
-        }
-    }
-
-    template <safeness S>
-    channel_data_extractor<S>::~channel_data_extractor()
-    { 
-        flush();
-
-        // Loop over all 32 channels
-        for(unsigned int channel_number=0; channel_number<32; ++channel_number)
-        {
-            ::munlock(channel_data_[channel_number],channel_data_capacity_);
-            delete [] channel_data_[channel_number];
-            delete output_file_[channel_number];
-        }
-    }
-
-    template <safeness S>
-    unsigned int channel_data_extractor<S>::run(ring_buffer<std::byte*> &buffer)
-    {
-        buffer.wait_push([this]{...});
+        do not forget to incremenet packet_counter_ later;
 
         // We will use the maximum udp packet size, since the ring buffer is allocated to contain set of full max-sized udp packets
         const unsigned int udp_packet_size = daq_->max_udp_packet_size();
 
         const unsigned int board_bytes_per_shot = daq_->board_bytes_per_shot(adc_);
 
-        // The number of available packets
-        const int npackets = buffer.packets.size();
+        // The number of available packets. Make a snapshot now (it may be different from the value at 'buffer.wait_for_counter').
+        const int npackets = network_buffer.size();
 
         unsigned int removed_packets = 0;
+
+        // Strategy: We try to consume as many complete shots as possible. If we fully process one UDP packet, we remove it, if there
+        // remains some incomplete show, the UDP packet is kept, but the internal offset 'shot_offset_within_adc_data_' will indicate
+        // where this incomplete shot starts within the UDP packet, so next time we will start from there.
 
         for(int ipacket=0; ipacket<npackets; )
         {
 	    {
-	      const auto p = buffer.packets[0];  // Get the front element
+	      const auto p = network_buffer[0];  // Get the front element
               packet_->data(p.address,p.size);
 	    }
 
+            // The list of enabled channels within this ADC board
             const auto &chinfo = daq_->channelinfo(adc_);
 
             // Loop over the shots stored in this packet
@@ -94,7 +62,7 @@ namespace apdcam10g
                 // if the entire shot fits into this packet
                 if(packet_->adc_data_start()+shot_offset_within_adc_data_+board_bytes_per_shot <= packet_->end())
                 {
-                    for(auto c : chinfo) store_channel_data_(c.channel_number, get_channel_value_(packet_->adc_data_start()+shot_offset_within_adc_data_+c.byte_offset,c));
+                    for(auto &c : channel_data_buffers) c.push_back(get_channel_value(packet_->adc_data_start()+shoft_offset_within_adc_data_+c.byte_offset,c));
 
                     // Advance the offset within the packet by the length of one shot
                     shot_offset_within_adc_data_ += board_bytes_per_shot;
@@ -105,7 +73,7 @@ namespace apdcam10g
                     if(packet_->adc_data_start()+shot_offset_within_adc_data_ >= packet_->end())
                     {
                         // Remove the packet from the ring buffer
-  		      buffer.packets.pop_front();
+  		      network_buffer.pop_front();
 		      ++ipacket;
 		      ++removed_packets;
 		      // Set the pointer-within-packet to zero
@@ -113,8 +81,7 @@ namespace apdcam10g
 		      break;
                     }
 
-                    // If we have not reached the end of the packet (and have quite the loop-over-samples loop), 
-                    // then go to the next shot
+                    // If we have not reached the end of the packet, then go to the next shot
                     continue;
                 }
 
@@ -125,16 +92,18 @@ namespace apdcam10g
                     // Initialize a next packet within the buffer, without actually incrementing the read pointer
                     // of the ring buffer
   		    {
-		      const auto p = buffer.packets[1];
+		      const auto p = network_buffer[1];
 		      next_packet_->data(p.address,p.size);
 		    }
                                      
-                    for(auto c : chinfo)
+                    // Loop over the channel data buffers. Remember that these are inheriting from channel_info so we can obtain all channel-related information
+                    // such as absolute number etc. 
+                    for(auto &c : channel_data_buffers)
                     {
                         // If all bytes of this channel still fit into this packet
                         if(packet_->adc_data_start()+sample_offset_within_adc_data_+c.byte_offset+c.nbytes <= packet_->end())
                         {
-                            store_channel_data_(c.channel_number, get_channel_value_(packet_->adc_data_start()+sample_offset_within_adc_data_+c.byte_offset,c));
+                            c.push_back(get_channel_value(packet_->adc_adta_start()+sample_offset_within_adc_data_+c.byte_offset,c));
                         }
                         
                         // If not all bytes of this channel are within the current packet, but it starts in this packet,
@@ -148,14 +117,14 @@ namespace apdcam10g
                             {
                                 if(packet_->adc_data_start()+sample_offset_within_adc_data_+c.byte_offset+i < packet_->end()) tmp[i] = packet_->adc_data_start()[sample_offset_within_adc_data_+c.byte_offset+i];
                                 else tmp[i] = next_packet_->adc_data_start()[sample_offset_within_adc_data_+c.byte_offset+i-packet_->adc_data_size()];
-                                store_channel_data_(c.channel_number, get_channel_value_(tmp,c));
+                                c.push_back(get_channel_value_(tmp,c));
                             }
                         }
                         
                         // If this channel data is entirely in the next packet
                         else
                         {
-                            store_channel_data_(c.channel_number, get_channel_value_(next_packet_->adc_data_start()+sample_offset_within_adc_data_+c.byte_offset-packet_->adc_data_size(), c));
+                            c.push_back(get_channel_value_(next_packet_->adc_data_start()+sample_offset_within_adc_data_+c.byte_offset-packet_->adc_data_size(), c));
                         }
                     }
                     

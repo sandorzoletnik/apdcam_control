@@ -25,6 +25,9 @@ namespace apdcam10g
         // The absolute channel number (0..127 inclusive)
         unsigned int absolute_channel_number;
 
+        // An index running from 0 over the enabled channels. 
+        unsigned int enabled_channel_number;
+
         // The offset of the first byte (full or partial) of this channel w.r.t. the ADC board's data, 
         // i.e. the first byte of the first (enabled) channel of the first chip. 
         unsigned int byte_offset;

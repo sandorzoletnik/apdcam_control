@@ -144,6 +144,8 @@ namespace apdcam10g
         channelinfo_.resize(nof_adc);
         for(auto &i : channelinfo_) i.clear();
 
+        enabled_channels_ = 0;
+
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
             
@@ -171,6 +173,7 @@ namespace apdcam10g
                     chinfo.chip_number = i_chip;
                     chinfo.channel_number = i_chip*8 + i_channel;
                     chinfo.absolute_channel_number = i_adc*4*8 + i_chip*8 + i_channel;
+                    chinfo.enabled_channel_number = enabled_channels_++;
                     chinfo.byte_offset    = chip_offset_[i_adc][i_chip] + channel_bit_offset/8;
 
                     // The first bit of this channel's value within the byte, STARTING FROM LEFT, FROM THE MOST SIGNIFICANT BIT

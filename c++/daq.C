@@ -5,7 +5,7 @@
 #include "utils.h"
 #include "error.h"
 #include "pstream.h"
-#include "channel_signal_extractor.h"
+#include "channel_data_extractor.h"
 #include <memory>
 
 //#include <stdio.h>
@@ -21,47 +21,10 @@ namespace apdcam10g
 {
     using namespace std;
 
-/*
-    daq &daq::mac(const string &m)
+    daq::~daq()
     {
-        auto ss = split(m,":");
-        if(ss.size() != 6) APDCAM_ERROR("The MAC address (argument of daq::mac) must contain 6 hex numbers separated by :");
-        for(int i=0; i<6; ++i) mac_[i] = (std::byte)std::stol(ss[i],0,16);
-        return *this;
+        for(auto e : extractors_) delete e;
     }
-
-
-    daq &daq::ip(const string &a)
-    {
-        auto ss = split(a,".");
-        if(ss.size() != 4) APDCAM_ERROR("The IP address (argument of daq::ip) must contain 4 numbers separated by a dot");
-        for(int i=0; i<4; ++i) ip_[i] = (std::byte)std::stol(ss[i],0,10);
-        return *this;
-    }
-    */
-
-    void daq::dump()
-    {
-/*
-        cout<<"MAC: ";
-        for(int i=0; i<6; ++i) 
-        {
-            if(i>0) cout<<":";
-            cout<<hex<<(int)mac_[i]<<dec;
-        }
-        cout<<endl;
-        cout<<"IP: ";
-        for(int i=0; i<4; ++i) 
-        {
-            if(i>0) cout<<":";
-            cout<<(int)ip_[i];
-        }
-*/
-        cout<<endl;
-        cout<<"MTU: "<<mtu_<<endl;
-    }
-
-
 
     template <safeness S>
     daq &daq::init(bool dual_sata, const std::vector<std::vector<std::vector<bool>>> &channel_masks, const std::vector<unsigned int> &resolution_bits, version ver)
@@ -79,14 +42,14 @@ namespace apdcam10g
         if(mtu_==0) APDCAM_ERROR("MTU has not yet been specified in daq::initialize");
         if(dual_sata && nof_adc>2) APDCAM_ERROR("Dual sata is set with more than two ADC boards present");
 
-        for(auto e: extractors_) delete e;
-        extractors_.resize(nof_adc);
         sockets_.resize(nof_adc);
 	network_buffers_.resize(nof_adc);
-        calculate_channel_info();
-
         channel_data_buffers_.resize(nof_adc);
         channel_data_buffers_map_.clear();
+        for(auto e: extractors_) delete e;
+        extractors_.resize(nof_adc);
+
+        calculate_channel_info();
 
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
@@ -96,8 +59,7 @@ namespace apdcam10g
 
 	    network_buffers_[i_adc].resize(network_buffer_size_,max_udp_packet_size);
 
-            extractors_[i_adc] = new channel_data_extractor<S>(i_adc,ver,sample_buffer_size_);
-            extractors_[i_adc]->set_daq(this);
+            extractors_[i_adc] = new channel_data_extractor<S>(this,i_adc,ver,sample_buffer_size_);
 
             channel_data_buffers_[i_adc].resize(channelinfo_[i_adc].size());
 
@@ -108,7 +70,6 @@ namespace apdcam10g
                 channel_data_buffers_[i_adc][i_enabled_channel].resize(sample_buffer_size_,2*process_period_);
                 // Copy the inherited properties channel_info::XXX
                 channel_data_buffers_[i_adc][i_enabled_channel] = channelinfo_[i_adc][i_enabled_channel];
-                channel_data_buffers_[i_adc][i_enabled_channel].
                 // And index the set of ring buffers by absolute channel number
                 channel_data_buffers_map_[channelinfo_[i_adc][i].absolute_channel_number] = std::addressof(channel_data_buffers_[i_adc][i]);
             }
@@ -118,6 +79,9 @@ namespace apdcam10g
         {
             cerr<<"ADC"<<i_adc<<" bytes per sample: "<<board_bytes_per_shot_[i_adc]<<endl;
         }
+
+        for(auto e : extractors_) e->init();
+        for(auto p : processors_) p->init();
 
         return *this;
     }
@@ -138,7 +102,51 @@ namespace apdcam10g
 	// syncing?) and listening by the time data starts to arrive.
 
 
-        // Start the producer (reading from the UDP sockets) threads
+        // ----------------------------- Processor thread -------------------------------------------
+        {
+            processor_thread_ = std::jthread( [this](std::stop_token stok)
+                {
+                    try
+                    {
+                        for(unsigned int to_counter=process_period; !stok.stop_requested(); to_counter += process_period_)
+                        {
+                            unsigned int from_counter = 0;
+                            // Wait until all channel data buffers have 'process_period_' new elements. Also calculate
+                            // the biggest front_counter of all buffers (i.e. the start of the counter-range that is guaranteed
+                            // to be available in all buffers)
+                            for(auto &a: channel_data_buffers_)
+                            {
+                                for(auto &b: a)
+                                {
+                                    b.wait_for_counter(to_counter);
+                                    if(b.front_counter() > from_counter) from_counter = b.front_counter();
+                                }
+                            }
+                            // The counter to indicate the first element that is required to stay in the buffers
+                            // by any of the processors
+                            unsigned int need = to_counter;
+                            for(auto p : processors_) 
+                            {
+                                const unsigned int this_processor_needs = p->run(from_counter, to_counter);
+                                if(this_processor_needs < need) need = this_processor_needs;
+                            }
+
+                            // After all tasks have run, and reported what the earliest element in the buffers that they
+                            // need for further processing, clear the buffers up to this
+                            for(auto &a: channel_data_buffers_)
+                            {
+                                for(auto &b: a)
+                                {
+                                    if(need > b.front_counter()) b.pop_front(need - b.front_counter());
+                                    else if(need < b.front_counter()) APDCAM_ERROR("One of the tasks returned a too small need: " + std::to_string(need));
+                                }
+                            }
+                        }
+                    }
+                });
+        }
+
+        // ------------------- Channel data extractor threads ------------------------------------------
         if(separate_extractor_threads_)  // Start one thread for each socket
         {
             for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
@@ -149,7 +157,7 @@ namespace apdcam10g
                         {
                             while(!stok.stop_requested())
 			    {
-				extractors_[i_socket]->run(network_buffers_[i_socket]);
+				extractors_[i_socket]->run(network_buffers_[i_socket],channel_data_buffers_[i_socket]);
 			    }
                         }
                         catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
@@ -166,7 +174,7 @@ namespace apdcam10g
                         {
                             for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
                             {
-                                extractors_[i_socket]->run(network_buffers_[i_socket]);
+                                extractors_[i_socket]->run(network_buffers_[i_socket],channel_data_buffers_[i_socket]);
                             }
                         }
                     }

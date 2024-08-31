@@ -43,6 +43,7 @@ namespace apdcam10g
         std::vector<std::vector<unsigned int>>      chip_offset_;             // Offset of the first data byte of the chip w.r.t. the board's first data byte, indices are ADC number and chip number
         std::vector<std::vector<channel_info>>      channelinfo_;             // Indices: ADC number, and a counter over the enabled channels (of all chips of that ADC board)
                                                                               // Example: channelinfo_[0][3] describes the 3rd ENABLED channel (and not the 3rd channel) of the 0th ADC board
+        unsigned int                                enabled_channels_;        // The number of enabled channels
         const int ports_[4] = {10000, 10001, 10002, 10003};
 
     public:
@@ -61,6 +62,8 @@ namespace apdcam10g
         unsigned int chip_bytes_per_shot(int i_adc, int i_chip) { return chip_bytes_per_shot_[i_adc][i_chip]; }
         unsigned int chip_offset(int i_adc, int i_chip) { return chip_offset_[i_adc][i_chip]; }
         const std::vector<channel_info> &channelinfo(unsigned int adc) { return channelinfo_[adc]; }
+
+        unsigned int enabled_channels() { return enabled_channels_; }
 
         // Returns the maximum size of the packets: the CC header + the ADC data 
         // (but not including the UDP header, IPv4 header and Ethernet header)
