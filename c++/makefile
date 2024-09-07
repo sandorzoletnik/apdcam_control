@@ -1,5 +1,5 @@
-a.out : proba.C ring_buffer.h
-	g++ -std=c++20 -Wno-interference-size proba.C
+#a.out : proba.C ring_buffer.h
+#	g++ -std=c++20 -Wno-interference-size proba.C
 
 SRCS = $(wildcard *.C)
 DEPS = $(SRCS:.C=.d)
@@ -18,9 +18,10 @@ clean :
 # uncomment this
 include $(DEPS)
 
+include makefile.params
 
 %.o : %.C
-	g++ -DFOR_PYTHON -fPIC -O2 -std=c++20 -Wno-interference-size -c -o $@ $<
+	g++ $(CXXFLAGS) -DFOR_PYTHON -fPIC -O2 -std=c++20 -Wno-interference-size -c -o $@ $<
 
 %.d : %.C
 	g++ -DFOR_PYTHON -M -MF $@ $^

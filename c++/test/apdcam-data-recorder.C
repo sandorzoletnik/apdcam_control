@@ -10,25 +10,26 @@
 using namespace apdcam10g;
 using namespace std;
 
-void help(const daq &s)
+daq the_daq;
+
+void help()
 {
     cout<<"Usage: apdcam-data-recorder [options]"<<endl<<endl;
     cout<<"  -i <interface>                   Set the network interface. Defaults to 'lo'"<<endl;
-    cout<<"  -s|--sample-buffer <interface>   Set the sample buffer size. Defaults to "<<s.sample_buffer_size()<<endl;
-    cout<<"  -n|--network-buffer <interface>  Set the network ring buffer size in terms of UDP packets. Defaults to "<<s.network_buffer_size()<<endl;
+    cout<<"  -s|--sample-buffer <interface>   Set the sample buffer size. Must be power of 2. Defaults to "<<the_daq.sample_buffer_size()<<endl;
+    cout<<"  -n|--network-buffer <interface>  Set the network ring buffer size in terms of UDP packets. Must be power of 2. Defaults to "<<the_daq.network_buffer_size()<<endl;
     cout<<endl;
     cout<<"Upon starting it will create a file 'settings.json' that can be read by the fake camera using the -s command line argument"<<endl;
     exit(0);
 }
 
-daq the_daq;
 
 
 void flush_output(int sig)
 {
     cerr<<"Flushing outputs.."<<endl;
     std::this_thread::sleep_for(1s);
-    the_daq.flush();
+    the_daq.finish();
     cerr<<"DONE"<<endl;
     std::this_thread::sleep_for(1s);
     signal (sig, SIG_DFL);
@@ -47,7 +48,7 @@ try
 
     for(unsigned int opt=1; opt<argc; ++opt)
     {
-        if(!strcmp(argv[opt],"-h") || !strcmp(argv[opt],"--help")) help(the_daq);
+        if(!strcmp(argv[opt],"-h") || !strcmp(argv[opt],"--help")) help();
         else if(!strcmp(argv[opt],"-i"))
         {
             if(opt+1>=argc) APDCAM_ERROR("Missing argument (interface) after -i");
@@ -67,12 +68,12 @@ try
     }
 
     the_daq.get_net_parameters();
-    the_daq.initialize(false,{{
-                {true,true,true,false,false,false,false,false},
-                {true,true,true,false,false,false,false,false},
-                {true,true,true,false,false,false,false,false},
-                {true,true,true,false,false,false,false,false}
-            }}, {14}, v1);
+
+    the_daq.init(false,{{true,true,true,false,false,false,false,false,
+                         true,true,true,false,false,false,false,false,
+                         true,true,true,false,false,false,false,false,
+                         true,true,true,false,false,false,false,false}}, {14}, v1);
+
     the_daq.write("settings.json");
 
 //    the_daq.print_channel_map();

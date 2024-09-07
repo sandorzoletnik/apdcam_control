@@ -1,6 +1,7 @@
 #include "fake_camera.h"
 #include "udp.h"
 #include "packet.h"
+#include "config.h"
 #include <thread>
 
 using namespace std;
@@ -12,9 +13,9 @@ namespace apdcam10g
         const int n_adc = board_bytes_per_shot_.size();
 
         // Allocate buffers and set proper size
-        vector<vector<std::byte>> buffer(channelinfo_.size());
+        vector<vector<std::byte>> buffer(all_enabled_channels_info_.size());
 
-        vector<vector<int>> shot_numbers(channelinfo_.size());
+        vector<vector<int>> shot_numbers(all_enabled_channels_info_.size());
 
         for(unsigned int i_adc=0; i_adc<n_adc; ++i_adc)
         {
@@ -42,7 +43,8 @@ namespace apdcam10g
                     int target_bit = 7; // signed so that we can check when it is -1. We start from the MSB
                     for(unsigned int i_channel=0; i_channel<8; ++i_channel)
                     {
-                        if(!channel_masks_[i_adc][i_chip][i_channel]) continue;
+                        const int i_board_channel = i_chip*config::channels_per_chip+i_channel;
+                        if(!channel_masks_[i_adc][i_board_channel]) continue;
 
                         // We set the value of the shot number into each channel
                         const int channel_value = i_shot;
@@ -80,7 +82,7 @@ namespace apdcam10g
         {
             threads.push_back(std::jthread( [this,nshots,i_adc,&shot_numbers,&buffer](std::stop_token stok)
                 {
-                    udp_client client(ports_[i_adc],server_ip_);
+                    udp_client client(config::ports[i_adc],server_ip_);
                     packet_v2 p;
 
                     try

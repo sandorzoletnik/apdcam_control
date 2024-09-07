@@ -8,26 +8,32 @@
 #include "bytes.h"
 #include "packet.h"
 #include "pstream.h"
+#include "config.h"
 
 using namespace std;
 
 namespace apdcam10g
 {
+    daq_settings::~daq_settings()
+    {
+        for(auto c : all_enabled_channels_info_) delete c;
+    }
+
     void daq_settings::print_channel_map(std::ostream &out)
     {
 
-        for(int i=0; i<channelinfo_.size(); ++i)
+        for(int i_adc=0; i_adc<board_enabled_channels_info_.size(); ++i_adc)
         {
-            out<<endl<<"ADC "<<i<<endl;
-            out<<"Resolution: "<<resolution_bits_[i]<<endl;
+            out<<endl<<"ADC "<<i_adc<<endl;
+            out<<"Resolution: "<<resolution_bits_[i_adc]<<endl;
 
             out<<endl;
-            for(auto c : channelinfo_[i])
+            for(auto c : board_enabled_channels_info_[i_adc])
             {
-                out<<"channel number: "<<c.channel_number<<endl;
-                out<<"byte offset   : "<<c.byte_offset<<endl;
-                out<<"nbytes        : "<<c.nbytes<<endl;
-                out<<"shift         : "<<c.shift<<endl;
+                out<<"channel number: "<<c->channel_number<<endl;
+                out<<"byte offset   : "<<c->byte_offset<<endl;
+                out<<"nbytes        : "<<c->nbytes<<endl;
+                out<<"shift         : "<<c->shift<<endl;
                 out<<endl;
             }
         }
@@ -129,8 +135,8 @@ namespace apdcam10g
         cerr<<"OCTET    : "<<octet_<<endl;
 
         return *this;
-    }    
-
+    }
+    
     void daq_settings::calculate_channel_info()
     {
         // channel_masks_ and resolution_bits_ must have been set before!
@@ -138,20 +144,33 @@ namespace apdcam10g
         const int nof_adc = channel_masks_.size();
         board_bytes_per_shot_.resize(nof_adc);
         chip_bytes_per_shot_.resize(nof_adc);
-        for(auto &v : chip_bytes_per_shot_) v.resize(4);
+        for(auto &v : chip_bytes_per_shot_) v.resize(config::chips_per_board);
         chip_offset_.resize(nof_adc);
-        for(auto &v : chip_offset_) v.resize(4);
-        channelinfo_.resize(nof_adc);
-        for(auto &i : channelinfo_) i.clear();
 
-        enabled_channels_ = 0;
+        for(auto &v : chip_offset_) v.resize(config::chips_per_board);
+    
+        unsigned int enabled_channels = 0;
+        for(int i_adc=0; i_adc<nof_adc; ++i_adc) 
+        {
+            for(int i_channel_of_board=0; i_channel_of_board<config::channels_per_board; ++i_channel_of_board) 
+            {
+                if(channel_masks_[i_adc][i_channel_of_board]) ++enabled_channels;
+            }
+        }
+
+        // Delete all channel_info objects, and clear the vector
+        for(auto a : all_enabled_channels_info_) delete a;
+        all_enabled_channels_info_.clear();
+
+        // Resize the per-board vector, and clear all of its elements
+        board_enabled_channels_info_.resize(nof_adc);
+        for(auto a : board_enabled_channels_info_) a.clear();
 
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
-            
             board_bytes_per_shot_[i_adc] = 0;
 
-            for(unsigned int i_chip=0; i_chip<4; ++i_chip)
+            for(unsigned int i_chip=0; i_chip<config::chips_per_board; ++i_chip)
             {
                 if(i_chip==0) chip_offset_[i_adc][i_chip] = 0;
                 else          chip_offset_[i_adc][i_chip] = chip_offset_[i_adc][i_chip-1] + chip_bytes_per_shot_[i_adc][i_chip-1];
@@ -162,87 +181,38 @@ namespace apdcam10g
                 // The offset of the given channel in terms of bits w.r.t. the given chip's first bit, a sliding value
                 unsigned int channel_bit_offset = 0;
 
-                // Calculate the number of bits used by this chip (a chip is a group of 8 channels). 
-                for(unsigned int i_channel=0; i_channel<8; ++i_channel)
+                // Calculate the number of bits used by this chip (a chip is a group of config::channels_per_chip channels). 
+                for(unsigned int i_channel_of_chip=0; i_channel_of_chip<config::channels_per_chip; ++i_channel_of_chip)
                 {
-                    // skip disabled channels
-                    if(!channel_masks_[i_adc][i_chip][i_channel]) continue;
+                    const unsigned int i_channel_of_board = i_chip*config::channels_per_chip + i_channel_of_chip;
 
-                    channel_info chinfo;
-                    chinfo.board_number = i_adc;
-                    chinfo.chip_number = i_chip;
-                    chinfo.channel_number = i_chip*8 + i_channel;
-                    chinfo.absolute_channel_number = i_adc*4*8 + i_chip*8 + i_channel;
-                    chinfo.enabled_channel_number = enabled_channels_++;
-                    chinfo.byte_offset    = chip_offset_[i_adc][i_chip] + channel_bit_offset/8;
+                    // skip disabled channels
+                    if(!channel_masks_[i_adc][i_channel_of_board]) continue;
+
+                    channel_info *chinfo = new channel_info;
+                    chinfo->board_number = i_adc;
+                    chinfo->chip_number = i_chip;
+                    chinfo->channel_number = i_channel_of_board;
+                    chinfo->absolute_channel_number = i_adc*config::chips_per_board*config::channels_per_chip + i_channel_of_board;
+                    chinfo->enabled_channel_number = all_enabled_channels_info_.size();
+                    chinfo->byte_offset    = chip_offset_[i_adc][i_chip] + channel_bit_offset/8;
 
                     // The first bit of this channel's value within the byte, STARTING FROM LEFT, FROM THE MOST SIGNIFICANT BIT
                     const unsigned int startbit = channel_bit_offset%8; // starting from 'left', that is, from the most significant bit
 
                     // The number of bytes over which this value is distributed
-                    chinfo.nbytes = (startbit+resolution_bits_[i_adc])/8 + ((startbit+resolution_bits_[i_adc])%8 ? 1 : 0);
+                    chinfo->nbytes = (startbit+resolution_bits_[i_adc])/8 + ((startbit+resolution_bits_[i_adc])%8 ? 1 : 0);
 
                     // The right-shift (deduced from the last bit of this value within the last byte)
-                    chinfo.shift = 8-((startbit+resolution_bits_[i_adc])%8); 
+                    chinfo->shift = 8-((startbit+resolution_bits_[i_adc])%8); 
 
                     // Checks
-                    if(chinfo.nbytes == 1 && chinfo.shift != 0) APDCAM_ERROR("Bug! With 1 bytes the shift should be 1.");
-                    
+                    if(chinfo->nbytes == 1 && chinfo->shift != 0) APDCAM_ERROR("Bug! With 1 bytes the shift should be 1.");
 
-/*                    
-                    int remaining_bits = resolution_bits_[i_adc];
-                    
-                    // The portion of this value falling into the first byte. Since the APD resolution is at least 8 bits,
-                    // the first byte is in any case right-aligned (i.e. towards the least significant bits). If it starts at the
-                    // most significant bit, it will occupy the full byte (so this is right-aligned). If it does not start at the
-                    // most significant bit, then it will occupy all less-significant bits, so it is right-aligned.
-                    {
-                        const int startbit = channel_bit_offset%8; // starting from 'left', that is, from the most significant bit
-                        const int nbits = std::min(remaining_bits,8-startbit); // the number of most significant bits of the value to be encoded in the first byte
-                        //chinfo.masks[0] = make_mask<data_type>(8-startbit-nbits, nbits);
-                        remaining_bits -= nbits;
-                        //chinfo.shifts[0] = -8+startbit+nbits+remaining_bits;  // this needs to be everywhere -1*(1st arg of make_mask)+remaining_bits
-                        chinfo.nbytes = 1;
-                    }
-
-                    // If the value did not fully fit into the first byte, take the second byte. The remaining
-                    // bits of the value are left-aligned within the 8 bits of this byte
-                    if(remaining_bits > 0)
-                    {
-                        const int startbit = 0; // starting from 'left', that is, from the most significant bit
-                        const int nbits = std::min(remaining_bits,8-startbit);
-                        chinfo.masks[1] = make_mask<data_type>(8-nbits, nbits);
-                        remaining_bits -= nbits;
-                        chinfo.shifts[1] = -8+nbits+remaining_bits;
-                        chinfo.nbytes = 2;
-                    }
-                    else
-                    {
-                        chinfo.masks[1] = 0;
-                        chinfo.shifts[1] = 0;
-                    }
-
-                    // If the value did not fully fit into the first 2 bytes, take the 3rd byte. Left aligned.
-                    if(remaining_bits > 0)
-                    {
-                        const int startbit = 0; // starting from 'left', that is, from the most significant bit
-                        const int nbits = std::min(remaining_bits,8-startbit);
-                        chinfo.masks[2] = make_mask<uint_fast16_t>(8-nbits, nbits);
-                        remaining_bits -= nbits;
-                        chinfo.shifts[2] = -8+nbits+remaining_bits;
-                        chinfo.nbytes = 3;
-                    }
-                    else
-                    {
-                        chinfo.masks[2] = 0;
-                        chinfo.shifts[2] = 0;
-                    }
-
-                    if(remaining_bits != 0) APDCAM_ERROR("The channel bits do not fit into 3 bytes (bug)");
-*/
-
-                    channelinfo_[i_adc].push_back(chinfo);
                     channel_bit_offset += resolution_bits_[i_adc];
+
+                    all_enabled_channels_info_.push_back(chinfo);
+                    board_enabled_channels_info_[i_adc].push_back(chinfo);
                 }
 
                 // channel_bit_offset here is the number of bits used for this chip. Calculate the number of full bytes
@@ -266,15 +236,11 @@ namespace apdcam10g
         {
             settings_root["resolution_bits"][i_adc] = resolution_bits_[i_adc];
             settings_root["resolution_bits"][i_adc].setComment(Json::String(("// ADC " + std::to_string(i_adc)).c_str()),Json::commentAfterOnSameLine);
-            for(unsigned int i_chip=0; i_chip<4; ++i_chip)
+            for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
             {
-                for(unsigned int i_channel=0; i_channel<8; ++i_channel)
-                {
-                    const bool b = channel_masks_[i_adc][i_chip][i_channel];
-                    settings_root["channel_masks"][i_adc][i_chip][i_channel] = b;
-                    settings_root["channel_masks"][i_adc][i_chip][i_channel].setComment(Json::String(("// Channel " + std::to_string(i_channel)).c_str()),Json::commentAfterOnSameLine);
-                }
-                settings_root["channel_masks"][i_adc][i_chip].setComment(Json::String(("// Chip " + std::to_string(i_chip)).c_str()),Json::commentBefore);
+                const bool b = channel_masks_[i_adc][i_board_channel];
+                settings_root["channel_masks"][i_adc][i_board_channel] = b;
+                settings_root["channel_masks"][i_adc][i_board_channel].setComment(Json::String(("// Channel " + std::to_string(i_board_channel)).c_str()),Json::commentAfterOnSameLine);
             }
             settings_root["channel_masks"][i_adc].setComment(Json::String(("// ADC " + std::to_string(i_adc)).c_str()),Json::commentBefore);
         }
@@ -298,20 +264,16 @@ namespace apdcam10g
         channel_masks_.resize(n_adc);
         for(auto &a : channel_masks_) 
         {
-            a.resize(4);
-            for(int i=0; i<4; ++i) a[i].resize(8);
+            a.resize(config::channels_per_board);
         }
         resolution_bits_.resize(n_adc);
 
         for(unsigned int i_adc=0; i_adc<n_adc; ++i_adc)
         {
             resolution_bits_[i_adc] = settings_root["resolution_bits"][i_adc].asInt();
-            for(unsigned int i_chip=0; i_chip<4; ++i_chip)
+            for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
             {
-                for(unsigned int i_channel=0; i_channel<8; ++i_channel)
-                {
-                     channel_masks_[i_adc][i_chip][i_channel] = settings_root["channel_masks"][i_adc][i_chip][i_channel].asBool();
-                }
+                channel_masks_[i_adc][i_board_channel] = settings_root["channel_masks"][i_adc][i_board_channel].asBool();
             }
         }
 

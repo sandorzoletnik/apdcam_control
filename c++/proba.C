@@ -18,8 +18,8 @@ std::mutex the_mutex;
 
 #define LOCK std::scoped_lock lock(the_mutex)
 
-//#include "error.h"
-#include "ring_buffer.h"
+#include "error.h"
+//#include "ring_buffer.h"
 //#include "safe_semaphore.h"
 //#include "rw_mutex.h"
 
@@ -27,10 +27,22 @@ using namespace apdcam10g;
 using namespace std;
 
 #include <iostream>
+#include <ranges>
+
+
+template <typename F>
+void call_many_times(F f, int n)
+{
+    for(int i=0; i<n; ++i) cerr<<f()<<endl;
+}
 
 int main()
 try
 {
+
+    call_many_times([](){static int i=0; return i++;},10);
+
+/*
     const int BUFFERSIZE = 32;
     ring_buffer<int> q(BUFFERSIZE,BUFFERSIZE);
 
@@ -97,6 +109,7 @@ try
     for(int i=0; i<NP; ++i) producers[i].join();
     consumer.join();
 
+*/
     return 0;
 }
 catch(apdcam10g::error &e)

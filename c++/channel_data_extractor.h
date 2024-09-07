@@ -3,6 +3,11 @@
 
 #include "config.h"
 #include "udp_packet_buffer.h"
+#include "packet.h"
+#include "typedefs.h"
+#include "channel_info.h"
+
+#include <ranges>
 
 /*
 
@@ -14,15 +19,18 @@
   
  */
 
-#include "daq.h"
 
 namespace apdcam10g
 {
-    template <safeness S>
+    class daq;
+
+    template <safeness S=default_safeness>
     class channel_data_extractor 
     {
     private:
-        
+
+        channel_data_extractor(const channel_data_extractor<S> &);
+
         // A pointer to a daq object to query packet size, number of bytes per ADC chip, per ADC board, etc
         daq *daq_ = 0;
 
@@ -30,8 +38,6 @@ namespace apdcam10g
         unsigned int adc_ = 0;
         
         packet *packet_ = 0, *next_packet_ = 0;
-
-        unsigned int packet_counter_ = 0;
 
         // The offset within the packet in the ring buffer, where the next shot
         // will start. 
@@ -49,37 +55,54 @@ namespace apdcam10g
         
         // Get the channel value from the byte array pointed to by 'ptr', which is the first (potentially incomplete) byte
         // of the encoded channel value. 
-        inline data_type get_channel_value_(std::byte *ptr, const channel_info &c)
-            {
-                switch(c.nbytes)
-                {
-                    // For 1 and 2 bytes we fit into data_type. However, if the value reaches over 3 bytes, we need to use a larger integer to represent it
-                    // before shifting down to the least significant bit.
-                case 2: return ((data_type(ptr[0])<<8 | data_type(ptr[1])) >> c.shift) & make_mask<data_type>(0,daq_->resolution_bits(adc_));
-                case 3: return data_type( (data_envelope_type(ptr[0])<<16 | data_envelope_type(ptr[1])<<8 | data_envelope_type(ptr[2])) >> c.shift) & make_mask<data_type>(0,daq_->resolution_bits(adc_));
-                case 1: return (data_type(ptr[0])>>c.shift) & make_mask<data_type>(0,daq_->resolution_bits(adc_));
-                default: APDCAM_ERROR("Bug! Number of bytes should be 1, 2 or 3");
-                }
-                return 0;
-            }
-        
+        apdcam10g::data_type get_channel_value_(std::byte *ptr, const channel_info *c);
+
     public:
         // Constructor
         // adc -- ADC number (0..3)
         // ver -- version (from version.h)
         // sample_buffer_size -- buffer capacity for the channel samples, before writing to file
-        channel_data_extractor(daq *d,unsigned int adc, version ver);
+        channel_data_extractor(daq *d, version ver, unsigned int adc);
 
         ~channel_data_extractor();
 
-        void init() {}
+        void adc(unsigned int adc_board_number) { adc_ = adc_board_number; }
+
 
         // Extract the channel data from the available packets in the network ring buffer,
         // and remove those packets from the ring buffer which have been processed.
-        // This function blocks the calling thread until new packets arrive
-        unsigned int run(udp_packet_buffer<default_safeness> &network_buffer, std::vector<daq::channel_data_buffer_t> &channel_data_buffer);
+        // This function blocks the calling thread until new packets arrive.
+        // Returns the number of removed packets, or a negative number if the input is terminated
+        int run(udp_packet_buffer<S> *network_buffer, 
+                const std::vector<ring_buffer<apdcam10g::data_type,channel_info>*> &channel_data_buffers);
     };
+
+    
+
 }
+
+
+#include "daq.h"
+
+#ifdef CLASS_DAQ_DEFINED
+namespace apdcam10g
+{
+    template <safeness S>
+    inline apdcam10g::data_type channel_data_extractor<S>::get_channel_value_(std::byte *ptr, const channel_info *c)
+    {
+        switch(c->nbytes)
+        {
+            // For 1 and 2 bytes we fit into data_type. However, if the value reaches over 3 bytes, we need to use a larger integer to represent it
+            // before shifting down to the least significant bit.
+        case 2: return ((data_type(ptr[0])<<8 | data_type(ptr[1])) >> c->shift) & make_mask<data_type>(0,daq_->resolution_bits(adc_));
+        case 3: return data_type( (data_envelope_type(ptr[0])<<16 | data_envelope_type(ptr[1])<<8 | data_envelope_type(ptr[2])) >> c->shift) & make_mask<data_type>(0,daq_->resolution_bits(adc_));
+        case 1: return (data_type(ptr[0])>>c->shift) & make_mask<data_type>(0,daq_->resolution_bits(adc_));
+        default: APDCAM_ERROR("Bug! Number of bytes should be 1, 2 or 3");
+        }
+        return 0;
+    }
+}
+#endif
 
 
 #endif

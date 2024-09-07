@@ -37,7 +37,7 @@ namespace apdcam10g
     class EMPTY_RING_BUFFER_BASE {};
 
     template<typename T, typename BASE=EMPTY_RING_BUFFER_BASE>
-    class ring_buffer : EMPTY
+    class ring_buffer : public BASE
     {
     private:
 
@@ -49,12 +49,12 @@ namespace apdcam10g
 
         // mask_ is the buffersize-1. Buffersize must be power of 2 so mask will be used to
         // enforce cyclic indexing (modulo buffersize of the continuously running counters)
-        size_t              mask_;
+        size_t mask_;
 
         // Extra size at the end of the buffer so that if a continuous range of elements is
         // required, those elements which eventually happen to be at the front, can be copied
         // to the extra space at the end
-        size_t extra_size_;
+         size_t extra_size_;
 
         // dynamically allocated buffer to store the data
         T*     buffer_ = 0;
@@ -68,27 +68,34 @@ namespace apdcam10g
         void operator = (ring_buffer const&);
 
     public:
+        ring_buffer(size_t buffer_size=0, size_t extra_size=0)
+        {
+            resize(buffer_size,extra_size);
+        }
+
         void resize(size_t buffer_size, size_t extra_size=0)
         {
+            mask_ = buffer_size-1;
+            extra_size_ = extra_size;
+
             if(buffer_ != 0)
             {
                 ::munlock(buffer_,mask_+1+extra_size_);
                 delete [] buffer_;
             }
+            buffer_ = 0;
+            
             // Ensure buffer_size is power of 2
             if(buffer_size>=2 && (buffer_size&(buffer_size-1))!=0) APDCAM_ERROR("Ring buffer size must be a power of 2");
 
-            // The mask to realize modulo buffer_size operations efficiently (bitwise mask)
-            mask_ = buffer_size-1;
-            
-            // Store extra size
-            extra_size_ = extra_size;
-
-            // Allocate buffer with extra space for flattening
-            buffer_ = new T[buffer_size+extra_size];
-
-            // Prevent the buffer memory from beeing swapped to disk
-            if(::mlock(buffer_,buffer_size+extra_size) != 0) APDCAM_ERROR_ERRNO(errno);
+            if(buffer_size>0)
+            {
+                // Allocate buffer with extra space for flattening
+                buffer_ = new T[buffer_size+extra_size];
+                
+                // Prevent the buffer memory from beeing swapped to disk
+                if(::mlock(buffer_,buffer_size+extra_size) != 0) APDCAM_ERROR_ERRNO(errno);
+            }
 
             // Initialize counters and terminated flag
             push_counter_.store(0, std::memory_order_relaxed);
@@ -105,10 +112,9 @@ namespace apdcam10g
             }
         }
 
-        const EMPTY &operator=(const EMPTY &rhs)
+        void copy_values(const BASE &rhs)
         {
-            EMPTY::operator=(rhs);
-            return rhs;
+            BASE::operator=(rhs);
         }
 
         bool terminated() const
@@ -129,12 +135,6 @@ namespace apdcam10g
         {
             return push_counter_.load(std::memory_order_acquire);
         }
-
-        ring_buffer(size_t buffer_size, size_t extra_size) 
-        {
-            resize(buffer_size,extra_size);
-        }
-
 
         bool push(T const& value)
         {
@@ -157,6 +157,28 @@ namespace apdcam10g
             return true;
         }
 
+        // If the buffer is non-empty, remove the front element, and return true.
+        // Othersize return false
+        bool pop()
+        {
+            // Take a snapshot of the current status. Read push_counter as second to very slightly increase the chance that the producer thread added new data
+            // and the queue is not empty
+            const size_t pop_counter = pop_counter_.load(std::memory_order_relaxed);
+            const size_t push_counter = push_counter_.load(std::memory_order_acquire);
+
+            // Buffer is empty
+            if(push_counter == pop_counter) return false;
+
+            // We are the only consumers, no other thread has changed pop_counter_, so use the cached snapshot value 'pop_counter', incremented
+            // We do not produce any side effect that should be propagated to the producer thread (copying the value of the just-popped
+            // element into 'value' is local to this thread) so store relaxed
+            pop_counter_.store(pop_counter+1,std::memory_order_relaxed);
+
+            return true;
+        }
+
+        // If the buffer is non-empty, copy the front element into 'value', remove it from the buffer, and return true
+        // Otherwise return false;
         bool pop(T &value)
         {
             // Take a snapshot of the current status. Read push_counter as second to very slightly increase the chance that the producer thread added new data
@@ -289,7 +311,6 @@ namespace apdcam10g
                 memcpy(buffer_+mask_+1,buffer_,n_front*sizeof(T));
             }
 
-            
             return 
             {
                 // if no data is available and we return because of being terminated, make sure the user does not get a non-zero pointer
@@ -298,11 +319,20 @@ namespace apdcam10g
             };
         }
 
-
         // Does not make any checks!
         T &operator()(size_t counter)
         {
             return buffer_[counter&mask_];
+        }
+
+        T &operator[](size_t index)
+        {
+            return buffer_[(pop_counter_+index)&mask_];
+        }
+
+        size_t size() const
+        {
+            return push_counter_-pop_counter_;
         }
 
         void dump()

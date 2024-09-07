@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <iostream>
 
 namespace apdcam10g
 {
@@ -67,6 +68,21 @@ namespace apdcam10g
         int send(const std::byte *buffer, int length);
         template <safeness s=default_safeness>
         int send(const char *buffer, int length);
+
+        void timeout(unsigned int timeout_in_seconds)
+        {
+            if(timeout_in_seconds>0)
+            {
+                struct timeval tv;
+                tv.tv_sec = timeout_in_seconds;
+                tv.tv_usec = 0;
+                setsockopt(fd_, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+            }
+            else
+            {
+                std::cerr<<"Can not remove timeout option yet"<<std::endl;
+            }
+        }
     };
 
     class udp_client : public udp_socket

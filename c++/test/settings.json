@@ -1,0 +1,44 @@
+{
+	"channel_masks" : 
+	[
+		// ADC 0
+		[
+			true, // Channel 0
+			true, // Channel 1
+			true, // Channel 2
+			false, // Channel 3
+			false, // Channel 4
+			false, // Channel 5
+			false, // Channel 6
+			false, // Channel 7
+			true, // Channel 8
+			true, // Channel 9
+			true, // Channel 10
+			false, // Channel 11
+			false, // Channel 12
+			false, // Channel 13
+			false, // Channel 14
+			false, // Channel 15
+			true, // Channel 16
+			true, // Channel 17
+			true, // Channel 18
+			false, // Channel 19
+			false, // Channel 20
+			false, // Channel 21
+			false, // Channel 22
+			false, // Channel 23
+			true, // Channel 24
+			true, // Channel 25
+			true, // Channel 26
+			false, // Channel 27
+			false, // Channel 28
+			false, // Channel 29
+			false, // Channel 30
+			false // Channel 31
+		]
+	],
+	"resolution_bits" : 
+	[
+		14 // ADC 0
+	]
+}

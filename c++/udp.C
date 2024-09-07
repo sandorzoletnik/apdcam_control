@@ -66,6 +66,13 @@ namespace apdcam10g
     {
         socklen_t len = sizeof(client_address_);
         int n = recvfrom(fd_, (char*)buffer, length, 0, (sockaddr*) &client_address_, &len); 
+        if(n<0)
+        {
+            if(errno==EAGAIN || errno==EWOULDBLOCK)
+            {
+                // Should we take special action for timeout?
+            }
+        }
         return n;
     }
     template <safeness s>

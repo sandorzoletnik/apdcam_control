@@ -8,6 +8,8 @@ namespace apdcam10g
     const unsigned int max_boards = 4;
     const unsigned int chips_per_board = 4;
     const unsigned int channels_per_chip = 8;
+    const unsigned int channels_per_board = chips_per_board*channels_per_chip;
+    const unsigned int ports[4] = {10000, 10001, 10002, 10003};
   }
 }
 

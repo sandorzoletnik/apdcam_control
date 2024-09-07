@@ -32,7 +32,10 @@ namespace apdcam10g
         // i.e. the first byte of the first (enabled) channel of the first chip. 
         unsigned int byte_offset;
         
-        // The number of bytes that this value is extending over.
+        // The number of bytes that this value is extending over. Possible values are
+        // 1 - if resolution is 8-bit
+        // 2
+        // 3 - if resolution is 12-bit
         unsigned int nbytes;
 
         // The amount of bitwise right-shift (i.e. towards least significant bit)

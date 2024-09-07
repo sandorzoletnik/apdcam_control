@@ -21,57 +21,74 @@ namespace apdcam10g
 {
     using namespace std;
 
-    daq::~daq()
+    void daq::finish()
     {
-        for(auto e : extractors_) delete e;
+        for(auto p : processors_) p->finish();
     }
 
     template <safeness S>
-    daq &daq::init(bool dual_sata, const std::vector<std::vector<std::vector<bool>>> &channel_masks, const std::vector<unsigned int> &resolution_bits, version ver)
+    daq &daq::init(bool dual_sata, const std::vector<std::vector<bool>> &channel_masks, const std::vector<unsigned int> &resolution_bits, version ver)
     {
+
         if(mtu_ == 0) APDCAM_ERROR("MTU has not been set");
         if(channel_masks.size() != resolution_bits.size()) APDCAM_ERROR("Masks and resolution sizes do not agree");
 
         channel_masks_ = channel_masks;
         resolution_bits_ = resolution_bits;
 
-        sockets_.clear(); // delete any previously open socket, if any
-
-        const int nof_adc = channel_masks.size();
+        const unsigned int nof_adc = channel_masks.size();
 
         if(mtu_==0) APDCAM_ERROR("MTU has not yet been specified in daq::initialize");
         if(dual_sata && nof_adc>2) APDCAM_ERROR("Dual sata is set with more than two ADC boards present");
 
+        // Resize the socket vector to have as many elements as there are ADC boards
+        sockets_.clear(); // delete any previously open socket, if any
         sockets_.resize(nof_adc);
-	network_buffers_.resize(nof_adc);
-        channel_data_buffers_.resize(nof_adc);
-        channel_data_buffers_map_.clear();
-        for(auto e: extractors_) delete e;
-        extractors_.resize(nof_adc);
 
+        // Resize the network buffer vector to have as many elements as there are ADC boards. Initialize their buffer size
+        regenerate(network_buffers_,nof_adc,network_buffer_size_,max_udp_packet_size_);
+
+        // Resize the extractors vector to have as many elements as there are ADC boards
+//        regenerate(extractors_,nof_adc,x.......); implement regenerate with invokable.
+        regenerate_by_func(extractors_, nof_adc, [this,ver](unsigned int i_adc){return new channel_data_extractor<default_safeness>(this,ver,i_adc);});
+
+//        extractors_.clear();
+//        extractors_.resize(nof_adc,{this,ver});
+
+        // Calculate the all_enabled_channels_info / board_enabled_channels_info vectors (ranges), and the
+        // number of all enabled channels
         calculate_channel_info();
+
+        all_channels_buffers_.clear();
+
+        // Resize the channels buffers, so that the sub-ranges (per ADC board) can be set up on the fly (i.e.
+        // the 'all_enabled_channels_buffers_' vector is not resized anymore, which would invalidate its sub-ranges)
+        regenerate(all_enabled_channels_buffers_,nof_adc*config::channels_per_board,0);
+
+        // The per-board channels vector (in fact: subrange of the 'all_enabled_channels_buffers_')
+        board_enabled_channels_buffers_.clear();
+        board_enabled_channels_buffers_.resize(nof_adc);
+
+        board_last_channel_buffers_.resize(nof_adc);
+
+        all_channels_buffers_.clear();
+        all_channels_buffers_.resize(nof_adc*config::channels_per_board,0);
 
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
             const int port_index = (dual_sata ? i_adc*2 : i_adc);
-	    cerr<<"Listening on port "<<ports_[i_adc*2]<<endl;
-	    sockets_[i_adc].open(ports_[port_index]);
+	    cerr<<"Listening on port "<<config::ports[i_adc*2]<<endl;
 
-	    network_buffers_[i_adc].resize(network_buffer_size_,max_udp_packet_size);
+	    sockets_[i_adc].open(config::ports[port_index]);
 
-            extractors_[i_adc] = new channel_data_extractor<S>(this,i_adc,ver,sample_buffer_size_);
-
-            channel_data_buffers_[i_adc].resize(channelinfo_[i_adc].size());
-
-            // Now loop over all enabled channels of this ADC board
-            for(unsigned int i_enabled_channel=0; i_enabled_channel<channelinfo_[i_adc].size(); ++i_enabled_channel)
+            // Loop over all enabled channels of this board
+            for(auto c : board_enabled_channels_info_[i_adc])
             {
-                // Resize the corresponding ring buffer
-                channel_data_buffers_[i_adc][i_enabled_channel].resize(sample_buffer_size_,2*process_period_);
-                // Copy the inherited properties channel_info::XXX
-                channel_data_buffers_[i_adc][i_enabled_channel] = channelinfo_[i_adc][i_enabled_channel];
-                // And index the set of ring buffers by absolute channel number
-                channel_data_buffers_map_[channelinfo_[i_adc][i].absolute_channel_number] = std::addressof(channel_data_buffers_[i_adc][i]);
+                channel_data_buffer_t *b = new channel_data_buffer_t(sample_buffer_size_,sample_buffer_extra_size_);
+                b->copy_values(*c);
+                all_enabled_channels_buffers_[c->absolute_channel_number] = b;
+                board_enabled_channels_buffers_[i_adc].push_back(b);
+                board_last_channel_buffers_[i_adc] = b;
             }
         }
 
@@ -80,15 +97,9 @@ namespace apdcam10g
             cerr<<"ADC"<<i_adc<<" bytes per sample: "<<board_bytes_per_shot_[i_adc]<<endl;
         }
 
-        for(auto e : extractors_) e->init();
         for(auto p : processors_) p->init();
 
         return *this;
-    }
-
-    void daq::flush()
-    {
-      cerr<<"daq::flush is not yet implemented"<<endl;
     }
 
 
@@ -108,41 +119,51 @@ namespace apdcam10g
                 {
                     try
                     {
-                        for(unsigned int to_counter=process_period; !stok.stop_requested(); to_counter += process_period_)
+                        for(unsigned int to_counter=process_period_; !stok.stop_requested(); to_counter += process_period_)
                         {
-                            unsigned int from_counter = 0;
-                            // Wait until all channel data buffers have 'process_period_' new elements. Also calculate
-                            // the biggest front_counter of all buffers (i.e. the start of the counter-range that is guaranteed
-                            // to be available in all buffers)
-                            for(auto &a: channel_data_buffers_)
+                            size_t common_pop_counter=0;
+                            size_t common_push_counter=0;
+
+                            // Check the last channels of each board, and spin-lock wait until they have a required new number
+                            // of entries, or are terminated
+                            bool non_terminated_exists = false;
+                            for(int i=0; i<board_last_channel_buffers_.size(); ++i)
                             {
-                                for(auto &b: a)
-                                {
-                                    b.wait_for_counter(to_counter);
-                                    if(b.front_counter() > from_counter) from_counter = b.front_counter();
-                                }
-                            }
-                            // The counter to indicate the first element that is required to stay in the buffers
-                            // by any of the processors
-                            unsigned int need = to_counter;
-                            for(auto p : processors_) 
-                            {
-                                const unsigned int this_processor_needs = p->run(from_counter, to_counter);
-                                if(this_processor_needs < need) need = this_processor_needs;
+                                const channel_data_buffer_t *b = board_last_channel_buffers_[i];
+                                bool terminated;
+                                size_t push_counter;
+                                while( (push_counter=b->push_counter())<to_counter && (terminated=b->terminated())==false );
+                                // Re-query to capture the case when between the two AND-ed conditions in the while loop there were new
+                                // entries added to the ring_buffer, and it was terminated as well.
+                                if(terminated) push_counter = b->push_counter();
+                                else non_terminated_exists = true;
+                                if(i==0 || push_counter<common_push_counter) common_push_counter = push_counter;
+                                
+                                size_t pop_counter = b->pop_counter();
+                                if(pop_counter > common_pop_counter) common_pop_counter = pop_counter;
                             }
 
-                            // After all tasks have run, and reported what the earliest element in the buffers that they
-                            // need for further processing, clear the buffers up to this
-                            for(auto &a: channel_data_buffers_)
+                            if(common_push_counter > common_pop_counter)
                             {
-                                for(auto &b: a)
+                                // The counter to indicate the first element that is required to stay in the buffers
+                                // by any of the processors
+                                unsigned int needed = common_push_counter;
+                                for(auto p : processors_) 
                                 {
-                                    if(need > b.front_counter()) b.pop_front(need - b.front_counter());
-                                    else if(need < b.front_counter()) APDCAM_ERROR("One of the tasks returned a too small need: " + std::to_string(need));
+                                    const unsigned int this_processor_needs = p->run(common_pop_counter, common_push_counter);
+                                    if(this_processor_needs > common_push_counter) APDCAM_ERROR("Processor returned too high needed value");
+                                    if(this_processor_needs < needed) needed = this_processor_needs;
                                 }
+                                
+                                // After all tasks have run, and reported what the earliest element in the buffers that they
+                                // need for further processing, clear the buffers up to this
+                                for(auto a: all_enabled_channels_buffers_) a->pop_to(needed);
                             }
+
+                            if(!non_terminated_exists) break;
                         }
                     }
+                    catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
                 });
         }
 
@@ -157,7 +178,7 @@ namespace apdcam10g
                         {
                             while(!stok.stop_requested())
 			    {
-				extractors_[i_socket]->run(network_buffers_[i_socket],channel_data_buffers_[i_socket]);
+				if(extractors_[i_socket]->run(network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]) < 0) break;
 			    }
                         }
                         catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
@@ -172,10 +193,14 @@ namespace apdcam10g
                     {
                         while(!stok.stop_requested())
                         {
+                            int n_active = 0;
                             for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
                             {
-                                extractors_[i_socket]->run(network_buffers_[i_socket],channel_data_buffers_[i_socket]);
+                                // If input is terminated, 'run' returns a negative number. Otherwise (zero or larger returned value) the
+                                // input socket is still active
+                                if(extractors_[i_socket]->run(network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]) >= 0) ++n_active;
                             }
+                            if(n_active == 0) break;
                         }
                     }
                     catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
@@ -183,7 +208,8 @@ namespace apdcam10g
         }
 
 
-        // Start the producer (reading from the UDP sockets) threads
+        // -------------------------------- Network reading thread(s) ----------------------------------
+        // These threads do nothing but continuously read UDP packets into the udp packet buffers 'network_buffers_'
         if(separate_network_threads_)  // Start one thread for each socket
         {
             for(unsigned int i=0; i<sockets_.size(); ++i)
@@ -203,10 +229,10 @@ namespace apdcam10g
 			      // it simply ceases sending data)
 			      // Implement a "first" flag. If this is true, timeout can be long (waiting for the first event),
 			      // but when it's false, we should not wait too much. 
-			      const auto received_packet_size = network_buffers_[i].receive(sockets_[i]);
+			      const auto received_packet_size = network_buffers_[i]->receive(sockets_[i]);
 
 			      // Reached the end of the stream
-			      if(received_packet_size != max_udp_packet_size_) break;
+			      if(received_packet_size != max_udp_packet_size_ || network_buffers_[i]->terminated()) break;
                             }
                         }
                         catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
@@ -228,19 +254,19 @@ namespace apdcam10g
 		      
                         while(!stok.stop_requested())
                         {
-             		  unsigned int n_active_sockets = 0;
-			  for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
+                            unsigned int n_active_sockets = 0;
+                            for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
                             {
-			      if(!socket_active[i_socket]) continue;
-			      // We should set a timeout here as well.
-			      const auto received_packet_size = network_buffers_[i].receive(sockets_[i]);
-			      
-			      if(received_packet_size != max_udp_packet_size_) socket_active[i_socket] = false;
-			      else ++n_active_sockets;
+                                if(!socket_active[i_socket] || network_buffers_[i_socket]->terminated()) continue;
+                                // We should set a timeout here as well.
+                                const auto received_packet_size = network_buffers_[i_socket]->receive(sockets_[i_socket]);
+                                
+                                if(received_packet_size != max_udp_packet_size_) socket_active[i_socket] = false;
+                                else ++n_active_sockets;
                             }
-
-			  // stop the thread if there are no more active sockets 
-			  if(n_active_sockets == 0) break;
+                            
+                            // stop the thread if there are no more active sockets 
+                            if(n_active_sockets == 0) break;
                         }
                     }
                     catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
@@ -278,12 +304,14 @@ namespace apdcam10g
     template <safeness S>
     daq &daq::stop(bool wait)
     {
-        for(auto &t : producer_threads_) t.request_stop();
-        for(auto &t : consumer_threads_) t.request_stop();
+        processor_thread_.request_stop();
+        for(auto &t : extractor_threads_) t.request_stop();
+        for(auto &t : network_threads_) t.request_stop();
         if(wait)
         {
-            for(auto &t : producer_threads_) if(t.joinable()) t.join();
-            for(auto &t : consumer_threads_) if(t.joinable()) t.join();
+            if(processor_thread_.joinable()) processor_thread_.join();
+            for(auto &t : extractor_threads_) if(t.joinable()) t.join();
+            for(auto &t : network_threads_) if(t.joinable()) t.join();
         }
         return *this;
     }
@@ -292,8 +320,8 @@ namespace apdcam10g
     template daq &daq::stop<unsafe>(bool);
     template daq &daq::start<safe>(bool);
     template daq &daq::start<unsafe>(bool);
-    template daq &daq::initialize<safe>  (bool, const std::vector<std::vector<std::vector<bool>>>&, const std::vector<unsigned int>&, version);
-    template daq &daq::initialize<unsafe>(bool, const std::vector<std::vector<std::vector<bool>>>&, const std::vector<unsigned int>&, version);
+    template daq &daq::init<safe>  (bool, const std::vector<std::vector<bool>>&, const std::vector<unsigned int>&, version);
+    template daq &daq::init<unsafe>(bool, const std::vector<std::vector<bool>>&, const std::vector<unsigned int>&, version);
 }
 
 #ifdef FOR_PYTHON
@@ -305,27 +333,22 @@ extern "C"
     void         mtu(daq *self, int m) { self->mtu(m); }
     void         start(daq *self, bool wait) { self->start(wait); }
     void         stop(daq *self, bool wait) { self->stop(wait); }
-    void         initialize(daq *self, bool dual_sata, int n_adc_boards, bool ***channel_masks, unsigned int *resolution_bits, version ver, bool is_safe)
+    void         init(daq *self, bool dual_sata, int n_adc_boards, bool **channel_masks, unsigned int *resolution_bits, version ver, bool is_safe)
     {
-        std::vector<std::vector<std::vector<bool>>> chmasks(n_adc_boards);
+        std::vector<std::vector<bool>> chmasks(n_adc_boards);
         std::vector<unsigned int> rbits(n_adc_boards);
         for(unsigned int i_adc_board=0; i_adc_board<n_adc_boards; ++i_adc_board)
         {
             chmasks[i_adc_board].resize(4);
             rbits[i_adc_board] = resolution_bits[i_adc_board];
-            for(unsigned int i_chip=0; i_chip<4; ++i_chip)
+            for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
             {
-                chmasks[i_adc_board][i_chip].resize(8);
-                for(unsigned int i_channel=0; i_channel<8; ++i_channel)
-                {
-                    chmasks[i_adc_board][i_chip][i_channel] = channel_masks[i_adc_board][i_chip][i_channel];
-                }
+                chmasks[i_adc_board].push_back(channel_masks[i_adc_board][i_board_channel]);
             }
         }
 
-        if(is_safe) self->initialize<safe>(dual_sata,chmasks,rbits,ver);
-        else        self->initialize<unsafe>(dual_sata,chmasks,rbits,ver);
+        if(is_safe) self->init<safe>(dual_sata,chmasks,rbits,ver);
+        else        self->init<unsafe>(dual_sata,chmasks,rbits,ver);
     }
-    void         dump(daq *self) { self->dump(); }
 }
 #endif

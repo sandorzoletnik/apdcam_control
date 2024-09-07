@@ -36,17 +36,19 @@ namespace apdcam10g
 
         // A lot of (redundant) information to be able to access and manipulate the memory storage
         // in different ways efficiently
-        std::vector<std::vector<std::vector<bool>>> channel_masks_;           // Indices: ADC number, chip number, channel number
+        std::vector<std::vector<bool>>              channel_masks_;           // Indices: ADC number, channel number within board 
         std::vector<unsigned int>                   resolution_bits_;         // Index: ADC number
         std::vector<unsigned int>                   board_bytes_per_shot_;    // index is ADC number
         std::vector<std::vector<unsigned int>>      chip_bytes_per_shot_;     // indices are ADC number (0..3max) and chip nummber (0..3)
         std::vector<std::vector<unsigned int>>      chip_offset_;             // Offset of the first data byte of the chip w.r.t. the board's first data byte, indices are ADC number and chip number
-        std::vector<std::vector<channel_info>>      channelinfo_;             // Indices: ADC number, and a counter over the enabled channels (of all chips of that ADC board)
-                                                                              // Example: channelinfo_[0][3] describes the 3rd ENABLED channel (and not the 3rd channel) of the 0th ADC board
-        unsigned int                                enabled_channels_;        // The number of enabled channels
-        const int ports_[4] = {10000, 10001, 10002, 10003};
+
+
+        std::vector<channel_info*>              all_enabled_channels_info_;
+        std::vector<std::vector<channel_info*>> board_enabled_channels_info_;
 
     public:
+        ~daq_settings();
+
         // set/get the MTU value (Maximum Transmission Unit, the biggest size of packet that can be sent
         // without fragmentation) used for all sockets
         daq_settings &mtu(unsigned int m);
@@ -56,14 +58,18 @@ namespace apdcam10g
         const std::string &interface() const { return interface_; }
         daq_settings &get_net_parameters();
 
-        bool channel_mask(int i_adc, int i_chip, int i_channel) { return channel_masks_[i_adc][i_chip][i_channel]; }
+        bool channel_mask(unsigned int i_adc, unsigned int i_channel_of_board) { return channel_masks_[i_adc][i_channel_of_board]; }
         unsigned int resolution_bits(int i_adc) { return resolution_bits_[i_adc]; }
         unsigned int board_bytes_per_shot(int i_adc) { return board_bytes_per_shot_[i_adc]; }
         unsigned int chip_bytes_per_shot(int i_adc, int i_chip) { return chip_bytes_per_shot_[i_adc][i_chip]; }
         unsigned int chip_offset(int i_adc, int i_chip) { return chip_offset_[i_adc][i_chip]; }
-        const std::vector<channel_info> &channelinfo(unsigned int adc) { return channelinfo_[adc]; }
+//        const std::vector<channel_info> &channelinfo(unsigned int adc) { return channelinfo_[adc]; }
 
-        unsigned int enabled_channels() { return enabled_channels_; }
+        // Return the number of all enabled channels
+        unsigned int enabled_channels() { return all_enabled_channels_info_.size(); }
+
+        // Return the number of enabled channels on board 'board_number' (0-based)
+        unsigned int enabled_channels(unsigned int board_number) { return board_enabled_channels_info_[board_number].size(); }
 
         // Returns the maximum size of the packets: the CC header + the ADC data 
         // (but not including the UDP header, IPv4 header and Ethernet header)
