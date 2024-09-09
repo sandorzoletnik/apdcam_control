@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 
 #include "daq.h"
@@ -7,6 +8,7 @@
 #include "pstream.h"
 #include "channel_data_extractor.h"
 #include <memory>
+
 
 //#include <stdio.h>
 //#include <stdlib.h>
@@ -94,7 +96,19 @@ namespace apdcam10g
 
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
-            cerr<<"ADC"<<i_adc<<" bytes per sample: "<<board_bytes_per_shot_[i_adc]<<endl;
+            cerr<<"ADC #"<<i_adc<<" bytes per sample: "<<board_bytes_per_shot_[i_adc]<<endl;
+            cerr<<"Enabled channels: "<<endl;
+            for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
+            {
+                cerr<<setw(2)<<i_board_channel<<"  ";
+            }
+            cerr<<endl;
+            for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
+            {
+                cerr<<setw(2)<<(channel_masks_[i_adc][i_board_channel] ? "XX" : "  ")<<"  ";
+            }
+            cerr<<endl;
+            
         }
 
         for(auto p : processors_) p->init();
@@ -234,6 +248,9 @@ namespace apdcam10g
 			      // Reached the end of the stream
 			      if(received_packet_size != max_udp_packet_size_ || network_buffers_[i]->terminated()) break;
                             }
+                            // If we have quit the while loop due to stop_requested, we need to set the terminated flag
+                            // to indicate no more data coming down from the network. If not, we set it again at no harm.
+                            network_buffers_[i]->terminated();
                         }
                         catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
                     }));
@@ -268,26 +285,13 @@ namespace apdcam10g
                             // stop the thread if there are no more active sockets 
                             if(n_active_sockets == 0) break;
                         }
+                        // Set the terminated flag of all network buffers to indicate to the consumer threads
+                        // that no more data is coming from us
+                        for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket) network_buffers_[i_socket]->terminated();
                     }
                     catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
                 }));
         }
-
-
-	// Create 
-	{
-	  processor_thread_ = std::jthread([this](std::stop_token stok)
-					   {
-					     try
-					       {
-						 while(!stok.stop_requested())
-						   {
-						     cerr<<"processor thread is not yet ipmlemented"<<endl;
-						   }
-					       }
-					     catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
-					   });
-	}
 
         sleep(1);
 
@@ -304,9 +308,17 @@ namespace apdcam10g
     template <safeness S>
     daq &daq::stop(bool wait)
     {
-        processor_thread_.request_stop();
-        for(auto &t : extractor_threads_) t.request_stop();
+        // These threads do not need to be requested to stop because they do so anyway if their input
+        // ring_buffers get their 'terminated' flag set. 
+        //processor_thread_.request_stop();
+        //for(auto &t : extractor_threads_) t.request_stop();
+
+        // Stopping the network threads will cause them to set the network_buffers_[i].terminated flag to true
+        // as a consequence of which the channel_data_extractor threads will set the terminated flag of all of
+        // the channel data buffers' flags to true, which in turn will cause the processor thread to
+        // stop as well
         for(auto &t : network_threads_) t.request_stop();
+
         if(wait)
         {
             if(processor_thread_.joinable()) processor_thread_.join();

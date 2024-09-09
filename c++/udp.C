@@ -25,7 +25,7 @@ namespace apdcam10g
     udp_socket &udp_socket::open(unsigned int port)
     {
         if(fd_ != 0) close();
-        if((fd_ = socket(AF_INET,SOCK_DGRAM,0))<0) APDCAM_ERROR(string("Error creating UDP server socket: ") + strerror(errno));
+        if((fd_ = socket(AF_INET,SOCK_DGRAM,0))<0) APDCAM_ERROR_ERRNO("Error creating UDP server socket");
         blocking(blocking_);
         return *this;
     }
@@ -124,6 +124,11 @@ namespace apdcam10g
     template <safeness s>
     int udp_client::send(const std::byte *buffer, int length)
     {
+        cerr<<"udp_client::send, server address: "<<server_address_.sin_addr.s_addr<<endl;
+        cerr<<((server_address_.sin_addr.s_addr>>24)&127)<<"."
+            <<((server_address_.sin_addr.s_addr>>16)&127)<<"."
+            <<((server_address_.sin_addr.s_addr>>8 )&127)<<"."
+            <<((server_address_.sin_addr.s_addr    )&127)<<endl;
         return sendto(fd_, (const char *)buffer, length, MSG_CONFIRM, (const sockaddr*) &server_address_, sizeof(server_address_)); 
     }
     template <safeness s>

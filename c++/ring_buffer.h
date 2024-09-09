@@ -94,7 +94,7 @@ namespace apdcam10g
                 buffer_ = new T[buffer_size+extra_size];
                 
                 // Prevent the buffer memory from beeing swapped to disk
-                if(::mlock(buffer_,buffer_size+extra_size) != 0) APDCAM_ERROR_ERRNO(errno);
+                if(::mlock(buffer_,buffer_size+extra_size) != 0) APDCAM_ERROR_ERRNO("Failed to lock memory from swapping");
             }
 
             // Initialize counters and terminated flag

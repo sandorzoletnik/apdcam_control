@@ -72,7 +72,7 @@ try
     the_daq.init(false,{{true,true,true,false,false,false,false,false,
                          true,true,true,false,false,false,false,false,
                          true,true,true,false,false,false,false,false,
-                         true,true,true,false,false,false,false,false}}, {14}, v1);
+                         true,true,true,false,false,false,false,false}}, {14}, v2);
 
     the_daq.write("settings.json");
 

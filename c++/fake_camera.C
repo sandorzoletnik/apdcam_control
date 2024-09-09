@@ -12,15 +12,18 @@ namespace apdcam10g
     {
         const int n_adc = board_bytes_per_shot_.size();
 
-        // Allocate buffers and set proper size
-        vector<vector<std::byte>> buffer(all_enabled_channels_info_.size());
+        // Allocate buffers for all ADC boards and set proper size. First index is ADC board number.
+        vector<vector<std::byte>> buffer(n_adc);
 
-        vector<vector<int>> shot_numbers(all_enabled_channels_info_.size());
+        vector<vector<int>> shot_numbers(n_adc);
 
         for(unsigned int i_adc=0; i_adc<n_adc; ++i_adc)
         {
+            cerr<<"ADC #"<<i_adc<<endl;
             // Allocate sufficient memory to store exactly the nshots shots + the extra room for a cc_streamheader (22 bytes)
-            // at the front
+            // at the front. Note that no room is allocated for a CC header at each shot, only at the very front of the buffer.
+            // Once the first packet is sent out, the space it occuped in memory can be liberated, and it gives space
+            // for the CC header to be moved just before the next packet's memory space
             {
                 const int buffersize = nshots*board_bytes_per_shot_[i_adc]+packet::cc_streamheader;
                 buffer[i_adc].resize(buffersize,std::byte(0));
@@ -77,11 +80,17 @@ namespace apdcam10g
             }
         }
 
+        cerr<<"------------------------------------------"<<endl;
+
         vector<jthread> threads;
         for(unsigned int i_adc=0; i_adc<n_adc; ++i_adc)
         {
             threads.push_back(std::jthread( [this,nshots,i_adc,&shot_numbers,&buffer](std::stop_token stok)
                 {
+                    cerr<<"----------- Thread for ADC #"<<i_adc<<" --------------------------"<<endl;
+                    cerr<<"PORT: "<<config::ports[i_adc]<<endl;
+                    cerr<<"IP  : "<<server_ip_<<endl;
+                    cerr<<endl;
                     udp_client client(config::ports[i_adc],server_ip_);
                     packet_v2 p;
 
@@ -95,7 +104,14 @@ namespace apdcam10g
                             // pointer (i.e. including the 22 header bytes) will be moved forward, occupying the last 22 bytes
                             // of the previous (already sent) packet memory region. This is for simplicity and efficiency. We overwrite
                             // these 22 last bytes of each previous packet buffer, so the data is invalidated
-                            p.data(&(buffer[i_adc].front())+i_packet*8*octet_,8*octet_+packet::cc_streamheader);
+
+                            // The number of data bytes, including the CC streamheader. The last packet (or already the first one, if we are sending
+                            // less data than the packet size) may be shorter than 8*octet_+packet::cc_streamheader. We calculate it using the fact that
+                            // buffer[i_adc] has been sized to contain exactly the number of bytes needed + the CC streamheader size
+                            const unsigned int data_start = i_packet*8*octet_;
+                            const unsigned int data_size  = std::min(8*octet_+packet::cc_streamheader, (unsigned int)(buffer[i_adc].size()-i_packet*8*octet_));
+                            
+                            p.data(&(buffer[i_adc].front())+data_start, data_size);
                             p.clear_header();
                             p.serial_number = i_packet;  // what is a serial number?
                             p.packet_counter = i_packet;
@@ -103,7 +119,7 @@ namespace apdcam10g
                             p.udp_test_mode = 0;
                             p.stream_number = i_adc;
                             p.burst_counter = 0;
-                            p.data_bytes = 8*octet_; // must be updated, for last packet it is less than this...
+                            p.data_bytes = data_size-packet::cc_streamheader;
                             p.trigger_location = 0;
                             p.trigger_status = 0;
                             p.adc_stream_mode = 1;
@@ -111,7 +127,7 @@ namespace apdcam10g
                             p.dual_sata_mode = 0;
                             p.burst_start = 0;
 
-                            if(client.send(p.start(),p.udp_packet_size())<0) APDCAM_ERROR("Sending of data failed");
+                            if(client.send(p.start(),p.udp_packet_size())<0) APDCAM_ERROR_ERRNO("Sending of package failed");
                         }
                     }
                     catch(const apdcam10g::error &e)

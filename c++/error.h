@@ -47,9 +47,9 @@ namespace apdcam10g
         out<<e.full_message();
         return out;
     }
-    };
+}
 
-#define APDCAM_ERROR(msg) throw apdcam10g::error(msg,__FILE__,__LINE__)
-#define APDCAM_ERROR_ERRNO(en) throw apdcam10g::error(strerror(errno),__FILE__,__LINE__) 
+#define APDCAM_ERROR(msg)       throw apdcam10g::error(msg,__FILE__,__LINE__)
+#define APDCAM_ERROR_ERRNO(msg) throw apdcam10g::error(std::string(msg) + ": " + std::string(strerror(errno)),__FILE__,__LINE__) 
 
 #endif
