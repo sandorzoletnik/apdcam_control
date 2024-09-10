@@ -26,15 +26,17 @@ namespace apdcam10g
     // The 'daq' class handles all sockets used for data transfer between the camera and the PC
     class daq : public daq_settings
     {
+        friend class channel_data_diskdump;
+
     private:
         //friend class channel_data_diskdump;
 
         // The period (number of shots) for calling the processor tasks on the channel data. The default 100 means that once there are
         // 100 new shots in the buffer, all processor tasks are triggered and run.
-        unsigned int process_period_ = 100;
+        unsigned int process_period_ = 10;
 
         bool separate_network_threads_ = true;
-        bool separate_extractor_threads_ = false;
+        bool separate_extractor_threads_ = true;
       
         std::vector<udp_server>  sockets_;
       

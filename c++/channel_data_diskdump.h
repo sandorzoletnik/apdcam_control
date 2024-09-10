@@ -1,9 +1,10 @@
 #ifndef __APDCAM10G__CHANNEL_DATA_DISKDUMP_H__
 #define __APDCAM10G__CHANNEL_DATA_DISKDUMP_H__
 
-#include "signal_processor.h"
+#include "channel_data_processor.h"
 #include "ring_buffer.h"
 #include "config.h"
+#include <fstream>
 
 namespace apdcam10g
 {
@@ -14,17 +15,16 @@ namespace apdcam10g
       size_t next_data_ = 0;
   public:
       channel_data_diskdump(daq *d) : channel_data_processor(d) {}
+      channel_data_diskdump() {}
 
       void init()
       {
           files_.clear();
-          files_.resize(daq_->enabled_channels());
-          for(auto &board_channels : daq_->channel_data_buffers_)
+          files_.resize(daq_->all_enabled_channels_buffers_.size());
+          for(unsigned int i=0; i<daq_->all_enabled_channels_buffers_.size(); ++i)
           {
-              for(auto &c : board_channels)
-              {
-                  files_[c.absolute_channel_number].open("channel_data_" + std::to_string(c.absolute_channel_number));
-              }
+              const std::string filename = "channel_data_" + std::to_string(daq_->all_enabled_channels_buffers_[i]->absolute_channel_number) + ".dat";
+              files_[i].open(filename);
           }
       }
 
@@ -36,12 +36,10 @@ namespace apdcam10g
       size_t run(size_t from_counter, size_t to_counter)
       {
           size_t start = std::max(from_counter, next_data_);
-          for(auto &board_channels: daq_->channel_data_buffers_)
+          for(unsigned int i_enabled_channel=0; i_enabled_channel<daq_->all_enabled_channels_buffers_.size(); ++i_enabled_channel)
           {
-              for(auto &c : board_channels)
-              {
-                  for(size_t i=start; i<to_counter; ++i) files_[c.absolute_channel_number] << c(i)<<endl;
-              }
+              daq::channel_data_buffer_t *c = daq_->all_enabled_channels_buffers_[i_enabled_channel];
+              for(size_t i=start; i<to_counter; ++i) files_[i_enabled_channel] << (*c)(i)<<endl;
           }
           return (next_data_ = to_counter);
       }

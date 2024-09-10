@@ -2,6 +2,7 @@
 #include <iostream>
 #include "channel_data_extractor.h"
 #include "daq.h"
+#include "utils.h"
 
 using namespace std;
 
@@ -28,20 +29,27 @@ namespace apdcam10g
                                        const std::vector<ring_buffer<apdcam10g::data_type,channel_info>*> &channel_data_buffers)
 
     {
+        //cerr<<"channel_data_extractor::run"<<endl;
+
         // Wait for new packages
         size_t npackets;
         bool terminated;
         while( (npackets=network_buffer->size()) == 0 && (terminated=network_buffer->terminated())==false );
 
+        //cerr<<"npackets = "<<npackets<<endl;
+
         // Re-query the size: between the evaluation of the two conidtions within while there could be
         // a new partial package arriving (i.e. setting size>0) which triggers the terminate flag.
         npackets = network_buffer->size();
+
+        //cerr<<"npackets = "<<npackets<<endl;
 
         // If there are indeed no new packets, then it must have been the 'terminated' flag which caused
         // quitting the while loop. In principle all previous packets must have contained entire shots,
         // and have been removed. We can terminate the output queues
         if(npackets==0)
         {
+            cerr<<"No new packets, terminating"<<endl;
             for(auto c : channel_data_buffers) c->terminate();
             return -1;
         }
@@ -153,6 +161,17 @@ namespace apdcam10g
                 break;
             }
         }
+
+        //cerr<<"Removed packets from the buffer: "<<removed_packets<<endl;
+
+        /*
+        cerr<<"output buffers: "<<endl;
+        for(auto c : channel_data_buffers)
+        {
+            output_lock lck;
+            cerr<<"Channel "<<c->board_number<<"/"<<c->channel_number<<" --> "<<c->size()<<endl;
+        }
+        */
 
         return removed_packets;
     }

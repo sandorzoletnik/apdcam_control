@@ -15,6 +15,9 @@ namespace apdcam10g
         daq *daq_ = 0;
         
     public:
+        channel_data_processor() {}
+        channel_data_processor(daq *d) : daq_(d) {}
+
         // Initialization function called before starting the data acquisition
         virtual void init() = 0;
         virtual void finish() = 0;

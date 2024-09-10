@@ -23,6 +23,8 @@ namespace apdcam10g
             return received_packet_size;
         }
 
+        ++received_packets_;
+
         record_ptr->size = received_packet_size;
 
         // Before the first packet we have not set any timeout: we want the DAQ to wait long before
@@ -43,41 +45,45 @@ namespace apdcam10g
         }
 	else // packet loss
 	{
-	  // First, create zero-filled packets in the raw buffer (physically AFTER the received packet,
-	  // although the time order should have been the opposite), and add them to the ring buffer
-	  const unsigned int lost_packets = packet_counter - expected_packet_counter_;
-          // We have not yet 'published' the new packet, so we need to have lost_packets+1 free space available
+            // First, create zero-filled packets in the raw buffer (physically AFTER the received packet,
+            // although the time order should have been the opposite), and add them to the ring buffer
+            const unsigned int nof_lost_packets = packet_counter - expected_packet_counter_;
+            // We have not yet 'published' the new packet, so we need to have nof_lost_packets+1 free space available
 
-          udp_packet_record *empty_record_ptr;
-	  for(unsigned int i=0; i<lost_packets; ++i)
-          {
-              // Spin-lock wait for a new slot
-              while((empty_record_ptr=future_element(i+1))==0);
+            lost_packets_ += nof_lost_packets;
+            
+            udp_packet_record *empty_record_ptr;
+            for(unsigned int i=0; i<nof_lost_packets; ++i)
+            {
+                // Spin-lock wait for a new slot
+                while((empty_record_ptr=future_element(i+1))==0);
 
-	      // Then create a new zero-filled packet in the raw buffer, and append it to the ring buffer
-	      add_empty_packet_(empty_record_ptr->address,expected_packet_counter_+i);
-          }
-
-          // Now the empty packets are after the received one. Swap the received one to the end
-          swap(*record_ptr,*empty_record_ptr);
-
-	  // And finally publish the new data to the consumers
-          publish(lost_packets+1);
+                // Then create a new zero-filled packet in the raw buffer, and append it to the ring buffer
+                add_empty_packet_(empty_record_ptr,expected_packet_counter_+i,max_udp_packet_size_);
+            }
+            
+            // Now the empty packets are after the received one. Swap the received one to the end
+            swap(*record_ptr,*empty_record_ptr);
+            
+            // And finally publish the new data to the consumers
+            publish(nof_lost_packets+1);
 	}
 	expected_packet_counter_ = packet_counter+1;
 	return received_packet_size;
     }
 
     template <safeness S>
-    void udp_packet_buffer<S>::add_empty_packet_(std::byte *address,unsigned int counter)
+    //void udp_packet_buffer<S>::add_empty_packet_(std::byte *address,unsigned int counter)
+    void udp_packet_buffer<S>::add_empty_packet_(udp_packet_record *record_ptr,unsigned int counter, unsigned int packet_size)
     {
       // Fill the next block with zeros
-      memset(address,0,max_udp_packet_size_);
+        memset(record_ptr->address,0,packet_size);
+        record_ptr->size = packet_size;
 
-      // Set the packet counter in the header to the specified value
-      // WARNING, we should set other header data as well!
-      byte_converter<6,std::endian::big> packet_counter(address+8);
-      packet_counter = counter;
+        // Set the packet counter in the header to the specified value
+        // WARNING, we should set other header data as well!
+        byte_converter<6,std::endian::big> packet_counter(record_ptr->address+8);
+        packet_counter = counter;
     }
 
     template unsigned int udp_packet_buffer<apdcam10g::safe>::receive(udp_server &);

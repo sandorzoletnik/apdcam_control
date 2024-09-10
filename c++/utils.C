@@ -24,5 +24,11 @@ namespace apdcam10g
 	if(w != "") out.push_back(w);
 	return out;
     }
+
+    std::mutex &output_mutex()
+    {
+        static std::mutex m;
+        return m;
+    }
     
 }

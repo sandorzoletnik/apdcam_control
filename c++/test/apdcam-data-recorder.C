@@ -1,4 +1,5 @@
 #include "daq.h"
+#include "channel_data_diskdump.h"
 #include <iostream>
 #include <string>
 #include <thread>
@@ -68,6 +69,8 @@ try
     }
 
     the_daq.get_net_parameters();
+
+    the_daq.add_processor(new channel_data_diskdump(&the_daq));
 
     the_daq.init(false,{{true,true,true,false,false,false,false,false,
                          true,true,true,false,false,false,false,false,

@@ -3,6 +3,7 @@
 #include "packet.h"
 #include "config.h"
 #include <thread>
+#include <mutex>
 
 using namespace std;
 
@@ -19,7 +20,6 @@ namespace apdcam10g
 
         for(unsigned int i_adc=0; i_adc<n_adc; ++i_adc)
         {
-            cerr<<"ADC #"<<i_adc<<endl;
             // Allocate sufficient memory to store exactly the nshots shots + the extra room for a cc_streamheader (22 bytes)
             // at the front. Note that no room is allocated for a CC header at each shot, only at the very front of the buffer.
             // Once the first packet is sent out, the space it occuped in memory can be liberated, and it gives space
@@ -80,17 +80,20 @@ namespace apdcam10g
             }
         }
 
-        cerr<<"------------------------------------------"<<endl;
+        std::mutex the_mutex;
 
         vector<jthread> threads;
         for(unsigned int i_adc=0; i_adc<n_adc; ++i_adc)
         {
-            threads.push_back(std::jthread( [this,nshots,i_adc,&shot_numbers,&buffer](std::stop_token stok)
+            threads.push_back(std::jthread( [this,nshots,i_adc,&shot_numbers,&buffer,&the_mutex](std::stop_token stok)
                 {
-                    cerr<<"----------- Thread for ADC #"<<i_adc<<" --------------------------"<<endl;
-                    cerr<<"PORT: "<<config::ports[i_adc]<<endl;
-                    cerr<<"IP  : "<<server_ip_<<endl;
-                    cerr<<endl;
+                    {
+                        std::scoped_lock lock(the_mutex);
+                        cerr<<"----------- Thread for ADC #"<<i_adc<<" --------------------------"<<endl;
+                        cerr<<"PORT: "<<config::ports[i_adc]<<endl;
+                        cerr<<"IP  : "<<server_ip_<<endl;
+                        cerr<<endl;
+                    }
                     udp_client client(config::ports[i_adc],server_ip_);
                     packet_v2 p;
 
@@ -127,7 +130,10 @@ namespace apdcam10g
                             p.dual_sata_mode = 0;
                             p.burst_start = 0;
 
-                            if(client.send(p.start(),p.udp_packet_size())<0) APDCAM_ERROR_ERRNO("Sending of package failed");
+                            if(packet_filter_(i_packet))
+                            {
+                                if(client.send(p.start(),p.udp_packet_size())<0) APDCAM_ERROR_ERRNO("Sending of package failed");
+                            }
                         }
                     }
                     catch(const apdcam10g::error &e)

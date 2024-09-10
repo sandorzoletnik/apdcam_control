@@ -48,24 +48,19 @@ namespace apdcam10g
         sockets_.resize(nof_adc);
 
         // Resize the network buffer vector to have as many elements as there are ADC boards. Initialize their buffer size
+        cerr<<"Creating network buffers for "<<network_buffer_size_<<" UDP packets of size "<<max_udp_packet_size_<<endl;
         regenerate(network_buffers_,nof_adc,network_buffer_size_,max_udp_packet_size_);
 
         // Resize the extractors vector to have as many elements as there are ADC boards
-//        regenerate(extractors_,nof_adc,x.......); implement regenerate with invokable.
         regenerate_by_func(extractors_, nof_adc, [this,ver](unsigned int i_adc){return new channel_data_extractor<default_safeness>(this,ver,i_adc);});
-
-//        extractors_.clear();
-//        extractors_.resize(nof_adc,{this,ver});
 
         // Calculate the all_enabled_channels_info / board_enabled_channels_info vectors (ranges), and the
         // number of all enabled channels
         calculate_channel_info();
 
-        all_channels_buffers_.clear();
-
         // Resize the channels buffers, so that the sub-ranges (per ADC board) can be set up on the fly (i.e.
         // the 'all_enabled_channels_buffers_' vector is not resized anymore, which would invalidate its sub-ranges)
-        regenerate(all_enabled_channels_buffers_,nof_adc*config::channels_per_board,0);
+        regenerate(all_enabled_channels_buffers_,all_enabled_channels_info_.size(),0);
 
         // The per-board channels vector (in fact: subrange of the 'all_enabled_channels_buffers_')
         board_enabled_channels_buffers_.clear();
@@ -76,26 +71,29 @@ namespace apdcam10g
         all_channels_buffers_.clear();
         all_channels_buffers_.resize(nof_adc*config::channels_per_board,0);
 
+        // Open the input ports
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
             const int port_index = (dual_sata ? i_adc*2 : i_adc);
 	    cerr<<"Listening on port "<<config::ports[i_adc*2]<<endl;
-
 	    sockets_[i_adc].open(config::ports[port_index]);
-
-            // Loop over all enabled channels of this board
-            for(auto c : board_enabled_channels_info_[i_adc])
-            {
-                channel_data_buffer_t *b = new channel_data_buffer_t(sample_buffer_size_,sample_buffer_extra_size_);
-                b->copy_values(*c);
-                all_enabled_channels_buffers_[c->absolute_channel_number] = b;
-                board_enabled_channels_buffers_[i_adc].push_back(b);
-                board_last_channel_buffers_[i_adc] = b;
-            }
+        }
+        
+        for(unsigned int i=0; i<all_enabled_channels_info_.size(); ++i)
+        {
+            const channel_info *ci = all_enabled_channels_info_[i];
+            channel_data_buffer_t *b = new channel_data_buffer_t(sample_buffer_size_,sample_buffer_extra_size_);
+            b->copy_values(*ci);
+            all_enabled_channels_buffers_[i] = b;
+            board_enabled_channels_buffers_[ci->board_number].push_back(b);
+            board_last_channel_buffers_[ci->board_number] = b;
+            all_channels_buffers_[ci->absolute_channel_number] = b;
         }
 
+        // Print an overview summary
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
+            cerr<<"--------------------------------------------"<<endl;
             cerr<<"ADC #"<<i_adc<<" bytes per sample: "<<board_bytes_per_shot_[i_adc]<<endl;
             cerr<<"Enabled channels: "<<endl;
             for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
@@ -108,9 +106,9 @@ namespace apdcam10g
                 cerr<<setw(2)<<(channel_masks_[i_adc][i_board_channel] ? "XX" : "  ")<<"  ";
             }
             cerr<<endl;
-            
         }
 
+        
         for(auto p : processors_) p->init();
 
         return *this;
@@ -133,8 +131,13 @@ namespace apdcam10g
                 {
                     try
                     {
-                        for(unsigned int to_counter=process_period_; !stok.stop_requested(); to_counter += process_period_)
+                        for(unsigned int to_counter=process_period_; !stok.stop_requested(); )
                         {
+                            //{
+                            //    output_lock lck; 
+                            //    cerr<<"  >> Processor thread waiting for shots up to "<<to_counter<<endl;
+                            // }
+
                             size_t common_pop_counter=0;
                             size_t common_push_counter=0;
 
@@ -144,17 +147,43 @@ namespace apdcam10g
                             for(int i=0; i<board_last_channel_buffers_.size(); ++i)
                             {
                                 const channel_data_buffer_t *b = board_last_channel_buffers_[i];
+//                                {
+//                                    output_lock lck;
+//                                    cerr<<"  >> Checking channel "<<b->board_number<<"/"<<b->channel_number<<endl;
+//                                }
                                 bool terminated;
                                 size_t push_counter;
                                 while( (push_counter=b->push_counter())<to_counter && (terminated=b->terminated())==false );
+                                // {
+                                //     output_lock lck;
+                                //     cerr<<"  >> out of spin-lock, push_counter="<<push_counter<<endl;
+                                // }
+
                                 // Re-query to capture the case when between the two AND-ed conditions in the while loop there were new
                                 // entries added to the ring_buffer, and it was terminated as well.
-                                if(terminated) push_counter = b->push_counter();
+                                if(terminated)
+                                {
+                                    push_counter = b->push_counter();
+                                    // {
+                                    //     output_lock lck;
+                                    //     cerr<<"  >> push_counter r-queried: "<<push_counter<<endl;
+                                    // }
+                                }
                                 else non_terminated_exists = true;
                                 if(i==0 || push_counter<common_push_counter) common_push_counter = push_counter;
-                                
+
+                                // {
+                                //     output_lock lck;
+                                //     cerr<<"  >> comon_push_counter: "<<common_push_counter<<endl;
+                                // }
+
                                 size_t pop_counter = b->pop_counter();
                                 if(pop_counter > common_pop_counter) common_pop_counter = pop_counter;
+
+                                // {
+                                //     output_lock lck;
+                                //     cerr<<"  >> common_pop_counter: "<<common_pop_counter<<endl;
+                                // }
                             }
 
                             if(common_push_counter > common_pop_counter)
@@ -175,11 +204,14 @@ namespace apdcam10g
                             }
 
                             if(!non_terminated_exists) break;
+
+                            to_counter = common_push_counter + process_period_;
                         }
                     }
                     catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
                 });
         }
+
 
         // ------------------- Channel data extractor threads ------------------------------------------
         if(separate_extractor_threads_)  // Start one thread for each socket
@@ -192,7 +224,12 @@ namespace apdcam10g
                         {
                             while(!stok.stop_requested())
 			    {
-				if(extractors_[i_socket]->run(network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]) < 0) break;
+				if(extractors_[i_socket]->run(network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]) < 0)
+                                {
+                                    //output_lock lck;
+                                    //cerr<<"Extractor #"<<i_socket<<" input network buffer terminated"<<endl;
+                                    break;
+                                }
 			    }
                         }
                         catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
@@ -226,6 +263,7 @@ namespace apdcam10g
         // These threads do nothing but continuously read UDP packets into the udp packet buffers 'network_buffers_'
         if(separate_network_threads_)  // Start one thread for each socket
         {
+            output_lock lck;
             for(unsigned int i=0; i<sockets_.size(); ++i)
             {
                 // Make the corresponding socket blocking. This thread is reading only from one socket, so
@@ -245,12 +283,33 @@ namespace apdcam10g
 			      // but when it's false, we should not wait too much. 
 			      const auto received_packet_size = network_buffers_[i]->receive(sockets_[i]);
 
+                              // {
+                              //     output_lock lck;
+                              //     cerr<<"Socket #"<<i<<" received packet: "<<received_packet_size<<endl;
+                              // }
+
 			      // Reached the end of the stream
-			      if(received_packet_size != max_udp_packet_size_ || network_buffers_[i]->terminated()) break;
+			      if(received_packet_size != max_udp_packet_size_ || network_buffers_[i]->terminated())
+                              {
+                                  // output_lock lck;
+                                  // cerr<<"Socket #"<<i<<" terminated"<<endl;
+                                  // cerr<<"Network buffer size: "<<network_buffers_[i]->size()<<endl;
+                                  break;
+                              }
                             }
+
                             // If we have quit the while loop due to stop_requested, we need to set the terminated flag
                             // to indicate no more data coming down from the network. If not, we set it again at no harm.
-                            network_buffers_[i]->terminated();
+                            sockets_[i].close();
+                            network_buffers_[i]->terminate();
+
+                            {
+                                output_lock lck;
+                                cerr<<"---------- Network summary #"<<i<<" ---------------------------"<<endl;
+                                cerr<<"Received packets : "<<network_buffers_[i]->received_packets()<<endl;
+                                cerr<<"Lost packets     : "<<network_buffers_[i]->lost_packets()<<endl;
+                            }
+
                         }
                         catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
                     }));

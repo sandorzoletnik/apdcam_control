@@ -11,6 +11,7 @@ void help()
     cout<<" -i SERVER_IP        Specify the IP address of the server which receives the data (defaults to 127.0.0.1 [localhost])"<<endl;
     cout<<" -n NUMBER_OF_SHOTS  Specify the number of shots to be sent (defaults to 100)"<<endl;
     cout<<" -s FILE             Read settings from the specified file (must have been exported by apdcam-data-recorder)"<<endl;
+    cout<<" --drop-packets <n>  Drop every nth packet to simulate packet loss"<<endl;
     exit(0);
 }
 
@@ -43,6 +44,12 @@ try
         {
             if(++opt>=argc) APDCAM_ERROR("Settings filename exptected after -s");
             settings_ok = cam.read(argv[opt]);
+        }
+        else if(!strcmp(argv[opt],"--drop-packets"))
+        {
+            if(++opt>=argc) APDCAM_ERROR("Number expected after --drop-packets");
+            const unsigned int drop_packets = atoi(argv[opt]);
+            cam.packet_filter([drop_packets](unsigned int packet_no) { if((packet_no+1)%drop_packets==0) return false; return true; });
         }
         else
         {

@@ -28,11 +28,14 @@ namespace apdcam10g
         // Maximum size of UDP packets (all packets but the last one are of this size)
         unsigned int max_udp_packet_size_ = 0;
         
-        // Counter of the UDP package expected during the next receive
+        // Counter of the UDP packet expected during the next receive
         unsigned int expected_packet_counter_ = 0;
         
         // Add an empty packet (filled with zeroes) to the buffer, with the specified counter
-        void add_empty_packet_(std::byte *address, unsigned int counter);
+        void add_empty_packet_(udp_packet_record *, unsigned int counter, unsigned int packet_size);
+
+        unsigned int lost_packets_ = 0;
+        unsigned int received_packets_ = 0;
 
     public:
         udp_packet_buffer() {}
@@ -41,6 +44,9 @@ namespace apdcam10g
 
             resize(size_in_packets,max_udp_packet_size);
         }
+
+        unsigned int lost_packets() const { return lost_packets_; }
+        unsigned int received_packets() const { return received_packets_; }
 
         void resize(unsigned int size_in_packets, unsigned int max_udp_packet_size)
         {

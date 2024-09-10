@@ -5,6 +5,7 @@
 #include <string>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <functional>
 
 namespace apdcam10g
 {
@@ -12,9 +13,11 @@ namespace apdcam10g
     {
     private:
         std::string server_ip_;
+        std::function<bool(unsigned int)> packet_filter_ = [](unsigned int) { return true; };
     public:
         fake_camera &server_ip(const std::string &ip) { server_ip_ = ip; return *this; }
         void send(int n, bool wait=true);
+        void packet_filter(std::function<bool(unsigned int)> filter) { packet_filter_ = filter; }
     };
 
 }
