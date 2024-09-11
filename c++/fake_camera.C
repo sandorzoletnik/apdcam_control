@@ -18,6 +18,20 @@ namespace apdcam10g
 
         vector<vector<int>> shot_numbers(n_adc);
 
+        // ---------------- print summary ------------------------------
+        cerr<<"----------------------------------------------------------"<<endl;
+        for(unsigned int i_adc=0; i_adc<n_adc; ++i_adc)
+        {
+            for(unsigned int i_chip=0; i_chip<4; ++i_chip)
+            {
+                cerr<<"Chip offset["<<i_adc<<"]["<<i_chip<<"] = "<<chip_offset_[i_adc][i_chip]<<endl;
+            }
+        }
+        cerr<<endl;
+        print_channel_map(cerr);
+        cerr<<"----------------------------------------------------------"<<endl;
+
+        
         for(unsigned int i_adc=0; i_adc<n_adc; ++i_adc)
         {
             // Allocate sufficient memory to store exactly the nshots shots + the extra room for a cc_streamheader (22 bytes)
@@ -39,12 +53,14 @@ namespace apdcam10g
                 // packet::cc_streamheader so that we have sufficient room before the first data to write the packet header.
                 // For the non-first packet, the previos packet's data region will be overwritten
                 const unsigned int shot_start = packet::cc_streamheader + i_shot*board_bytes_per_shot_[i_adc];
-                for(unsigned int i_chip=0; i_chip<4; ++i_chip)
+                for(unsigned int i_chip=0; i_chip<config::chips_per_board; ++i_chip)
                 {
+                    // Start of the chip's data w.r.t. the shot's first byte
                     const unsigned int chip_start = chip_offset_[i_adc][i_chip];
+
                     unsigned int target_byte = 0; // relative to chip start
                     int target_bit = 7; // signed so that we can check when it is -1. We start from the MSB
-                    for(unsigned int i_channel=0; i_channel<8; ++i_channel)
+                    for(unsigned int i_channel=0; i_channel<config::channels_per_chip; ++i_channel)
                     {
                         const int i_board_channel = i_chip*config::channels_per_chip+i_channel;
                         if(!channel_masks_[i_adc][i_board_channel]) continue;
@@ -132,7 +148,10 @@ namespace apdcam10g
 
                             if(packet_filter_(i_packet))
                             {
-                                if(client.send(p.start(),p.udp_packet_size())<0) APDCAM_ERROR_ERRNO("Sending of package failed");
+                                size_t packet_size = p.udp_packet_size();
+                                if(buffer[i_adc].size()-data_start < packet_size) packet_size = buffer[i_adc].size()-data_start;
+                                cerr<<"Sending data segment: "<<data_start<<" .. "<<data_start+packet_size<<" ("<<packet_size<<" bytes) of buffer "<<buffer[i_adc].size()<<endl;
+                                if(client.send(p.start(),packet_size)<0) APDCAM_ERROR_ERRNO("Sending of package failed");
                             }
                         }
                     }

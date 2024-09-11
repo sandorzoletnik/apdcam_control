@@ -81,7 +81,15 @@ namespace apdcam10g
         unsigned int sample_buffer_extra_size_ = 1<<8; // Extra size at the end of the sample buffers to flatten a flipped-back data range
 
 
+        // Being a singleton, the constructor is private and the only instance can be accessed
+        // via the static daq::instance() function
+        daq() {}
+
     public:
+
+        // Accessing the singleton instance
+        static daq &instance();
+
         ~daq()
         {
             for(auto p : extractors_) delete p;
@@ -144,11 +152,11 @@ extern "C"
 {
     using namespace apdcam10g;
     daq          *create();
-    void         destroy(daq *self);
-    void         mtu(daq *self, int m);
-    void         start(daq *self, bool wait=false);
-    void         stop(daq *self, bool wait=true);
-    void         init(daq *self, bool dual_sata, int n_adc_boards, bool **channel_masks, unsigned int *resolution_bits, version ver, bool safe);
+    void         destroy();
+    void         mtu(int m);
+    void         start(bool wait=false);
+    void         stop(bool wait=true);
+    void         init(bool dual_sata, int n_adc_boards, bool **channel_masks, unsigned int *resolution_bits, version ver, bool safe);
 }
 #endif
 

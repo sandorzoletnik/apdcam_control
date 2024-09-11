@@ -2,3 +2,4 @@ apdcam-data-recorder
 apdcam-fake-camera
 udp-client
 udp-server
+*.dat

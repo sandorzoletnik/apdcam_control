@@ -30,10 +30,14 @@ namespace apdcam10g
             out<<endl;
             for(auto c : board_enabled_channels_info_[i_adc])
             {
-                out<<"channel number: "<<c->channel_number<<endl;
-                out<<"byte offset   : "<<c->byte_offset<<endl;
-                out<<"nbytes        : "<<c->nbytes<<endl;
-                out<<"shift         : "<<c->shift<<endl;
+                out<<"board number    : "<<c->board_number<<endl;
+                out<<"chip number     : "<<c->chip_number<<endl;
+                out<<"channel number  : "<<c->channel_number<<endl;
+                out<<"abs. ch. number : "<<c->absolute_channel_number<<endl;
+                out<<"enabl. ch. numb.: "<<c->enabled_channel_number<<endl;
+                out<<"byte offset     : "<<c->byte_offset<<endl;
+                out<<"nbytes          : "<<c->nbytes<<endl;
+                out<<"shift           : "<<c->shift<<endl;
                 out<<endl;
             }
         }
@@ -205,6 +209,7 @@ namespace apdcam10g
 
                     // The right-shift (deduced from the last bit of this value within the last byte)
                     chinfo->shift = 8-((startbit+resolution_bits_[i_adc])%8); 
+                    if(chinfo->shift==8) chinfo->shift=0;
 
                     // Checks
                     if(chinfo->nbytes == 1 && chinfo->shift != 0) APDCAM_ERROR("Bug! With 1 bytes the shift should be 1.");

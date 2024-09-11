@@ -6,35 +6,35 @@
 			true, // Channel 0
 			true, // Channel 1
 			true, // Channel 2
-			false, // Channel 3
-			false, // Channel 4
-			false, // Channel 5
-			false, // Channel 6
-			false, // Channel 7
+			true, // Channel 3
+			true, // Channel 4
+			true, // Channel 5
+			true, // Channel 6
+			true, // Channel 7
 			true, // Channel 8
 			true, // Channel 9
 			true, // Channel 10
-			false, // Channel 11
-			false, // Channel 12
-			false, // Channel 13
-			false, // Channel 14
-			false, // Channel 15
+			true, // Channel 11
+			true, // Channel 12
+			true, // Channel 13
+			true, // Channel 14
+			true, // Channel 15
 			true, // Channel 16
 			true, // Channel 17
 			true, // Channel 18
-			false, // Channel 19
-			false, // Channel 20
-			false, // Channel 21
-			false, // Channel 22
-			false, // Channel 23
+			true, // Channel 19
+			true, // Channel 20
+			true, // Channel 21
+			true, // Channel 22
+			true, // Channel 23
 			true, // Channel 24
 			true, // Channel 25
 			true, // Channel 26
-			false, // Channel 27
-			false, // Channel 28
-			false, // Channel 29
-			false, // Channel 30
-			false // Channel 31
+			true, // Channel 27
+			true, // Channel 28
+			true, // Channel 29
+			true, // Channel 30
+			true // Channel 31
 		]
 	],
 	"resolution_bits" : 

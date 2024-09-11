@@ -11,14 +11,12 @@
 using namespace apdcam10g;
 using namespace std;
 
-daq the_daq;
-
 void help()
 {
     cout<<"Usage: apdcam-data-recorder [options]"<<endl<<endl;
     cout<<"  -i <interface>                   Set the network interface. Defaults to 'lo'"<<endl;
-    cout<<"  -s|--sample-buffer <interface>   Set the sample buffer size. Must be power of 2. Defaults to "<<the_daq.sample_buffer_size()<<endl;
-    cout<<"  -n|--network-buffer <interface>  Set the network ring buffer size in terms of UDP packets. Must be power of 2. Defaults to "<<the_daq.network_buffer_size()<<endl;
+    cout<<"  -s|--sample-buffer <interface>   Set the sample buffer size. Must be power of 2. Defaults to "<<daq::instance().sample_buffer_size()<<endl;
+    cout<<"  -n|--network-buffer <interface>  Set the network ring buffer size in terms of UDP packets. Must be power of 2. Defaults to "<<daq::instance().network_buffer_size()<<endl;
     cout<<endl;
     cout<<"Upon starting it will create a file 'settings.json' that can be read by the fake camera using the -s command line argument"<<endl;
     exit(0);
@@ -30,7 +28,7 @@ void flush_output(int sig)
 {
     cerr<<"Flushing outputs.."<<endl;
     std::this_thread::sleep_for(1s);
-    the_daq.finish();
+    daq::instance().finish();
     cerr<<"DONE"<<endl;
     std::this_thread::sleep_for(1s);
     signal (sig, SIG_DFL);
@@ -53,36 +51,38 @@ try
         else if(!strcmp(argv[opt],"-i"))
         {
             if(opt+1>=argc) APDCAM_ERROR("Missing argument (interface) after -i");
-            the_daq.interface(argv[++opt]);
+            daq::instance().interface(argv[++opt]);
         }
         else if(!strcmp(argv[opt],"-s") || !strcmp(argv[opt],"--sample-buffer"))
         {
             if(opt+1>=argc) APDCAM_ERROR(std::string("Missing argument (buffer size) after ") + argv[opt]);
-            the_daq.sample_buffer_size(atoi(argv[++opt]));
+            daq::instance().sample_buffer_size(atoi(argv[++opt]));
         }
         else if(!strcmp(argv[opt],"-n") || !strcmp(argv[opt],"--network-buffer"))
         {
             if(opt+1>=argc) APDCAM_ERROR(std::string("Missing argument (buffer size) after ") + argv[opt]);
-            the_daq.network_buffer_size(atoi(argv[++opt]));
+            daq::instance().network_buffer_size(atoi(argv[++opt]));
         }
         else APDCAM_ERROR(std::string("Bad argument: ") + argv[opt]);
     }
 
-    the_daq.get_net_parameters();
+    daq::instance().get_net_parameters();
 
-    the_daq.add_processor(new channel_data_diskdump(&the_daq));
+    daq::instance().add_processor(new channel_data_diskdump(&daq::instance()));
 
-    the_daq.init(false,{{true,true,true,false,false,false,false,false,
-                         true,true,true,false,false,false,false,false,
-                         true,true,true,false,false,false,false,false,
-                         true,true,true,false,false,false,false,false}}, {14}, v2);
+    daq::instance().init(false,{{
+                true,true,true,true,true,true,true,true,
+                true,true,true,true,true,true,true,true,
+                true,true,true,true,true,true,true,true,
+                true,true,true,true,true,true,true,true
+            }}, {14}, v2);
 
-    the_daq.write("settings.json");
+    daq::instance().write("settings.json");
 
-//    the_daq.print_channel_map();
+//    daq::instance().print_channel_map();
 
     cerr<<"Starting..."<<endl;
-    the_daq.start(true);
+    daq::instance().start(true);
 
     return 0;
 }

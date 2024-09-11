@@ -29,32 +29,35 @@ namespace apdcam10g
                                        const std::vector<ring_buffer<apdcam10g::data_type,channel_info>*> &channel_data_buffers)
 
     {
-        //cerr<<"channel_data_extractor::run"<<endl;
+        output_lock lck;
 
-        // Wait for new packages
+        cerr<<"** channel_data_extractor::run"<<endl;
+
+        // Wait for new packets
         size_t npackets;
         bool terminated;
         while( (npackets=network_buffer->size()) == 0 && (terminated=network_buffer->terminated())==false );
 
-        //cerr<<"npackets = "<<npackets<<endl;
+        cerr<<"** we have new packet"<<endl;
+        cerr<<"** npackets = "<<npackets<<endl;
 
         // Re-query the size: between the evaluation of the two conidtions within while there could be
         // a new partial package arriving (i.e. setting size>0) which triggers the terminate flag.
         npackets = network_buffer->size();
 
-        //cerr<<"npackets = "<<npackets<<endl;
+        cerr<<"** npackets = "<<npackets<<endl;
 
         // If there are indeed no new packets, then it must have been the 'terminated' flag which caused
         // quitting the while loop. In principle all previous packets must have contained entire shots,
         // and have been removed. We can terminate the output queues
         if(npackets==0)
         {
-            cerr<<"No new packets, terminating"<<endl;
             for(auto c : channel_data_buffers) c->terminate();
             return -1;
         }
 
         const unsigned int board_bytes_per_shot = daq_->board_bytes_per_shot(adc_);
+        cerr<<"** board_bytes_per_shot = "<<board_bytes_per_shot<<endl;
 
         unsigned int removed_packets = 0;
 
@@ -64,6 +67,7 @@ namespace apdcam10g
 
         for(int ipacket=0; ipacket<npackets; )
         {
+            cerr<<"** processing packet #"<<ipacket<<endl;
 	    {
                 const auto p = (*network_buffer)[0];  // Get the front element
                 packet_->data(p.address,p.size);
@@ -162,7 +166,7 @@ namespace apdcam10g
             }
         }
 
-        //cerr<<"Removed packets from the buffer: "<<removed_packets<<endl;
+        cerr<<"** Removed packets from the buffer: "<<removed_packets<<endl;
 
         /*
         cerr<<"output buffers: "<<endl;

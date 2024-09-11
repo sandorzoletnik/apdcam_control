@@ -23,6 +23,12 @@ namespace apdcam10g
 {
     using namespace std;
 
+    daq &daq::instance()
+    {
+        static daq the_daq;
+        return the_daq;
+    }
+
     void daq::finish()
     {
         for(auto p : processors_) p->finish();
@@ -226,11 +232,28 @@ namespace apdcam10g
 			    {
 				if(extractors_[i_socket]->run(network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]) < 0)
                                 {
-                                    //output_lock lck;
-                                    //cerr<<"Extractor #"<<i_socket<<" input network buffer terminated"<<endl;
+                                    cerr<<"****************************"<<endl;
                                     break;
                                 }
 			    }
+
+                            {
+                                output_lock lck;
+                                cerr<<"---------- Data extraction summary #"<<i_socket<<" ---------------------------"<<endl;
+                                double sum=0, n=0, max=0;
+                                for(auto b : board_enabled_channels_buffers_[i_socket])
+                                {
+                                    ++n;
+                                    sum += b->mean_size();
+                                    const auto m = b->max_size();
+                                    if(m>max) max=m;
+                                }
+                                cerr<<"Average buffer size : "<<sum/n<<endl;
+                                cerr<<"Max buffer size     : "<<max<<endl;
+                                cerr<<"Buffers' capacity   : "<<sample_buffer_size_<<endl;
+                                if(sum/n > sample_buffer_size_/2) cerr<<"WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
+                                cerr<<endl;
+                            }
                         }
                         catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
                     }));
@@ -276,38 +299,31 @@ namespace apdcam10g
                         {
                             while(!stok.stop_requested())
                             {
-			      // We should set a timeout for the receive, in which case we break the loop
-			      // (the camera does not give any signal of having finished the data stream,
-			      // it simply ceases sending data)
-			      // Implement a "first" flag. If this is true, timeout can be long (waiting for the first event),
-			      // but when it's false, we should not wait too much. 
 			      const auto received_packet_size = network_buffers_[i]->receive(sockets_[i]);
 
-                              // {
-                              //     output_lock lck;
-                              //     cerr<<"Socket #"<<i<<" received packet: "<<received_packet_size<<endl;
-                              // }
-
-			      // Reached the end of the stream
-			      if(received_packet_size != max_udp_packet_size_ || network_buffers_[i]->terminated())
-                              {
-                                  // output_lock lck;
-                                  // cerr<<"Socket #"<<i<<" terminated"<<endl;
-                                  // cerr<<"Network buffer size: "<<network_buffers_[i]->size()<<endl;
-                                  break;
-                              }
+			      // Reached the end of the stream. Both a partial packet, and the 'terminated' flag indicate
+                              // that the camera stopped sending more data
+			      if(received_packet_size != max_udp_packet_size_ || network_buffers_[i]->terminated()) break;
                             }
+
+                            // Close the socket, no more data is accepted
+                            sockets_[i].close();
 
                             // If we have quit the while loop due to stop_requested, we need to set the terminated flag
                             // to indicate no more data coming down from the network. If not, we set it again at no harm.
-                            sockets_[i].close();
                             network_buffers_[i]->terminate();
 
+                            // Write a summary
                             {
                                 output_lock lck;
                                 cerr<<"---------- Network summary #"<<i<<" ---------------------------"<<endl;
-                                cerr<<"Received packets : "<<network_buffers_[i]->received_packets()<<endl;
-                                cerr<<"Lost packets     : "<<network_buffers_[i]->lost_packets()<<endl;
+                                cerr<<"Received packets    : "<<network_buffers_[i]->received_packets()<<endl;
+                                cerr<<"Lost packets        : "<<network_buffers_[i]->lost_packets()<<endl;
+                                cerr<<"Average buffer size : "<<network_buffers_[i]->mean_size()<<endl;
+                                cerr<<"Maximum buffer size : "<<network_buffers_[i]->max_size()<<endl;
+                                cerr<<"Buffer capacity     : "<<network_buffer_size_<<endl;
+                                if(network_buffers_[i]->mean_size() > network_buffer_size_/2) cerr<<"WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
+                                cerr<<endl;
                             }
 
                         }
@@ -357,8 +373,11 @@ namespace apdcam10g
         if(wait)
         {
             for(auto &t : network_threads_) if(t.joinable()) t.join();
+            cerr<<"Network threads finished"<<endl;
             for(auto &t : extractor_threads_) if(t.joinable()) t.join();
+            cerr<<"Data extractor threads finished"<<endl;
 	    if(processor_thread_.joinable()) processor_thread_.join();
+            cerr<<"Processor thread finished"<<endl;
         }
 
         return *this;
@@ -399,12 +418,10 @@ namespace apdcam10g
 extern "C"
 {
     using namespace apdcam10g;
-    daq         *create() { return new daq; }
-    void         destroy(daq *self) { delete self; }
-    void         mtu(daq *self, int m) { self->mtu(m); }
-    void         start(daq *self, bool wait) { self->start(wait); }
-    void         stop(daq *self, bool wait) { self->stop(wait); }
-    void         init(daq *self, bool dual_sata, int n_adc_boards, bool **channel_masks, unsigned int *resolution_bits, version ver, bool is_safe)
+    void         mtu(int m) { daq::instance().mtu(m); }
+    void         start(bool wait) { daq::instance().start(wait); }
+    void         stop(bool wait) { daq::instance().stop(wait); }
+    void         init(bool dual_sata, int n_adc_boards, bool **channel_masks, unsigned int *resolution_bits, version ver, bool is_safe)
     {
         std::vector<std::vector<bool>> chmasks(n_adc_boards);
         std::vector<unsigned int> rbits(n_adc_boards);
@@ -418,8 +435,8 @@ extern "C"
             }
         }
 
-        if(is_safe) self->init<safe>(dual_sata,chmasks,rbits,ver);
-        else        self->init<unsafe>(dual_sata,chmasks,rbits,ver);
+        if(is_safe) daq::instance().init<safe>(dual_sata,chmasks,rbits,ver);
+        else        daq::instance().init<unsafe>(dual_sata,chmasks,rbits,ver);
     }
 }
 #endif

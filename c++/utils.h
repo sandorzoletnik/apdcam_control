@@ -8,6 +8,10 @@
 
 namespace apdcam10g
 {
+    // Take the square of anything
+    template <typename T>
+    T sq(const T &t) { return t*t; }
+
     // Split the string at the specified separators (by default: space, tab and newline), and return
     // the substring in a vector. Consecutive separator characters are treated as one single separator
     std::vector<std::string> split(const std::string &s, const std::string &separator = " \t\n");
@@ -36,8 +40,8 @@ namespace apdcam10g
     class output_lock
     {
     public:
-        output_lock() { output_mutex().lock(); }
-        ~output_lock() { output_mutex().unlock(); }
+        output_lock() { /*output_mutex().lock();*/ }
+        ~output_lock() { /*output_mutex().unlock();*/ }
     };
 }
 

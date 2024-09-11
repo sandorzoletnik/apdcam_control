@@ -28,7 +28,10 @@
 #include <atomic>
 #include <new>
 #include <sys/mman.h>
+#include <cmath>
+
 #include "error.h"
+#include "utils.h"
 
 using namespace std;
 
@@ -63,6 +66,12 @@ namespace apdcam10g
         // the data flow is terminated, no more data than that available currently in the buffer
         // will be produced
         std::atomic_flag        terminated_;
+
+        // Variables for statistics
+        double sum_size_=0;    // sum of the values of size sampled at every call to push(..) or publish(...)
+        double sum_size2_=0;   // sum of the squared size values
+        double sum_n_=0;       // Number of samplings of the size
+        size_t max_size_=0;
 
         ring_buffer(ring_buffer const&);
         void operator = (ring_buffer const&);
@@ -146,15 +155,26 @@ namespace apdcam10g
             const size_t pop_counter = pop_counter_.load(std::memory_order_relaxed);
 
             // Buffer is full
-            if(push_counter >= pop_counter+mask_+1) return false;
+            if(push_counter >= pop_counter+mask_+1) return 0;
+
+            {
+                const size_t s = size();
+                ++sum_n_;
+                sum_size_ += s;
+                sum_size2_ += s*s;
+                if(s>max_size_) max_size_ = s;
+            }
 
             // We are the only producers, and we have room. No other thread will produce data into the buffer, i.e.
             // no other thread will decrease the available space. Just write to the new place
             buffer_[push_counter&mask_] = value;
 
+            const T* ptr = buffer_+(push_counter&mask_);
+
             // We are the only producers, no other thread has changed push_counter_ in the meantime, so use the snapshot value 'push_counter', incremented
             push_counter_.store(push_counter+1,std::memory_order_release);
-            return true;
+
+            return ptr;
         }
 
         // If the buffer is non-empty, remove the front element, and return true.
@@ -237,6 +257,14 @@ namespace apdcam10g
         // (for example swap some future elements, etc, or store values in them), then publish them. 
         void publish(size_t n)
         {
+            {
+                const size_t s = size();
+                ++sum_n_;
+                sum_size_ += s;
+                sum_size2_ += s*s;
+                if(s>max_size_) max_size_ = s;
+            }
+
             // release --> purge all previous writes to the data buffer
             push_counter_.fetch_add(n, std::memory_order_release);
         }
@@ -362,6 +390,13 @@ namespace apdcam10g
                 cerr<<buffer_[p]<<endl;
             }
         }
+
+        // Mean value of the buffer size, sampled at every push(...) or publish(...) call
+        double mean_size() const { return sum_size_/sum_n_; }
+        // Standard deviation of the buffer size
+        double sd_size() const { return std::sqrt(sum_size2_/sum_n_-sq(sum_size_/sum_n_)); }
+        // Return the maximum size so far
+        size_t max_size() const { return max_size_; }
     }; 
 }
 
