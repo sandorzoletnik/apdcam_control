@@ -62,7 +62,7 @@ namespace apdcam10g
     }
 
     template <safeness s>
-    int udp_server::recv(std::byte *buffer, int length)
+    int udp_server::recv(apdcam10g::byte *buffer, int length)
     {
         socklen_t len = sizeof(client_address_);
         int n = recvfrom(fd_, (char*)buffer, length, 0, (sockaddr*) &client_address_, &len); 
@@ -84,7 +84,7 @@ namespace apdcam10g
     }
 
     template <safeness s>
-    int udp_server::send(const std::byte *buffer, int length)
+    int udp_server::send(const apdcam10g::byte *buffer, int length)
     {
         return sendto(fd_, (char*)buffer, length, 0, (const sockaddr*) &client_address_, sizeof(client_address_)); 
     }
@@ -107,7 +107,7 @@ namespace apdcam10g
     }
 
     template <safeness s>
-    int udp_client::recv(std::byte *buffer, int length)
+    int udp_client::recv(apdcam10g::byte *buffer, int length)
     {
         socklen_t len = sizeof(server_address_);
         int n = recvfrom(fd_, (char *)buffer, length, MSG_WAITALL, (sockaddr*) &server_address_, &len); 
@@ -122,7 +122,7 @@ namespace apdcam10g
     }
 
     template <safeness s>
-    int udp_client::send(const std::byte *buffer, int length)
+    int udp_client::send(const apdcam10g::byte *buffer, int length)
     {
 /*
         cerr<<"udp_client::send, server address: "<<server_address_.sin_addr.s_addr<<endl;
@@ -140,23 +140,23 @@ namespace apdcam10g
     }
 
     // template instantiation
-    template int udp_server::recv<safe>(std::byte *buffer, int length);
-    template int udp_server::recv<unsafe>(std::byte *buffer, int length);
+    template int udp_server::recv<safe>(apdcam10g::byte *buffer, int length);
+    template int udp_server::recv<unsafe>(apdcam10g::byte *buffer, int length);
     template int udp_server::recv<safe>(char *buffer, int length);
     template int udp_server::recv<unsafe>(char *buffer, int length);
 
-    template int udp_server::send<safe>(const std::byte *buffer, int length);
-    template int udp_server::send<unsafe>(const std::byte *buffer, int length);
+    template int udp_server::send<safe>(const apdcam10g::byte *buffer, int length);
+    template int udp_server::send<unsafe>(const apdcam10g::byte *buffer, int length);
     template int udp_server::send<safe>(const char *buffer, int length);
     template int udp_server::send<unsafe>(const char *buffer, int length);
 
-    template int udp_client::recv<safe>(std::byte *buffer, int length);
-    template int udp_client::recv<unsafe>(std::byte *buffer, int length);
+    template int udp_client::recv<safe>(apdcam10g::byte *buffer, int length);
+    template int udp_client::recv<unsafe>(apdcam10g::byte *buffer, int length);
     template int udp_client::recv<safe>(char *buffer, int length);
     template int udp_client::recv<unsafe>(char *buffer, int length);
 
-    template int udp_client::send<safe>(const std::byte *buffer, int length);
-    template int udp_client::send<unsafe>(const std::byte *buffer, int length);
+    template int udp_client::send<safe>(const apdcam10g::byte *buffer, int length);
+    template int udp_client::send<unsafe>(const apdcam10g::byte *buffer, int length);
     template int udp_client::send<safe>(const char *buffer, int length);
     template int udp_client::send<unsafe>(const char *buffer, int length);
 

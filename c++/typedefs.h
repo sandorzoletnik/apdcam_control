@@ -13,6 +13,7 @@ namespace apdcam10g
     // up to 3 bytes
     typedef uint32_t data_envelope_type;
 
+    typedef unsigned char byte;
 }
 
 #endif

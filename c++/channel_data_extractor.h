@@ -28,6 +28,8 @@ namespace apdcam10g
     class channel_data_extractor 
     {
     private:
+        
+        bool debug_ = false;
 
         channel_data_extractor(const channel_data_extractor<S> &);
 
@@ -55,7 +57,7 @@ namespace apdcam10g
         
         // Get the channel value from the byte array pointed to by 'ptr', which is the first (potentially incomplete) byte
         // of the encoded channel value. 
-        apdcam10g::data_type get_channel_value_(std::byte *ptr, const channel_info *c);
+        apdcam10g::data_type store_channel_value_(const apdcam10g::byte *ptr, ring_buffer<data_type,channel_info> *c);
 
     public:
         // Constructor
@@ -66,15 +68,20 @@ namespace apdcam10g
 
         ~channel_data_extractor();
 
-        void adc(unsigned int adc_board_number) { adc_ = adc_board_number; }
+        // Option/property setter functions - they return self-reference so that we can chain like this:
+        // channel_data_extractor e;
+        // e.adc(0).debug(true);
 
+        channel_data_extractor &adc(unsigned int adc_board_number) { adc_ = adc_board_number;  return *this; }
+
+        channel_data_extractor & debug(bool d) { debug_ = d; return *this; }
 
         // Extract the channel data from the available packets in the network ring buffer,
         // and remove those packets from the ring buffer which have been processed.
         // This function blocks the calling thread until new packets arrive.
         // Returns the number of removed packets, or a negative number if the input is terminated
-        int run(udp_packet_buffer<S> *network_buffer, 
-                const std::vector<ring_buffer<apdcam10g::data_type,channel_info>*> &channel_data_buffers);
+        int run(udp_packet_buffer<S> &network_buffer, 
+                 const std::vector<ring_buffer<apdcam10g::data_type,channel_info>*> &channel_data_buffers);
     };
 
     
@@ -88,18 +95,20 @@ namespace apdcam10g
 namespace apdcam10g
 {
     template <safeness S>
-    inline apdcam10g::data_type channel_data_extractor<S>::get_channel_value_(std::byte *ptr, const channel_info *c)
+    inline apdcam10g::data_type channel_data_extractor<S>::store_channel_value_(const apdcam10g::byte *ptr, ring_buffer<data_type,channel_info> *c)
     {
+        data_type value;
         switch(c->nbytes)
         {
             // For 1 and 2 bytes we fit into data_type. However, if the value reaches over 3 bytes, we need to use a larger integer to represent it
             // before shifting down to the least significant bit.
-        case 2: return ((data_type(ptr[0])<<8 | data_type(ptr[1])) >> c->shift) & make_mask<data_type>(0,daq_->resolution_bits(adc_));
-        case 3: return data_type( (data_envelope_type(ptr[0])<<16 | data_envelope_type(ptr[1])<<8 | data_envelope_type(ptr[2])) >> c->shift) & make_mask<data_type>(0,daq_->resolution_bits(adc_));
-        case 1: return (data_type(ptr[0])>>c->shift) & make_mask<data_type>(0,daq_->resolution_bits(adc_));
+        case 2: value = ((data_type(ptr[0])<<8 | data_type(ptr[1])) >> c->shift) & make_mask<data_type>(daq_->resolution_bits(adc_),0); break;
+        case 3: value = data_type( (data_envelope_type(ptr[0])<<16 | data_envelope_type(ptr[1])<<8 | data_envelope_type(ptr[2])) >> c->shift) & make_mask<data_type>(daq_->resolution_bits(adc_),0); break;
+        case 1: value = (data_type(ptr[0])>>c->shift) & make_mask<data_type>(daq_->resolution_bits(adc_),0); break;
         default: APDCAM_ERROR("Bug! Number of bytes should be 1, 2 or 3");
         }
-        return 0;
+        c->push(value);
+        return value;
     }
 }
 #endif

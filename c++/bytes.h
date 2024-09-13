@@ -11,7 +11,7 @@
 #include <bit>
 #include "error.h"
 #include "safeness.h"
-
+#include "typedefs.h"
 
 namespace apdcam10g
 {
@@ -21,11 +21,19 @@ namespace apdcam10g
     static_assert(std::endian::native == std::endian::big || std::endian::native == std::endian::little, "Mixed-endian system, the code can not be compiled on this machine, sorry");
 
     // Create a mask which has 'nbits' bits set, starting at 'startbit' (from the least significant one)
-    template <typename T> T make_mask(unsigned int startbit, unsigned int nbits)
+    template <typename T> T make_mask(unsigned int nbits, unsigned int startbit=0)
     {
+        // A value with all bits set to 1 (assumes unsigned integral type)
+        const T full = (T)-1;
+        const T one = (T)1;
+        const int size_in_bits = sizeof(T)*8;
+        return (nbits >= size_in_bits ? full : (one<<nbits)-one) << startbit;
+        
+        /*
         T result = 0;
         for(int i=0; i<nbits; ++i) result |= 1<<(i+startbit);
         return result;
+        */
     }
 
     template<bool is_signed, int N> class shortest_int 
@@ -98,7 +106,7 @@ namespace apdcam10g
         // Also make sure that the required endianness is the system's native one
         static_assert(std::endian::native == E);
     private:
-        std::byte *address_=0;
+        apdcam10g::byte *address_=0;
         T *value_=0;
     public:
         // A symbolic constant to query whether this particular converter is indeed
@@ -110,10 +118,10 @@ namespace apdcam10g
         typedef T type;
 
         // Constructor, initialize from the underlying memory region (byte array)
-        byte_converter(std::byte *a=0) : address_(a), value_((T*)a) {}
+        byte_converter(apdcam10g::byte *a=0) : address_(a), value_((T*)a) {}
 
         // Set the address of the underlying byte array memory storage
-        void address(std::byte *a) {address_ = a; value_ = (T*)a;}
+        void address(apdcam10g::byte *a) {address_ = a; value_ = (T*)a;}
 
         // Assignment operator. Any type can be assigned to this object which can be
         // implicitly converted to the native type. The value is propagated down to the 
@@ -133,9 +141,9 @@ namespace apdcam10g
         mutable union
         {
             T value;
-            std::byte mem[sizeof(T)];
+            apdcam10g::byte mem[sizeof(T)];
         } storage_;
-        std::byte *address_ = 0;
+        apdcam10g::byte *address_ = 0;
     public:
         // A symbolic constant to query whether this particular converter is indeed
         // making any conversion in the background, or not
@@ -145,10 +153,10 @@ namespace apdcam10g
         typedef T type;
 
         // Constructor, initialize from the underlying memory region (byte array)
-        byte_converter(std::byte *a =0) : address_(a) {}
+        byte_converter(apdcam10g::byte *a =0) : address_(a) {}
 
         // Set the address of the underlying byte array memory storage
-        void address(std::byte *a)
+        void address(apdcam10g::byte *a)
             {
                 address_ = a;
             }
@@ -169,7 +177,7 @@ namespace apdcam10g
                         i<(std::endian::native==std::endian::little ? sizeof(T2) : sizeof(T2)-NBYTES); 
                         ++i)
                     {
-                        if(storage_.mem[i] != (std::byte)0) 
+                        if(storage_.mem[i] != (apdcam10g::byte)0) 
                         { 
                             std::string msg;
                             std::ostringstream msgstream(msg);
@@ -202,7 +210,7 @@ namespace apdcam10g
         operator T() const
             {
                 // Make sure that unused bytes in the native type representation are zero
-                std::fill(storage_.mem,storage_.mem+sizeof(T),(std::byte)0);
+                std::fill(storage_.mem,storage_.mem+sizeof(T),(apdcam10g::byte)0);
                 if(std::endian::native == std::endian::little)
                 {
                     if(E == std::endian::native) std::copy        (address_, address_+NBYTES, storage_.mem);
@@ -233,7 +241,7 @@ namespace apdcam10g
 
         // Even though there is a general make_mask function provided, we define here a private one
         // with constexpr specification so that we guarantee compile-time evaluation
-        constexpr static internal_type make_mask_(const int startbit, const int nbits)
+        constexpr static internal_type make_mask_(const int nbits, const int startbit)
             {
                 internal_type result = 0;
                 for(int i=0; i<nbits; ++i) result |= 1<<(i+startbit);
@@ -243,13 +251,13 @@ namespace apdcam10g
         // mask and inverse mask in-place (i.e. not shifted to the lowest bit).
         // For extracting the bit-encoded value, the mask must first be applied, and then the value
         // must be shifted
-        static const internal_type mask_ = make_mask_(STARTBIT,NBITS);
+        static const internal_type mask_ = make_mask_(NBITS,STARTBIT);
         static const internal_type inverse_mask_ = ~mask_;
     public:
 
-        bits(std::byte *a=0) : converter_(a) {}
+        bits(apdcam10g::byte *a=0) : converter_(a) {}
 
-        void address(std::byte *a) { converter_.address(a); }
+        void address(apdcam10g::byte *a) { converter_.address(a); }
 
         template <typename T2>
         bits<NBYTES, E, STARTBIT, NBITS, S> &operator=(const T2 &t) 

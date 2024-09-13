@@ -3,6 +3,7 @@
 
 #include "safeness.h"
 #include "error.h"
+#include "typedefs.h"
 #include <cstddef>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -56,7 +57,7 @@ namespace apdcam10g
         // Receive data from the port associated with this server, and store the client
         // address for subsequent (optional) answers back to the client
         template <safeness s=default_safeness>
-        int recv(std::byte *buffer, int length);
+        int recv(apdcam10g::byte *buffer, int length);
         template <safeness s=default_safeness>
         int recv(char *buffer, int length);
 
@@ -65,7 +66,7 @@ namespace apdcam10g
         // Send data back to the client address, obtained during the last call to 'recv'
         // Behavior is undefined if there was no previous recv call
         template <safeness s=default_safeness>
-        int send(const std::byte *buffer, int length);
+        int send(const apdcam10g::byte *buffer, int length);
         template <safeness s=default_safeness>
         int send(const char *buffer, int length);
 
@@ -98,12 +99,12 @@ namespace apdcam10g
         udp_client &open(unsigned int port, const std::string &ip_address);
 
         template <safeness s=default_safeness>
-        int recv(std::byte *buffer, int length);
+        int recv(apdcam10g::byte *buffer, int length);
         template <safeness s=default_safeness>
         int recv(char *buffer, int length);
 
         template <safeness s=default_safeness>
-        int send(const std::byte *buffer, int length);
+        int send(const apdcam10g::byte *buffer, int length);
         template <safeness s=default_safeness>
         int send(const char *buffer, int length);
     };

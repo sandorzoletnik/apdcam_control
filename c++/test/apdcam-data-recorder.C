@@ -1,5 +1,6 @@
 #include "daq.h"
 #include "channel_data_diskdump.h"
+#include "shot_data_layout.h"
 #include <iostream>
 #include <string>
 #include <thread>
@@ -17,6 +18,7 @@ void help()
     cout<<"  -i <interface>                   Set the network interface. Defaults to 'lo'"<<endl;
     cout<<"  -s|--sample-buffer <interface>   Set the sample buffer size. Must be power of 2. Defaults to "<<daq::instance().sample_buffer_size()<<endl;
     cout<<"  -n|--network-buffer <interface>  Set the network ring buffer size in terms of UDP packets. Must be power of 2. Defaults to "<<daq::instance().network_buffer_size()<<endl;
+    cout<<"  -d                               Set debug mode"<<endl;
     cout<<endl;
     cout<<"Upon starting it will create a file 'settings.json' that can be read by the fake camera using the -s command line argument"<<endl;
     exit(0);
@@ -63,6 +65,7 @@ try
             if(opt+1>=argc) APDCAM_ERROR(std::string("Missing argument (buffer size) after ") + argv[opt]);
             daq::instance().network_buffer_size(atoi(argv[++opt]));
         }
+        else if(!strcmp(argv[opt],"-d")) daq::instance().debug(true);
         else APDCAM_ERROR(std::string("Bad argument: ") + argv[opt]);
     }
 
@@ -70,18 +73,38 @@ try
 
     daq::instance().add_processor(new channel_data_diskdump(&daq::instance()));
 
-    daq::instance().init(false,{{
+    daq::instance().init(false,{
+            {
                 true,true,true,true,true,true,true,true,
                 true,true,true,true,true,true,true,true,
                 true,true,true,true,true,true,true,true,
                 true,true,true,true,true,true,true,true
-            }}, {14}, v2);
+            },
+            {
+                true,true,true,true,true,true,true,true,
+                true,true,true,true,true,true,true,true,
+                true,true,true,true,true,true,true,true,
+                true,true,true,true,true,true,true,true
+            },
+            {
+                true,true,true,true,true,true,true,true,
+                true,true,true,true,true,true,true,true,
+                true,true,true,true,true,true,true,true,
+                true,true,true,true,true,true,true,true
+            },
+            {
+                true,true,true,true,true,true,true,true,
+                true,true,true,true,true,true,true,true,
+                true,true,true,true,true,true,true,true,
+                true,true,true,true,true,true,true,true
+            }
+
+        }, {14,14,14,14}, v2);
 
     daq::instance().write("settings.json");
 
 //    daq::instance().print_channel_map();
 
-    cerr<<"Starting..."<<endl;
     daq::instance().start(true);
 
     return 0;

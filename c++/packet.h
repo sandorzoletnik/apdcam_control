@@ -19,9 +19,9 @@ namespace apdcam10g
     class packet
     {
     protected:
-        std::byte *start_ = 0;
-        std::byte *end_ = 0;
-        std::byte *adc_data_start_ = 0;
+        apdcam10g::byte *start_ = 0;
+        apdcam10g::byte *end_ = 0;
+        apdcam10g::byte *adc_data_start_ = 0;
         unsigned int udp_packet_size_ = 0;
         unsigned int adc_data_size_ = 0;
     public:
@@ -30,7 +30,7 @@ namespace apdcam10g
         // Specify the data buffer location/size that this class will decode/encode.
         // The pointer 'start' points to the first byte, including the CC streamheader
         // 'size' is the total UDP packet size, including the CC streamheader
-        packet(std::byte *start, unsigned int size) { data(start,size); }
+        packet(apdcam10g::byte *start, unsigned int size) { data(start,size); }
 
         const static unsigned int ipv4_header = 20;
         const static unsigned int udp_header = 8;
@@ -60,7 +60,7 @@ namespace apdcam10g
 
         // The pointer 'd' points to the first byte, including the CC streamheader.
         // 'size' is the UDP packet size
-        void data(std::byte *d, unsigned int size) 
+        void data(apdcam10g::byte *d, unsigned int size) 
         { 
             start_ = d; 
             end_ = d + size;
@@ -75,9 +75,9 @@ namespace apdcam10g
             stream_number.address(d+4);
         }
         
-        std::byte *start() const { return start_; }
-        std::byte *end() const { return end_; }
-        std::byte *adc_data_start() { return adc_data_start_; }
+        apdcam10g::byte *start() const { return start_; }
+        apdcam10g::byte *end() const { return end_; }
+        apdcam10g::byte *adc_data_start() { return adc_data_start_; }
         unsigned int udp_packet_size() { return udp_packet_size_; }
         unsigned int adc_data_size() { return adc_data_size_; }
     };
@@ -86,7 +86,7 @@ namespace apdcam10g
     {
     public:
         packet_v1() {}
-        packet_v1(std::byte *data, unsigned int size) : packet(data,size) {}
+        packet_v1(apdcam10g::byte *data, unsigned int size) : packet(data,size) {}
 
         // Decoders for the S2 bytes
         bits<2,std::endian::big,0,8>       dslv_lock_status;
@@ -94,7 +94,7 @@ namespace apdcam10g
         bits<2,std::endian::big,0,1>       sample_start_condition;  // True if the first data byte in the packet is the first byte of a sample)
 
 
-        void data(std::byte *d, unsigned int size)
+        void data(apdcam10g::byte *d, unsigned int size)
         {
             packet::data(d,size);
             sample_start_condition.address(d+4);
@@ -107,7 +107,7 @@ namespace apdcam10g
     {
     public:
         packet_v2() {}
-        packet_v2(std::byte *data, unsigned int size) : packet(data,size) {}
+        packet_v2(apdcam10g::byte *data, unsigned int size) : packet(data,size) {}
 
         byte_converter<2,std::endian::big> burst_counter;     // offset: 6
         byte_converter<2,std::endian::big> data_bytes;        // the number of ADC data bytes in the packet
@@ -123,7 +123,7 @@ namespace apdcam10g
         bits<2,std::endian::big,11,1> dual_sata_mode; 
         bits<2,std::endian::big,10,1> burst_start;
 
-        void data(std::byte *d, unsigned int size)
+        void data(apdcam10g::byte *d, unsigned int size)
             {
                 packet::data(d,size);
                 

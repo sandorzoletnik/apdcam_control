@@ -14,7 +14,7 @@ namespace apdcam10g
         const int n_adc = board_bytes_per_shot_.size();
 
         // Allocate buffers for all ADC boards and set proper size. First index is ADC board number.
-        vector<vector<std::byte>> buffer(n_adc);
+        vector<vector<apdcam10g::byte>> buffer(n_adc);
 
         vector<vector<int>> shot_numbers(n_adc);
 
@@ -22,16 +22,18 @@ namespace apdcam10g
         cerr<<"----------------------------------------------------------"<<endl;
         for(unsigned int i_adc=0; i_adc<n_adc; ++i_adc)
         {
+            cerr<<"ADC "<<i_adc<<endl;
+            cerr<<"Number of bytes per shot: "<<board_bytes_per_shot_[i_adc]<<endl;
             for(unsigned int i_chip=0; i_chip<4; ++i_chip)
             {
                 cerr<<"Chip offset["<<i_adc<<"]["<<i_chip<<"] = "<<chip_offset_[i_adc][i_chip]<<endl;
             }
+            cerr<<endl;
         }
         cerr<<endl;
-        print_channel_map(cerr);
+//        print_channel_map(cerr);
         cerr<<"----------------------------------------------------------"<<endl;
 
-        
         for(unsigned int i_adc=0; i_adc<n_adc; ++i_adc)
         {
             // Allocate sufficient memory to store exactly the nshots shots + the extra room for a cc_streamheader (22 bytes)
@@ -40,7 +42,7 @@ namespace apdcam10g
             // for the CC header to be moved just before the next packet's memory space
             {
                 const int buffersize = nshots*board_bytes_per_shot_[i_adc]+packet::cc_streamheader;
-                buffer[i_adc].resize(buffersize,std::byte(0));
+                buffer[i_adc].resize(buffersize,apdcam10g::byte(0));
             }
 
             // Byte counter within a packet, to keep track when we reach the boundary of a
@@ -52,7 +54,23 @@ namespace apdcam10g
                 // The starting index of the data of the given shot, within the ADC's buffer. We have a global offset of
                 // packet::cc_streamheader so that we have sufficient room before the first data to write the packet header.
                 // For the non-first packet, the previos packet's data region will be overwritten
-                const unsigned int shot_start = packet::cc_streamheader + i_shot*board_bytes_per_shot_[i_adc];
+                const unsigned int shot_start =  i_shot*board_bytes_per_shot_[i_adc];
+
+                int count = 0;
+                for(auto c : board_enabled_channels_info_[i_adc])
+                {
+
+                    if( (shot_start+c->byte_offset)%(8*octet_)==0   ||  // If the channel's value starts exactly at a multiple of 8*octet
+                        (shot_start+c->byte_offset)/(8*octet_) != (shot_start+c->byte_offset+c->nbytes)/(8*octet_) ) // or if the value covers a 8*octet boundary
+                    {
+                        shot_numbers[i_adc].push_back(i_shot);
+                    }
+
+                    c->set_in_shot(&buffer[i_adc][packet::cc_streamheader + shot_start], i_shot);
+                }
+                
+
+                /*
                 for(unsigned int i_chip=0; i_chip<config::chips_per_board; ++i_chip)
                 {
                     // Start of the chip's data w.r.t. the shot's first byte
@@ -78,7 +96,7 @@ namespace apdcam10g
                             if(target_byte >= chip_bytes_per_shot_[i_adc][i_chip]) APDCAM_ERROR("This is a bug! We write outside of the chip's memory space");
 
                             // Shift and mask this bit from the value, and write it to the subsequent bit of the buffer's byte
-                            buffer[i_adc][shot_start+chip_start+target_byte] |= std::byte(((channel_value>>bit)&1)<<target_bit);
+                            buffer[i_adc][shot_start+chip_start+target_byte] |= apdcam10g::byte(((channel_value>>bit)&1)<<target_bit);
                             
                             // When writing the first bit of the first byte of a packet (8*octet_ bytes), register the first shot numbers
                             if(packet_byte_index==0 && target_bit==7) shot_numbers[i_adc].push_back(i_shot);
@@ -93,6 +111,7 @@ namespace apdcam10g
                         }
                     }
                 }
+                */
             }
         }
 
@@ -108,6 +127,7 @@ namespace apdcam10g
                         cerr<<"----------- Thread for ADC #"<<i_adc<<" --------------------------"<<endl;
                         cerr<<"PORT: "<<config::ports[i_adc]<<endl;
                         cerr<<"IP  : "<<server_ip_<<endl;
+                        cerr<<"MTU : "<<mtu_<<endl;
                         cerr<<endl;
                     }
                     udp_client client(config::ports[i_adc],server_ip_);
@@ -129,7 +149,7 @@ namespace apdcam10g
                             // buffer[i_adc] has been sized to contain exactly the number of bytes needed + the CC streamheader size
                             const unsigned int data_start = i_packet*8*octet_;
                             const unsigned int data_size  = std::min(8*octet_+packet::cc_streamheader, (unsigned int)(buffer[i_adc].size()-i_packet*8*octet_));
-                            
+
                             p.data(&(buffer[i_adc].front())+data_start, data_size);
                             p.clear_header();
                             p.serial_number = i_packet;  // what is a serial number?
@@ -150,7 +170,7 @@ namespace apdcam10g
                             {
                                 size_t packet_size = p.udp_packet_size();
                                 if(buffer[i_adc].size()-data_start < packet_size) packet_size = buffer[i_adc].size()-data_start;
-                                cerr<<"Sending data segment: "<<data_start<<" .. "<<data_start+packet_size<<" ("<<packet_size<<" bytes) of buffer "<<buffer[i_adc].size()<<endl;
+                                cerr<<"Sending packet of size "<<packet_size<<endl;
                                 if(client.send(p.start(),packet_size)<0) APDCAM_ERROR_ERRNO("Sending of package failed");
                             }
                         }

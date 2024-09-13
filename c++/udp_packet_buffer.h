@@ -11,7 +11,7 @@ namespace apdcam10g
 {
     struct udp_packet_record 
     {
-        std::byte *address;
+        apdcam10g::byte *address;
         unsigned int size;
     };
 
@@ -20,7 +20,7 @@ namespace apdcam10g
     {
     private:
         // A raw buffer for the storage of the packets, of size integer times 'max_udp_packet_size_'
-        std::byte   *raw_buffer_ = 0;
+        apdcam10g::byte   *raw_buffer_ = 0;
 
         // Number of packets the buffer can store
         unsigned int size_in_packets_ = 0;
@@ -56,14 +56,16 @@ namespace apdcam10g
             max_udp_packet_size_ = max_udp_packet_size;
             if(raw_buffer_) delete [] raw_buffer_;
 
-            // Allocate the eraw buffer
-            raw_buffer_ = new std::byte[size_in_packets*max_udp_packet_size];
+            // Allocate the raw buffer. For each packet allocate 2 more bytes so that if there is a channel
+            // value which spills over into a next packet (by max 2 bytes), we can copy it to the end of
+            // the previous buffer
+            raw_buffer_ = new apdcam10g::byte[size_in_packets*(max_udp_packet_size+2)];
 
             // Store the pointers to 'max_udp_packet_size' chunks within the raw buffer into
             // the ring_buffer. 
             for(unsigned int i=0; i<size_in_packets_; ++i)
             {
-                if(auto p = future_element(i)) *p = { raw_buffer_ + i*max_udp_packet_size_, 0 };
+                if(auto p = future_element(i)) *p = { raw_buffer_ + i*(max_udp_packet_size_+2), 0 };
                 else APDCAM_ERROR("This should not happen");
             }
         }

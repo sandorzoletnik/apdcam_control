@@ -7,6 +7,7 @@
 #include "error.h"
 #include "pstream.h"
 #include "channel_data_extractor.h"
+#include "shot_data_layout.h"
 #include <memory>
 
 
@@ -37,7 +38,6 @@ namespace apdcam10g
     template <safeness S>
     daq &daq::init(bool dual_sata, const std::vector<std::vector<bool>> &channel_masks, const std::vector<unsigned int> &resolution_bits, version ver)
     {
-
         if(mtu_ == 0) APDCAM_ERROR("MTU has not been set");
         if(channel_masks.size() != resolution_bits.size()) APDCAM_ERROR("Masks and resolution sizes do not agree");
 
@@ -54,7 +54,7 @@ namespace apdcam10g
         sockets_.resize(nof_adc);
 
         // Resize the network buffer vector to have as many elements as there are ADC boards. Initialize their buffer size
-        cerr<<"Creating network buffers for "<<network_buffer_size_<<" UDP packets of size "<<max_udp_packet_size_<<endl;
+        cerr<<"Network buffers : "<<network_buffer_size_<<" packets of size "<<max_udp_packet_size_<<endl<<endl;
         regenerate(network_buffers_,nof_adc,network_buffer_size_,max_udp_packet_size_);
 
         // Resize the extractors vector to have as many elements as there are ADC boards
@@ -81,8 +81,21 @@ namespace apdcam10g
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
             const int port_index = (dual_sata ? i_adc*2 : i_adc);
-	    cerr<<"Listening on port "<<config::ports[i_adc*2]<<endl;
+            cerr<<"====== ADC Board #"<<i_adc<<" ======"<<endl;
+	    cerr<<"Port            : "<<config::ports[i_adc*2]<<endl;
 	    sockets_[i_adc].open(config::ports[port_index]);
+            cerr<<"Bytes per shot  : "<<board_bytes_per_shot_[i_adc]<<endl;
+            cerr<<"Enabled channels: ";
+            for(auto c : board_enabled_channels_info_[i_adc]) cerr<<c->channel_number<<" ";
+            cerr<<endl;
+            if(debug_)
+            {
+                shot_data_layout layout(board_bytes_per_shot_[i_adc], resolution_bits_[i_adc], board_enabled_channels_info_[i_adc]);
+                cerr<<"---- SHOT DATA LAYOUT ----"<<endl;
+                layout.show();
+                cerr<<"--------------------------"<<endl;
+            }
+            cerr<<endl;
         }
         
         for(unsigned int i=0; i<all_enabled_channels_info_.size(); ++i)
@@ -96,26 +109,11 @@ namespace apdcam10g
             all_channels_buffers_[ci->absolute_channel_number] = b;
         }
 
-        // Print an overview summary
-        for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
-        {
-            cerr<<"--------------------------------------------"<<endl;
-            cerr<<"ADC #"<<i_adc<<" bytes per sample: "<<board_bytes_per_shot_[i_adc]<<endl;
-            cerr<<"Enabled channels: "<<endl;
-            for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
-            {
-                cerr<<setw(2)<<i_board_channel<<"  ";
-            }
-            cerr<<endl;
-            for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
-            {
-                cerr<<setw(2)<<(channel_masks_[i_adc][i_board_channel] ? "XX" : "  ")<<"  ";
-            }
-            cerr<<endl;
-        }
-
-        
         for(auto p : processors_) p->init();
+
+        // Call the debug(...) function with the saved value (seems useless...) in order to set the corresponding flags
+        // of the worker objects created since the last call
+        debug(debug_);
 
         return *this;
     }
@@ -228,13 +226,16 @@ namespace apdcam10g
                     {
                         try
                         {
-                            while(!stok.stop_requested())
+//                            while(!stok.stop_requested())
 			    {
-				if(extractors_[i_socket]->run(network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]) < 0)
+				extractors_[i_socket]->run(*network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]);
+/*
+				if(extractors_[i_socket]->run(*network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]) < 0)
                                 {
                                     cerr<<"****************************"<<endl;
                                     break;
                                 }
+*/
 			    }
 
                             {
@@ -261,6 +262,8 @@ namespace apdcam10g
         }
         else
         {
+            APDCAM_ERROR("Only separate extractor threads are working now...");
+/*
             extractor_threads_.push_back(std::jthread( [this](std::stop_token stok)
                 {
                     try
@@ -279,6 +282,7 @@ namespace apdcam10g
                     }
                     catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
                 }));
+*/
         }
 
 
@@ -373,11 +377,11 @@ namespace apdcam10g
         if(wait)
         {
             for(auto &t : network_threads_) if(t.joinable()) t.join();
-            cerr<<"Network threads finished"<<endl;
+//            cerr<<"Network threads finished"<<endl;
             for(auto &t : extractor_threads_) if(t.joinable()) t.join();
-            cerr<<"Data extractor threads finished"<<endl;
+//            cerr<<"Data extractor threads finished"<<endl;
 	    if(processor_thread_.joinable()) processor_thread_.join();
-            cerr<<"Processor thread finished"<<endl;
+//            cerr<<"Processor thread finished"<<endl;
         }
 
         return *this;

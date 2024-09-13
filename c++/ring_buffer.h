@@ -360,7 +360,12 @@ namespace apdcam10g
 
         size_t size() const
         {
-            return push_counter_-pop_counter_;
+            return push_counter_.load(std::memory_order_acquire)-pop_counter_.load(std::memory_order_acquire);
+        }
+
+        bool empty() const
+        {
+            return size()==0;
         }
 
         void dump()

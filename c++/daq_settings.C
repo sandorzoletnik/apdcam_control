@@ -9,6 +9,7 @@
 #include "packet.h"
 #include "pstream.h"
 #include "config.h"
+#include "terminal.h"
 
 using namespace std;
 
@@ -18,6 +19,7 @@ namespace apdcam10g
     {
         for(auto c : all_enabled_channels_info_) delete c;
     }
+
 
     void daq_settings::print_channel_map(std::ostream &out)
     {
@@ -132,11 +134,8 @@ namespace apdcam10g
 
         cerr<<"Interface: "<<interface_<<endl;
         cerr<<"MTU      : "<<mtu_<<endl;
-        //cerr<<"MAC      : ";
-        //for(unsigned int i=0; i<6; ++i) cerr<<(i>0?":":"")<<hex<<(int)mac_[i]<<dec;
-        //cerr<<endl;
-        //cerr<<"IP       : "<<ip_<<endl;
         cerr<<"OCTET    : "<<octet_<<endl;
+        cerr<<endl;
 
         return *this;
     }
@@ -206,6 +205,7 @@ namespace apdcam10g
 
                     // The number of bytes over which this value is distributed
                     chinfo->nbytes = (startbit+resolution_bits_[i_adc])/8 + ((startbit+resolution_bits_[i_adc])%8 ? 1 : 0);
+                    chinfo->nbits = resolution_bits_[i_adc];
 
                     // The right-shift (deduced from the last bit of this value within the last byte)
                     chinfo->shift = 8-((startbit+resolution_bits_[i_adc])%8); 

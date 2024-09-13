@@ -1,0 +1,89 @@
+g++ -Wno-interference-size -DFOR_PYTHON -fPIC -O2 -std=c++20 -Wno-interference-size -c -o channel_data_extractor.o channel_data_extractor.C
+channel_data_extractor.C: In member function ‘void apdcam10g::channel_data_extractor<S>::run(apdcam10g::udp_packet_buffer<S>*, const std::vector<apdcam10g::ring_buffer<short unsigned int, apdcam10g::channel_info>*>&)’:
+channel_data_extractor.C:67:38: error: there are no arguments to ‘get_channel_value’ that depend on a template parameter, so a declaration of ‘get_channel_value’ must be available [-fpermissive]
+   67 |                 channel_buffer->push(get_channel_value(packet_buffer+b1,channel_buffer));
+      |                                      ^~~~~~~~~~~~~~~~~
+channel_data_extractor.C:67:38: note: (if you use ‘-fpermissive’, G++ will accept your code, but allowing the use of an undeclared name is deprecated)
+channel_data_extractor.C:89:41: error: ‘board_enabled_channels_buffer’ was not declared in this scope; did you mean ‘board_enabled_channels_buffers’?
+   89 |                             for(auto c: board_enabled_channels_buffer) c->terminate();
+      |                                         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                                         board_enabled_channels_buffers
+channel_data_extractor.C:109:37: error: ‘board_enabled_channels_buffer’ was not declared in this scope; did you mean ‘board_enabled_channels_buffers’?
+  109 |                         for(auto c: board_enabled_channels_buffer) c->terminate();
+      |                                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                                     board_enabled_channels_buffers
+channel_data_extractor.C:123:33: error: ‘board_enabled_channels_buffer’ was not declared in this scope; did you mean ‘board_enabled_channels_buffers’?
+  123 |                     for(auto c: board_enabled_channels_buffer) c->terminate();
+      |                                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                                 board_enabled_channels_buffers
+channel_data_extractor.C:133:43: error: ‘board_enabled_channels_buffer’ was not declared in this scope; did you mean ‘board_enabled_channels_buffers’?
+  133 |                 if(++i_enabled_channel == board_enabled_channels_buffer.size())
+      |                                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                                           board_enabled_channels_buffers
+channel_data_extractor.C: In instantiation of ‘void apdcam10g::channel_data_extractor<S>::run(apdcam10g::udp_packet_buffer<S>*, const std::vector<apdcam10g::ring_buffer<short unsigned int, apdcam10g::channel_info>*>&) [with apdcam10g::safeness S = apdcam10g::safe]’:
+channel_data_extractor.C:154:20:   required from here
+channel_data_extractor.C:46:36: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::safe>’
+   46 |         std::byte *packet_buffer = network_buffer[0]->address;
+      |                                    ^~~~~~~~~~~~~~
+channel_data_extractor.C:47:36: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::safe>’
+   47 |         unsigned int packet_size = network_buffer[0]->size;
+      |                                    ^~~~~~~~~~~~~~
+channel_data_extractor.C:67:55: error: ‘get_channel_value’ was not declared in this scope; did you mean ‘get_channel_value_’?
+   67 |                 channel_buffer->push(get_channel_value(packet_buffer+b1,channel_buffer));
+      |                                      ~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                                      get_channel_value_
+channel_data_extractor.C:93:41: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::safe>’
+   93 |                         packet_buffer = network_buffer[0]->address;
+      |                                         ^~~~~~~~~~~~~~
+channel_data_extractor.C:94:41: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::safe>’
+   94 |                         packet_size   = network_buffer[0]->size;
+      |                                         ^~~~~~~~~~~~~~
+channel_data_extractor.C:103:36: error: request for member ‘pop’ in ‘network_buffer’, which is of pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::safe>*’ (maybe you meant to use ‘->’ ?)
+  103 |                     network_buffer.pop();
+      |                     ~~~~~~~~~~~~~~~^~~
+channel_data_extractor.C:113:37: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::safe>’
+  113 |                     packet_buffer = network_buffer[0]->address;
+      |                                     ^~~~~~~~~~~~~~
+channel_data_extractor.C:114:35: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::safe>’
+  114 |                     packet_size = network_buffer[0]->size;
+      |                                   ^~~~~~~~~~~~~~
+channel_data_extractor.C:127:43: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::safe>’
+  127 |                 auto next_packet_buffer = network_buffer[1]->address;
+      |                                           ^~~~~~~~~~~~~~
+channel_data_extractor.C:128:43: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::safe>’
+  128 |                 auto next_packet_size   = network_buffer[1]->size;
+      |                                           ^~~~~~~~~~~~~~
+channel_data_extractor.C: In instantiation of ‘void apdcam10g::channel_data_extractor<S>::run(apdcam10g::udp_packet_buffer<S>*, const std::vector<apdcam10g::ring_buffer<short unsigned int, apdcam10g::channel_info>*>&) [with apdcam10g::safeness S = apdcam10g::unsafe]’:
+channel_data_extractor.C:155:20:   required from here
+channel_data_extractor.C:46:36: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::unsafe>’
+   46 |         std::byte *packet_buffer = network_buffer[0]->address;
+      |                                    ^~~~~~~~~~~~~~
+channel_data_extractor.C:47:36: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::unsafe>’
+   47 |         unsigned int packet_size = network_buffer[0]->size;
+      |                                    ^~~~~~~~~~~~~~
+channel_data_extractor.C:67:55: error: ‘get_channel_value’ was not declared in this scope; did you mean ‘get_channel_value_’?
+   67 |                 channel_buffer->push(get_channel_value(packet_buffer+b1,channel_buffer));
+      |                                      ~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                                      get_channel_value_
+channel_data_extractor.C:93:41: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::unsafe>’
+   93 |                         packet_buffer = network_buffer[0]->address;
+      |                                         ^~~~~~~~~~~~~~
+channel_data_extractor.C:94:41: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::unsafe>’
+   94 |                         packet_size   = network_buffer[0]->size;
+      |                                         ^~~~~~~~~~~~~~
+channel_data_extractor.C:103:36: error: request for member ‘pop’ in ‘network_buffer’, which is of pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::unsafe>*’ (maybe you meant to use ‘->’ ?)
+  103 |                     network_buffer.pop();
+      |                     ~~~~~~~~~~~~~~~^~~
+channel_data_extractor.C:113:37: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::unsafe>’
+  113 |                     packet_buffer = network_buffer[0]->address;
+      |                                     ^~~~~~~~~~~~~~
+channel_data_extractor.C:114:35: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::unsafe>’
+  114 |                     packet_size = network_buffer[0]->size;
+      |                                   ^~~~~~~~~~~~~~
+channel_data_extractor.C:127:43: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::unsafe>’
+  127 |                 auto next_packet_buffer = network_buffer[1]->address;
+      |                                           ^~~~~~~~~~~~~~
+channel_data_extractor.C:128:43: error: base operand of ‘->’ has non-pointer type ‘apdcam10g::udp_packet_buffer<apdcam10g::unsafe>’
+  128 |                 auto next_packet_size   = network_buffer[1]->size;
+      |                                           ^~~~~~~~~~~~~~
+make: *** [makefile:24: channel_data_extractor.o] Error 1

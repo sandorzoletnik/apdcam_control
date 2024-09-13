@@ -29,7 +29,7 @@ namespace apdcam10g
         friend class channel_data_diskdump;
 
     private:
-        //friend class channel_data_diskdump;
+        bool debug_ = false;
 
         // The period (number of shots) for calling the processor tasks on the channel data. The default 100 means that once there are
         // 100 new shots in the buffer, all processor tasks are triggered and run.
@@ -105,6 +105,12 @@ namespace apdcam10g
             }
 
         void finish();
+
+        void debug(bool d) 
+            {
+                debug_ = d;
+                for(auto e : extractors_) e->debug(d);
+            }
 
         // Set the process period (the number of shots to trigger the processor tasks to run)
         // Must be called before init(...)

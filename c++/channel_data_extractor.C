@@ -3,6 +3,8 @@
 #include "channel_data_extractor.h"
 #include "daq.h"
 #include "utils.h"
+#include "terminal.h"
+#include "shot_data_layout.h"
 
 using namespace std;
 
@@ -13,7 +15,7 @@ namespace apdcam10g
     channel_data_extractor<S>::channel_data_extractor(daq *d,version ver,unsigned int adc) : daq_(d), adc_(adc) // : data_consumer(adc,ver)
     {
         // Create a version-specific packet handler
-        packet_ = packet::create(ver);
+        packet_      = packet::create(ver);
         next_packet_ = packet::create(ver);
     }
 
@@ -25,159 +27,248 @@ namespace apdcam10g
     }
 
     template <safeness S>
-    int channel_data_extractor<S>::run(udp_packet_buffer<S> *network_buffer, 
-                                       const std::vector<ring_buffer<apdcam10g::data_type,channel_info>*> &channel_data_buffers)
+    int channel_data_extractor<S>::run(udp_packet_buffer<S> &network_buffer, 
+                                       const std::vector<ring_buffer<apdcam10g::data_type,channel_info>*> &board_enabled_channels_buffers)
 
     {
         output_lock lck;
 
-        cerr<<"** channel_data_extractor::run"<<endl;
+        // Spin-lock wait until we have a packet in the buffer
+        while( network_buffer.empty() && !network_buffer.terminated() );
 
-        // Wait for new packets
-        size_t npackets;
-        bool terminated;
-        while( (npackets=network_buffer->size()) == 0 && (terminated=network_buffer->terminated())==false );
+        // If the spin-lock was broken due to the stream being terminated, return
+        if(network_buffer.empty()) return 0;
 
-        cerr<<"** we have new packet"<<endl;
-        cerr<<"** npackets = "<<npackets<<endl;
+        packet_->data(network_buffer[0].address,network_buffer[0].size);
+        if(debug_) cerr<<"****** PACKET: "<<packet_->adc_data_size()<<endl<<endl;
 
-        // Re-query the size: between the evaluation of the two conidtions within while there could be
-        // a new partial package arriving (i.e. setting size>0) which triggers the terminate flag.
-        npackets = network_buffer->size();
+        // The offset of the first byte of a shot within the UDP packet's ADC data. It is signed because
+        // it can be negative in case a shot is split between two consecutive packets
+        int shot_offset = 0;
 
-        cerr<<"** npackets = "<<npackets<<endl;
+        const shot_data_layout layout(daq_->board_bytes_per_shot(adc_),
+                                      daq_->resolution_bits(adc_),
+                                      board_enabled_channels_buffers);
 
-        // If there are indeed no new packets, then it must have been the 'terminated' flag which caused
-        // quitting the while loop. In principle all previous packets must have contained entire shots,
-        // and have been removed. We can terminate the output queues
-        if(npackets==0)
+        if(debug_)
         {
-            for(auto c : channel_data_buffers) c->terminate();
-            return -1;
-        }
-
-        const unsigned int board_bytes_per_shot = daq_->board_bytes_per_shot(adc_);
-        cerr<<"** board_bytes_per_shot = "<<board_bytes_per_shot<<endl;
-
-        unsigned int removed_packets = 0;
-
-        // Strategy: We try to consume as many complete shots as possible. If we fully process one UDP packet, we remove it, if there
-        // remains some incomplete show, the UDP packet is kept, but the internal offset 'shot_offset_within_adc_data_' will indicate
-        // where this incomplete shot starts within the UDP packet, so next time we will start from there.
-
-        for(int ipacket=0; ipacket<npackets; )
-        {
-            cerr<<"** processing packet #"<<ipacket<<endl;
-	    {
-                const auto p = (*network_buffer)[0];  // Get the front element
-                packet_->data(p.address,p.size);
-	    }
-
-            // Loop over the shots stored in this packet
-            while(true)
+            for(int shot_offset_tmp=0; shot_offset_tmp<packet_->adc_data_size(); shot_offset_tmp += daq_->board_bytes_per_shot(adc_))
             {
-                // if the entire shot fits into this packet
-                if(packet_->adc_data_start()+shot_offset_within_adc_data_+board_bytes_per_shot <= packet_->end())
-                {
-                    // In the loop below, 'c' is a channel data ring buffer that inherits from channel_info, so it contains all
-                    // information on the channels (mask, byte offset, channel numbers etc)
-                    for(auto c : channel_data_buffers) c->push(this->get_channel_value_(packet_->adc_data_start()+shot_offset_within_adc_data_+c->byte_offset,c));
-
-                    // Advance the offset within the packet by the length of one shot
-                    shot_offset_within_adc_data_ += board_bytes_per_shot;
-                    
-                    // if by this we finished processing the given UDP packet, then reset the offset to zero, and
-                    // remove this UDP packet from the buffer
-                    // (the > should never happen in this condition, only =, but let's be sure)
-                    if(packet_->adc_data_start()+shot_offset_within_adc_data_ >= packet_->end())
-                    {
-                        // Remove the packet from the ring buffer
-                        network_buffer->pop();
-                        ++ipacket;
-                        ++removed_packets;
-                        // Set the pointer-within-packet to zero
-                        shot_offset_within_adc_data_ = 0;
-                        break;
-                    }
-
-                    // If we have not reached the end of the packet, then go to the next shot
-                    continue;
-                }
-
-                // If we are here, then the current shot did not fit entirely into this packet, but extends into the next one
-                // Check if there is a next packet.
-                if(ipacket+1<npackets)
-                {
-                    // Initialize a next packet within the buffer, without actually incrementing the read pointer
-                    // of the ring buffer
-  		    {
-                        const auto p = (*network_buffer)[1];
-                        next_packet_->data(p.address,p.size);
-		    }
-                                     
-                    // Loop over the channel data buffers. Remember that these are inheriting from channel_info so we can obtain all channel-related information
-                    // such as absolute number etc. 
-                    for(auto c : channel_data_buffers)
-                    {
-                        // If all bytes of this channel still fit into this packet
-                        if(packet_->adc_data_start()+shot_offset_within_adc_data_+c->byte_offset+c->nbytes <= packet_->end())
-                        {
-                            c->push(this->get_channel_value_(packet_->adc_data_start()+shot_offset_within_adc_data_+c->byte_offset,c));
-                        }
-                        
-                        // If not all bytes of this channel are within the current packet, but it starts in this packet,
-                        // then it's a split value. Most complicated case
-                        else if(packet_->adc_data_start()+shot_offset_within_adc_data_+c->byte_offset < packet_->end())
-                        {
-                            // Create a temporary buffer (we need max. 3 bytes) which will continuously store the
-                            // bytes of this channel value
-                            std::byte tmp[3];
-                            for(unsigned int i=0; i<c->nbytes; ++i)
-                            {
-                                if(packet_->adc_data_start()+shot_offset_within_adc_data_+c->byte_offset+i < packet_->end()) tmp[i] = packet_->adc_data_start()[shot_offset_within_adc_data_+c->byte_offset+i];
-                                else tmp[i] = next_packet_->adc_data_start()[shot_offset_within_adc_data_+c->byte_offset+i-packet_->adc_data_size()];
-                                c->push(this->get_channel_value_(tmp,c));
-                            }
-                        }
-                        
-                        // If this channel data is entirely in the next packet
-                        else
-                        {
-                            c->push(this->get_channel_value_(next_packet_->adc_data_start()+shot_offset_within_adc_data_+c->byte_offset-packet_->adc_data_size(), c));
-                        }
-                    }
-                    
-                    // We can safely assume that if a shot was extending into the next packet, it is entirely contained there,
-                    // and does not extend into a further packet. 
-                    // Remove the packet from the ring buffer
-                    network_buffer->pop();
-                    ++ipacket;
-                    ++removed_packets;
-
-                    // Set the pointer-within-packet to zero
-                    shot_offset_within_adc_data_ = shot_offset_within_adc_data_ + board_bytes_per_shot - packet_->adc_data_size();
-
-                    // Break looping over the samples within the current packet, go to the next one (which has already been partially processed,
-                    // but this is taken care of by shot_offset_within_adc_data_ being set to some positive offset)
-                    break; 
-                }
-
-                break;
+                layout.show(packet_->adc_data_start()+shot_offset_tmp, cerr, 0, packet_->adc_data_size()-shot_offset_tmp);
             }
         }
 
-        cerr<<"** Removed packets from the buffer: "<<removed_packets<<endl;
+        while(true)
+        {
+            for(unsigned int i_channel=0; i_channel<board_enabled_channels_buffers.size(); ++i_channel)
+            {
+                auto c = board_enabled_channels_buffers[i_channel];
+                
+                // If this value is fully contained in the packet, just get it
+                if(shot_offset + c->byte_offset + c->nbytes <= packet_->adc_data_size())
+                {
+                    c->push(c->get_from_shot(packet_->adc_data_start() + shot_offset));
+                }
+                else
+                {
+                    // If the first byte is still in the current packet, i.e. the value 
+                    // spills over into the next packet
+                    if(shot_offset + c->byte_offset < packet_->adc_data_size())
+                    {
+                        while(network_buffer.size()<2 && !network_buffer.terminated());
+                        if(network_buffer.size()<2)
+                        {
+                            for(auto c : board_enabled_channels_buffers) c->terminate();
+                            return 0;
+                        }
+                        next_packet_->data(network_buffer[1].address, network_buffer[1].size);
+                        if(debug_) cerr<<"****** PACKET: "<<next_packet_->adc_data_size()<<endl<<endl;
+                        
+                        memcpy(packet_->adc_data_start()+packet_->adc_data_size(), next_packet_->adc_data_start(), 2);
+                        auto tmp = c->get_from_shot(packet_->adc_data_start() + shot_offset);
+                        c->push(tmp);
+
+                        shot_offset = shot_offset - (int)packet_->adc_data_size();
+                        network_buffer.pop();
+                        swap(packet_, next_packet_);
+
+                        if(debug_)
+                        {
+                            for(int shot_offset_tmp = shot_offset; shot_offset_tmp < (int)packet_->adc_data_size(); shot_offset_tmp += daq_->board_bytes_per_shot(adc_))
+                            {
+                                layout.show(packet_->adc_data_start()+shot_offset_tmp,
+                                            cerr,
+                                            (shot_offset_tmp > 0 ? 0 : -shot_offset_tmp),
+                                            packet_->adc_data_size()-shot_offset_tmp);
+                            }
+                        }
+                    }
+                    // The value is entirely in the new packet
+                    else
+                    {
+                        network_buffer.pop();
+                        while(network_buffer.empty() && !network_buffer.terminated());
+                        if(network_buffer.empty())
+                        {
+                            for(auto c : board_enabled_channels_buffers) c->terminate();
+                            return 0;
+                        }
+                        packet_->data(network_buffer[0].address, network_buffer[0].size);
+                        if(debug_) cerr<<"****** PACKET: "<<packet_->adc_data_size()<<endl<<endl;
+                        shot_offset = shot_offset - (int)packet_->adc_data_size();
+                        // If it is the first channel, i.e. a new shot starts entirely in the next packet, set the offset to zero
+                        if(i_channel==0) shot_offset=0;
+                        auto tmp = c->get_from_shot(packet_->adc_data_start() + shot_offset);
+                        c->push(tmp);
+
+                        if(debug_)
+                        {
+                            for(int shot_offset_tmp = shot_offset; shot_offset_tmp < (int)packet_->adc_data_size(); shot_offset_tmp += daq_->board_bytes_per_shot(adc_))
+                            {
+                                layout.show(packet_->adc_data_start()+shot_offset_tmp,
+                                            cerr,
+                                            (shot_offset_tmp > 0 ? 0 : -shot_offset_tmp),
+                                            packet_->adc_data_size()-shot_offset_tmp);
+                            }
+                        }
+                    }
+                }
+            }
+            // When all channels have been processed (i.e. a full shot), increment shot_offset
+            shot_offset += daq_->board_bytes_per_shot(adc_);
+        }
 
         /*
-        cerr<<"output buffers: "<<endl;
-        for(auto c : channel_data_buffers)
+        while(true)
         {
-            output_lock lck;
-            cerr<<"Channel "<<c->board_number<<"/"<<c->channel_number<<" --> "<<c->size()<<endl;
+            //cerr<<endl;
+            //cerr<<"** channel: "<<i_enabled_channel<<endl;
+
+            // The pointer to the ring buffer corresponding to channel 'i_enabled_channel'
+            const auto channel_buffer = board_enabled_channels_buffers[i_enabled_channel];
+
+            // Get the begin (first byte) and end (one beyond the last byte) pointers of the data
+            const apdcam10g::byte *value_begin = packet_->adc_data_start() + shot_offset + channel_buffer->byte_offset;
+            const apdcam10g::byte *value_end   = value_begin + channel_buffer->nbytes;
+
+            // If the channel value is fully contained in this packet, store it
+            if(value_end <= packet_->end())
+            {
+                //cerr<<"** channel data entirely in this packet"<<endl;
+                auto tmp = store_channel_value_(value_begin,channel_buffer);
+                //cerr<<"** channel vaule: "<<tmp<<endl;
+
+                // If we have just processed the last enabled channel, it means we finished a shot
+                if(++i_enabled_channel == board_enabled_channels_buffers.size())
+                {
+                    //cerr<<"** we reached end of shot"<<endl;
+                    
+                    // Reset the channel index back to zero
+                    i_enabled_channel = 0;
+                    // increment the shot offset 
+                    shot_offset += daq_->board_bytes_per_shot(adc_);
+
+                    //cerr<<"** new shot offset: "<<shot_offset<<endl;
+
+                    if(shot_offset >= packet_->adc_data_size())
+                    {
+                        cerr<<"** we need a new packet"<<endl;
+
+                        // Set the shot offset to the value within the next UDP packet (we anticipate there is
+                        // a new packet, if not, we quit anyway)
+                        shot_offset -= packet_->adc_data_size();
+
+                        cerr<<"** shot offset: "<<shot_offset<<endl;
+
+                        // Remove the current packet from the buffer
+                        network_buffer.pop();
+
+                        // spin-lock wait for a new UDP packet
+                        while(network_buffer.empty() && !network_buffer.terminated());
+                        if(network_buffer.empty())
+                        {
+                            for(auto c: board_enabled_channels_buffers) c->terminate();
+                            return 0;
+                        }
+
+                        packet_->data(network_buffer[0].address, network_buffer[0].size);
+
+                        continue;
+                    }
+                }
+
+                // The packet was fully processed... (coincidence between the border of a channel value and the border of a packet
+                if(value_end == packet_->end())
+                {
+                    cerr<<"** the packet was fully processed, need a new packet"<<endl;
+
+                    shot_offset = 0;
+                    network_buffer.pop();
+
+                    // Wait for the next packet to arrive
+                    while(network_buffer.empty() && !network_buffer.terminated());
+                    if(network_buffer.empty())
+                    {
+                        for(auto c: board_enabled_channels_buffers) c->terminate();
+                        return 0;
+                    }
+
+                    packet_->data(network_buffer[0].address, network_buffer[0].size);
+
+                }
+            }
+            // Otherwise this channel's data is rolling over into the next UDP packet
+            else
+            {
+                while(network_buffer.size()<2 && !network_buffer.terminated());
+                if(network_buffer.size()<2)
+                {
+                    for(auto c: board_enabled_channels_buffers) c->terminate();
+                    return 0;
+                }
+
+                next_packet_->data(network_buffer[1].address, network_buffer[1].size);
+                
+                apdcam10g::byte tmp[3];
+                const int nbytes_in_current_packet = packet_->end() - value_begin;
+                for(int i=0; i<channel_buffer->nbytes; ++i)
+                {
+                    if(value_begin+i<packet_->end())
+                    {
+                        tmp[i] = value_begin[i];
+                    }
+                    else
+                    {
+                        tmp[i] = next_packet_->adc_data_start()[i - nbytes_in_current_packet];
+                    }
+                }
+                store_channel_value_(tmp,channel_buffer);
+                if(++i_enabled_channel == board_enabled_channels_buffers.size())
+                {
+                    cerr<<"** we reached the end of a shot..."<<endl;
+
+                    i_enabled_channel = 0;
+                    shot_offset += daq_->board_bytes_per_shot(adc_);
+
+                    // should always be true!
+                    if(shot_offset >= packet_->adc_data_size()) shot_offset -= packet_->adc_data_size();
+                }
+                else
+                {
+                    cerr<<"** the shot continues"<<endl;
+                    // The shot started in the current (the 'to be previous') packet, and is rolling over into the next UDP packet.
+                    // We will set the 'current packet pointer' to the next one, so the shot_offset must be negative,
+                    // since the shot started in the 'to be previous' packet
+                    shot_offset = shot_offset - (int)packet_->adc_data_size();
+                    cerr<<"** shot_offset = "<<shot_offset<<endl;
+                }
+                // Make next_packet_ the current one, i.e. copy next_packet_ --> packet_. But we need to keep the other one as well
+                // for deletion at the end, and also for next time when we want to query ahead the next packet. So we swap.
+                swap(packet_,next_packet_);
+            }
         }
         */
-
-        return removed_packets;
+        return 0;
     }
 
     template class channel_data_extractor<safe>;

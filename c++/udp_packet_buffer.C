@@ -10,7 +10,7 @@ namespace apdcam10g
         udp_packet_record *record_ptr;
         while((record_ptr=future_element(0))==0);
         // Get the pointer within the raw buffer, where the data should be received
-        std::byte* const ptr = record_ptr->address;
+        apdcam10g::byte* const ptr = record_ptr->address;
 
         // Receive the packet from the UDP socket
         const auto received_packet_size = s.recv<S>(ptr,max_udp_packet_size_);
@@ -73,7 +73,7 @@ namespace apdcam10g
     }
 
     template <safeness S>
-    //void udp_packet_buffer<S>::add_empty_packet_(std::byte *address,unsigned int counter)
+    //void udp_packet_buffer<S>::add_empty_packet_(apdcam10g::byte *address,unsigned int counter)
     void udp_packet_buffer<S>::add_empty_packet_(udp_packet_record *record_ptr,unsigned int counter, unsigned int packet_size)
     {
       // Fill the next block with zeros

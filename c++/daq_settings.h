@@ -42,9 +42,8 @@ namespace apdcam10g
         std::vector<std::vector<unsigned int>>      chip_bytes_per_shot_;     // indices are ADC number (0..3max) and chip nummber (0..3)
         std::vector<std::vector<unsigned int>>      chip_offset_;             // Offset of the first data byte of the chip w.r.t. the board's first data byte, indices are ADC number and chip number
 
-
         std::vector<channel_info*>              all_enabled_channels_info_;
-        std::vector<std::vector<channel_info*>> board_enabled_channels_info_;
+        std::vector<std::vector<channel_info*>> board_enabled_channels_info_; // First index is ADC board number, second index is the enabled channel index
 
     public:
         ~daq_settings();
@@ -89,6 +88,7 @@ namespace apdcam10g
         void calculate_channel_info();
 
         void print_channel_map(std::ostream &out = std::cout);
+
     };
 
 }
