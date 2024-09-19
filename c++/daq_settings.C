@@ -1,4 +1,4 @@
-#include <jsoncpp/json/json.h>
+//#include <jsoncpp/json/json.h>
 // Write/read settings using JSON
 
 #include <fstream>
@@ -10,11 +10,18 @@
 #include "pstream.h"
 #include "config.h"
 #include "terminal.h"
+#include "settings.h"
 
 using namespace std;
 
 namespace apdcam10g
 {
+    daq_settings::daq_settings(): channel_masks_(config::max_boards), resolution_bits_(config::max_boards,14)
+    {
+        // By default enable all channels
+        for(auto &a : channel_masks_) a.resize(config::channels_per_board,true);
+    }
+
     daq_settings::~daq_settings()
     {
         for(auto c : all_enabled_channels_info_) delete c;
@@ -142,7 +149,7 @@ namespace apdcam10g
     
     void daq_settings::calculate_channel_info()
     {
-        // channel_masks_ and resolution_bits_ must have been set before!
+        if(resolution_bits_.size() != channel_masks_.size()) APDCAM_ERROR("Resolutions (" + std::to_string(resolution_bits_.size()) + ") and channel masks (" + std::to_string(channel_masks_.size()) + ") have different size");
         
         const int nof_adc = channel_masks_.size();
         board_bytes_per_shot_.resize(nof_adc);
@@ -167,7 +174,7 @@ namespace apdcam10g
 
         // Resize the per-board vector, and clear all of its elements
         board_enabled_channels_info_.resize(nof_adc);
-        for(auto a : board_enabled_channels_info_) a.clear();
+        for(auto &a : board_enabled_channels_info_) a.clear();
 
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
@@ -234,51 +241,60 @@ namespace apdcam10g
         }
     }
 
-    void daq_settings::write(const std::string &filename)
+    void daq_settings::write_settings(const std::string &filename)
     {
-        Json::Value settings_root;
+        //Json::Value settings_root;
+        settings the_settings;
+        the_settings["n_adc"] = channel_masks_.size();
         for(unsigned int i_adc=0; i_adc<channel_masks_.size(); ++i_adc)
         {
-            settings_root["resolution_bits"][i_adc] = resolution_bits_[i_adc];
-            settings_root["resolution_bits"][i_adc].setComment(Json::String(("// ADC " + std::to_string(i_adc)).c_str()),Json::commentAfterOnSameLine);
+            //settings_root["resolution_bits"][i_adc] = resolution_bits_[i_adc];
+            the_settings["resolution_bits/" + std::to_string(i_adc)] = resolution_bits_[i_adc];
+            //settings_root["resolution_bits"][i_adc].setComment(Json::String(("// ADC " + std::to_string(i_adc)).c_str()),Json::commentAfterOnSameLine);
             for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
             {
                 const bool b = channel_masks_[i_adc][i_board_channel];
-                settings_root["channel_masks"][i_adc][i_board_channel] = b;
-                settings_root["channel_masks"][i_adc][i_board_channel].setComment(Json::String(("// Channel " + std::to_string(i_board_channel)).c_str()),Json::commentAfterOnSameLine);
+                //settings_root["channel_masks"][i_adc][i_board_channel] = b;
+                the_settings["channel_masks/" + std::to_string(i_adc) + "/" + std::to_string(i_board_channel)] = b;
+                //settings_root["channel_masks"][i_adc][i_board_channel].setComment(Json::String(("// Channel " + std::to_string(i_board_channel)).c_str()),Json::commentAfterOnSameLine);
             }
-            settings_root["channel_masks"][i_adc].setComment(Json::String(("// ADC " + std::to_string(i_adc)).c_str()),Json::commentBefore);
+            //settings_root["channel_masks"][i_adc].setComment(Json::String(("// ADC " + std::to_string(i_adc)).c_str()),Json::commentBefore);
         }
         ofstream file(filename);
-        file<<settings_root<<endl;
+        //file<<settings_root<<endl;
+        file<<the_settings;
     }
 
-    bool daq_settings::read(const std::string &filename)
+    bool daq_settings::read_settings(const std::string &filename)
     {
         ifstream file(filename);
         if(!file) return false;
-        Json::Value settings_root;
-        file>>settings_root;
-        for(auto key: {"resolution_bits","channel_masks"})
-        {
-            if(!settings_root.isMember(key)) APDCAM_ERROR(string("Value '") + key + "' is not stored in the file '" + filename + "'");
-        }
+        //Json::Value settings_root;
+        settings the_settings;
+        //file>>settings_root;
+        file>>the_settings;
+//        for(auto key: {"resolution_bits","channel_masks"})
+//        {
+//            if(!settings_root.isMember(key)) APDCAM_ERROR(string("Value '") + key + "' is not stored in the file '" + filename + "'");
+//        }
 
-        const int n_adc = settings_root["channel_masks"].size();
-        if(settings_root["resolution_bits"].size() != n_adc) APDCAM_ERROR("The arrays 'channel_masks' and 'resolution_bits' must have the same size in file '" + filename + "'");
+        //const int n_adc = settings_root["channel_masks"].size();
+        const int n_adc = the_settings["n_adc"];
+
+//        if(settings_root["resolution_bits"].size() != n_adc) APDCAM_ERROR("The arrays 'channel_masks' and 'resolution_bits' must have the same size in file '" + filename + "'");
+
         channel_masks_.resize(n_adc);
-        for(auto &a : channel_masks_) 
-        {
-            a.resize(config::channels_per_board);
-        }
+        for(auto &a : channel_masks_) a.resize(config::channels_per_board);
         resolution_bits_.resize(n_adc);
 
         for(unsigned int i_adc=0; i_adc<n_adc; ++i_adc)
         {
-            resolution_bits_[i_adc] = settings_root["resolution_bits"][i_adc].asInt();
+            //resolution_bits_[i_adc] = settings_root["resolution_bits"][i_adc].asInt();
+            resolution_bits_[i_adc] = the_settings["resolution_bits/" + std::to_string(i_adc)];
             for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
             {
-                channel_masks_[i_adc][i_board_channel] = settings_root["channel_masks"][i_adc][i_board_channel].asBool();
+                //channel_masks_[i_adc][i_board_channel] = settings_root["channel_masks"][i_adc][i_board_channel].asBool();
+                channel_masks_[i_adc][i_board_channel] = the_settings["channel_masks/" + std::to_string(i_adc) + "/" + std::to_string(i_board_channel)];
             }
         }
 

@@ -47,10 +47,13 @@ namespace apdcam10g
     private:
         sockaddr_in server_address_;  // This stores the port number where the server is listening, and INADDR_ANY to allow connections from anywhere
         sockaddr_in client_address_;  // This stores the last client's IP address after the reception of a package
-        
+        unsigned int port_;
+
     public:
         udp_server() {}
         udp_server(unsigned int port) { open(port); }
+
+        unsigned int port() const { return port_; }
 
         udp_server &open(unsigned int port);
 

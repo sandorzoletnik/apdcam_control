@@ -3,7 +3,7 @@
 
 namespace apdcam10g
 {
-    enum version {version_unknown, v1, v2};
+    enum class version {version_unknown, v1, v2};
 }
 
 #endif

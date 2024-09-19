@@ -43,7 +43,7 @@ try
         else if(!strcmp(argv[opt],"-s"))
         {
             if(++opt>=argc) APDCAM_ERROR("Settings filename exptected after -s");
-            settings_ok = cam.read(argv[opt]);
+            settings_ok = cam.read_settings(argv[opt]);
         }
         else if(!strcmp(argv[opt],"--drop-packets"))
         {
@@ -56,7 +56,11 @@ try
             APDCAM_ERROR("Unknown argument: " + std::string(argv[opt]));
         }
     }
-    if(!settings_ok) APDCAM_ERROR("Settings have not been specified, or failed to read");
+    if(!settings_ok) 
+    {
+        cerr<<"Trying to read settings from default file: settings.cnf"<<endl;
+        cam.read_settings("apdcam-daq.cnf");
+    }
 
     // Determine the MTU, set package size, etc
     cam.get_net_parameters();

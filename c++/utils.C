@@ -25,9 +25,9 @@ namespace apdcam10g
 	return out;
     }
 
-    std::mutex &output_mutex()
+    std::recursive_mutex &output_mutex()
     {
-        static std::mutex m;
+        static std::recursive_mutex m;
         return m;
     }
     

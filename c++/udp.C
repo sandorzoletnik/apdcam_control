@@ -44,6 +44,7 @@ namespace apdcam10g
 
     udp_server &udp_server::open(unsigned int port) 
     {
+        port_ = port;
         udp_socket::open(port);
         memset(&server_address_, 0, sizeof(server_address_)); 
         memset(&client_address_, 0, sizeof(client_address_));

@@ -80,7 +80,7 @@ namespace apdcam10g
         // and if packets are lost, substitute them with dummy packets containing all zeros.
         // This function should not be called simultaneously from concurrent threads!
         // It returns the number of bytes received, or a negative number on error. When this 
-        unsigned int receive(udp_server &s);
+        unsigned int receive(udp_server &s,std::stop_token &stok);
 
 
     };

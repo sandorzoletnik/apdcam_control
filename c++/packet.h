@@ -144,8 +144,8 @@ namespace apdcam10g
     {
         switch(ver)
         {
-        case v1: return new packet_v1;
-        case v2: return new packet_v2;
+        case version::v1: return new packet_v1;
+        case version::v2: return new packet_v2;
         default: return 0;
         }
     }

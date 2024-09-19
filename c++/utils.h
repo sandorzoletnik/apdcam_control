@@ -36,12 +36,12 @@ namespace apdcam10g
         for(unsigned int i=0; i<size; ++i) v[i] = func(i);
     }
 
-    std::mutex &output_mutex();
+    std::recursive_mutex &output_mutex();
     class output_lock
     {
     public:
-        output_lock() { /*output_mutex().lock();*/ }
-        ~output_lock() { /*output_mutex().unlock();*/ }
+        output_lock() { output_mutex().lock(); }
+        ~output_lock() { output_mutex().unlock(); }
     };
 }
 

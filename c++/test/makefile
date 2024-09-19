@@ -5,14 +5,16 @@ all : $(ALL)
 
 HEADERS = $(wildcard ../*.h)
 
+LDFLAGS = -L.. -lapdcam10g # -ljsoncpp
+
 apdcam-data-recorder : apdcam-data-recorder.C ../libapdcam10g.so $(HEADERS)
-	g++ $(CXXFLAGS) -std=c++20 -I.. -o $@ $< -L.. -lapdcam10g -ljsoncpp -pthread
+	g++ $(CXXFLAGS)  -I.. -o $@ $< $(LDFLAGS)
 apdcam-fake-camera : apdcam-fake-camera.C ../libapdcam10g.so $(HEADERS)
-	g++ $(CXXFLAGS) -std=c++20 -I.. -o $@ $< -L.. -lapdcam10g -ljsoncpp -pthread
+	g++ $(CXXFLAGS)  -I.. -o $@ $< $(LDFLAGS)
 udp-client : udp-client.C ../libapdcam10g.so $(HEADERS)
-	g++ $(CXXFLAGS) -std=c++20 -I.. -o $@ $< -L.. -lapdcam10g -ljsoncpp -pthread
+	g++ $(CXXFLAGS)  -I.. -o $@ $< $(LDFLAGS)
 udp-server : udp-server.C ../libapdcam10g.so $(HEADERS)
-	g++ $(CXXFLAGS) -std=c++20 -I.. -o $@ $< -L.. -lapdcam10g -ljsoncpp -pthread
+	g++ $(CXXFLAGS)  -I.. -o $@ $< $(LDFLAGS)
 
 .PHONY : clean
 clean:

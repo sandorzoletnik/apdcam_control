@@ -6,6 +6,7 @@
 #include "utils.h"
 #include "error.h"
 #include "pstream.h"
+#include "channel_data_diskdump.h"
 #include "channel_data_extractor.h"
 #include "shot_data_layout.h"
 #include <memory>
@@ -24,6 +25,11 @@ namespace apdcam10g
 {
     using namespace std;
 
+    daq::daq()
+    {
+        
+    }
+
     daq &daq::instance()
     {
         static daq the_daq;
@@ -36,33 +42,31 @@ namespace apdcam10g
     }
 
     template <safeness S>
-    daq &daq::init(bool dual_sata, const std::vector<std::vector<bool>> &channel_masks, const std::vector<unsigned int> &resolution_bits, version ver)
+    daq &daq::init()
     {
+        // Calculate the all_enabled_channels_info / board_enabled_channels_info vectors (ranges), and the
+        // number of all enabled channels
+        calculate_channel_info();
+
+
         if(mtu_ == 0) APDCAM_ERROR("MTU has not been set");
-        if(channel_masks.size() != resolution_bits.size()) APDCAM_ERROR("Masks and resolution sizes do not agree");
 
-        channel_masks_ = channel_masks;
-        resolution_bits_ = resolution_bits;
-
-        const unsigned int nof_adc = channel_masks.size();
+        const unsigned int nof_adc = channel_masks_.size();
 
         if(mtu_==0) APDCAM_ERROR("MTU has not yet been specified in daq::initialize");
-        if(dual_sata && nof_adc>2) APDCAM_ERROR("Dual sata is set with more than two ADC boards present");
+        if(dual_sata_ && nof_adc>2) APDCAM_ERROR("Dual sata is set with more than two ADC boards present");
 
         // Resize the socket vector to have as many elements as there are ADC boards
         sockets_.clear(); // delete any previously open socket, if any
         sockets_.resize(nof_adc);
 
         // Resize the network buffer vector to have as many elements as there are ADC boards. Initialize their buffer size
-        cerr<<"Network buffers : "<<network_buffer_size_<<" packets of size "<<max_udp_packet_size_<<endl<<endl;
+        cerr<<"[DAQ] Network buffers : "<<network_buffer_size_<<" packets of size "<<max_udp_packet_size_<<endl<<endl;
         regenerate(network_buffers_,nof_adc,network_buffer_size_,max_udp_packet_size_);
 
         // Resize the extractors vector to have as many elements as there are ADC boards
-        regenerate_by_func(extractors_, nof_adc, [this,ver](unsigned int i_adc){return new channel_data_extractor<default_safeness>(this,ver,i_adc);});
+        regenerate_by_func(extractors_, nof_adc, [this](unsigned int i_adc){return new channel_data_extractor<default_safeness>(this,fw_version_,i_adc);});
 
-        // Calculate the all_enabled_channels_info / board_enabled_channels_info vectors (ranges), and the
-        // number of all enabled channels
-        calculate_channel_info();
 
         // Resize the channels buffers, so that the sub-ranges (per ADC board) can be set up on the fly (i.e.
         // the 'all_enabled_channels_buffers_' vector is not resized anymore, which would invalidate its sub-ranges)
@@ -80,12 +84,12 @@ namespace apdcam10g
         // Open the input ports
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
-            const int port_index = (dual_sata ? i_adc*2 : i_adc);
-            cerr<<"====== ADC Board #"<<i_adc<<" ======"<<endl;
-	    cerr<<"Port            : "<<config::ports[i_adc*2]<<endl;
+            const int port_index = (dual_sata_ ? i_adc*2 : i_adc);
+            cerr<<"[DAQ] ====== ADC Board #"<<i_adc<<" ======"<<endl;
+	    cerr<<"[DAQ] Port            : "<<config::ports[i_adc*2]<<endl;
 	    sockets_[i_adc].open(config::ports[port_index]);
-            cerr<<"Bytes per shot  : "<<board_bytes_per_shot_[i_adc]<<endl;
-            cerr<<"Enabled channels: ";
+            cerr<<"[DAQ] Bytes per shot  : "<<board_bytes_per_shot_[i_adc]<<endl;
+            cerr<<"[DAQ] Enabled channels: ";
             for(auto c : board_enabled_channels_info_[i_adc]) cerr<<c->channel_number<<" ";
             cerr<<endl;
             if(debug_)
@@ -130,6 +134,7 @@ namespace apdcam10g
 
 
         // ----------------------------- Processor thread -------------------------------------------
+        cerr<<"[DAQ] STARTING PROCESSOR THREAD"<<endl;
         {
             processor_thread_ = std::jthread( [this](std::stop_token stok)
                 {
@@ -211,13 +216,18 @@ namespace apdcam10g
 
                             to_counter = common_push_counter + process_period_;
                         }
+                        {
+                            output_lock lck;
+                            cerr<<"[DAQ] Processor thread finished"<<endl;
+                        }
                     }
-                    catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
+                    catch(apdcam10g::error &e) { cerr<<"[DAQ] "<<e.full_message()<<endl; }
                 });
         }
 
 
         // ------------------- Channel data extractor threads ------------------------------------------
+        cerr<<"[DAQ] STARTING EXTRACTOR THREADS"<<endl;
         if(separate_extractor_threads_)  // Start one thread for each socket
         {
             for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
@@ -240,7 +250,7 @@ namespace apdcam10g
 
                             {
                                 output_lock lck;
-                                cerr<<"---------- Data extraction summary #"<<i_socket<<" ---------------------------"<<endl;
+                                cerr<<"[DAQ] ---------- Data extraction summary #"<<i_socket<<" ---------------------------"<<endl;
                                 double sum=0, n=0, max=0;
                                 for(auto b : board_enabled_channels_buffers_[i_socket])
                                 {
@@ -249,14 +259,14 @@ namespace apdcam10g
                                     const auto m = b->max_size();
                                     if(m>max) max=m;
                                 }
-                                cerr<<"Average buffer size : "<<sum/n<<endl;
-                                cerr<<"Max buffer size     : "<<max<<endl;
-                                cerr<<"Buffers' capacity   : "<<sample_buffer_size_<<endl;
-                                if(sum/n > sample_buffer_size_/2) cerr<<"WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
+                                cerr<<"[DAQ] Average buffer size : "<<sum/n<<endl;
+                                cerr<<"[DAQ] Max buffer size     : "<<max<<endl;
+                                cerr<<"[DAQ] Buffers' capacity   : "<<sample_buffer_size_<<endl;
+                                if(sum/n > sample_buffer_size_/2) cerr<<"[DAQ] WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
                                 cerr<<endl;
                             }
                         }
-                        catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
+                        catch(apdcam10g::error &e) { cerr<<"[DAQ] "<<e.full_message()<<endl; }
                     }));
             }
         }
@@ -288,6 +298,7 @@ namespace apdcam10g
 
         // -------------------------------- Network reading thread(s) ----------------------------------
         // These threads do nothing but continuously read UDP packets into the udp packet buffers 'network_buffers_'
+        cerr<<"[DAQ] STARTING NETWORK THREADS"<<endl;
         if(separate_network_threads_)  // Start one thread for each socket
         {
             output_lock lck;
@@ -303,7 +314,7 @@ namespace apdcam10g
                         {
                             while(!stok.stop_requested())
                             {
-			      const auto received_packet_size = network_buffers_[i]->receive(sockets_[i]);
+                                const auto received_packet_size = network_buffers_[i]->receive(sockets_[i],stok);
 
 			      // Reached the end of the stream. Both a partial packet, and the 'terminated' flag indicate
                               // that the camera stopped sending more data
@@ -311,6 +322,7 @@ namespace apdcam10g
                             }
 
                             // Close the socket, no more data is accepted
+                            cerr<<"[DAQ] Closing socket on port "<<sockets_[i].port()<<endl;
                             sockets_[i].close();
 
                             // If we have quit the while loop due to stop_requested, we need to set the terminated flag
@@ -320,18 +332,18 @@ namespace apdcam10g
                             // Write a summary
                             {
                                 output_lock lck;
-                                cerr<<"---------- Network summary #"<<i<<" ---------------------------"<<endl;
-                                cerr<<"Received packets    : "<<network_buffers_[i]->received_packets()<<endl;
-                                cerr<<"Lost packets        : "<<network_buffers_[i]->lost_packets()<<endl;
-                                cerr<<"Average buffer size : "<<network_buffers_[i]->mean_size()<<endl;
-                                cerr<<"Maximum buffer size : "<<network_buffers_[i]->max_size()<<endl;
-                                cerr<<"Buffer capacity     : "<<network_buffer_size_<<endl;
-                                if(network_buffers_[i]->mean_size() > network_buffer_size_/2) cerr<<"WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
+                                cerr<<"[DAQ] ---------- Network summary #"<<i<<" ---------------------------"<<endl;
+                                cerr<<"[DAQ] Received packets    : "<<network_buffers_[i]->received_packets()<<endl;
+                                cerr<<"[DAQ] Lost packets        : "<<network_buffers_[i]->lost_packets()<<endl;
+                                cerr<<"[DAQ] Average buffer size : "<<network_buffers_[i]->mean_size()<<endl;
+                                cerr<<"[DAQ] Maximum buffer size : "<<network_buffers_[i]->max_size()<<endl;
+                                cerr<<"[DAQ] Buffer capacity     : "<<network_buffer_size_<<endl;
+                                if(network_buffers_[i]->mean_size() > network_buffer_size_/2) cerr<<"[DAQ] WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
                                 cerr<<endl;
                             }
 
                         }
-                        catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
+                        catch(apdcam10g::error &e) { cerr<<"[DAQ] "<<e.full_message()<<endl; }
                     }));
             }
         }
@@ -355,7 +367,7 @@ namespace apdcam10g
                             {
                                 if(!socket_active[i_socket] || network_buffers_[i_socket]->terminated()) continue;
                                 // We should set a timeout here as well.
-                                const auto received_packet_size = network_buffers_[i_socket]->receive(sockets_[i_socket]);
+                                const auto received_packet_size = network_buffers_[i_socket]->receive(sockets_[i_socket],stok);
                                 
                                 if(received_packet_size != max_udp_packet_size_) socket_active[i_socket] = false;
                                 else ++n_active_sockets;
@@ -368,23 +380,27 @@ namespace apdcam10g
                         // that no more data is coming from us
                         for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket) network_buffers_[i_socket]->terminated();
                     }
-                    catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
+                    catch(apdcam10g::error &e) { cerr<<"[DAQ] "<<e.full_message()<<endl; }
                 }));
         }
 
+        cerr<<"[DAQ] ALL THREADS HAVE BEEN STARTED"<<endl;
+
         sleep(1);
 
-        if(wait)
-        {
-            for(auto &t : network_threads_) if(t.joinable()) t.join();
-//            cerr<<"Network threads finished"<<endl;
-            for(auto &t : extractor_threads_) if(t.joinable()) t.join();
-//            cerr<<"Data extractor threads finished"<<endl;
-	    if(processor_thread_.joinable()) processor_thread_.join();
-//            cerr<<"Processor thread finished"<<endl;
-        }
+        if(wait) wait_finish();
+
+        cerr<<"[DAQ] RETURNING"<<endl;
 
         return *this;
+    }
+
+    void daq::wait_finish()
+    {
+        if(processor_thread_.joinable()) processor_thread_.join();
+        for(auto &t : extractor_threads_) if(t.joinable()) t.join();
+        for(auto &t : network_threads_) if(t.joinable()) t.join();
+        cerr<<"[DAQ] All threads have been joined"<<endl;
     }
 
     template <safeness S>
@@ -401,12 +417,7 @@ namespace apdcam10g
         // stop as well
         for(auto &t : network_threads_) t.request_stop();
 
-        if(wait)
-        {
-            if(processor_thread_.joinable()) processor_thread_.join();
-            for(auto &t : extractor_threads_) if(t.joinable()) t.join();
-            for(auto &t : network_threads_) if(t.joinable()) t.join();
-        }
+        if(wait) wait_finish();
         return *this;
     }
 
@@ -414,33 +425,72 @@ namespace apdcam10g
     template daq &daq::stop<unsafe>(bool);
     template daq &daq::start<safe>(bool);
     template daq &daq::start<unsafe>(bool);
-    template daq &daq::init<safe>  (bool, const std::vector<std::vector<bool>>&, const std::vector<unsigned int>&, version);
-    template daq &daq::init<unsafe>(bool, const std::vector<std::vector<bool>>&, const std::vector<unsigned int>&, version);
+    template daq &daq::init<safe>  ();
+    template daq &daq::init<unsafe>();
 }
 
 #ifdef FOR_PYTHON
 extern "C"
 {
     using namespace apdcam10g;
-    void         mtu(int m) { daq::instance().mtu(m); }
+    //void         mtu(int m) { daq::instance().mtu(m); }
     void         start(bool wait) { daq::instance().start(wait); }
     void         stop(bool wait) { daq::instance().stop(wait); }
-    void         init(bool dual_sata, int n_adc_boards, bool **channel_masks, unsigned int *resolution_bits, version ver, bool is_safe)
+    void         version(apdcam10g::version v) { daq::instance().fw_version(apdcam10g::version(v)); }
+    void         dual_sata(bool d) { daq::instance().dual_sata(d); }
+
+    void get_net_parameters()
+    {
+        daq::instance().get_net_parameters();
+    }
+
+    void channel_masks(bool **m, int n_adc_boards)
     {
         std::vector<std::vector<bool>> chmasks(n_adc_boards);
-        std::vector<unsigned int> rbits(n_adc_boards);
         for(unsigned int i_adc_board=0; i_adc_board<n_adc_boards; ++i_adc_board)
         {
-            chmasks[i_adc_board].resize(4);
-            rbits[i_adc_board] = resolution_bits[i_adc_board];
             for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
             {
-                chmasks[i_adc_board].push_back(channel_masks[i_adc_board][i_board_channel]);
+                chmasks[i_adc_board].push_back(m[i_adc_board][i_board_channel]);
             }
         }
+        daq::instance().channel_masks(chmasks);
+    }
 
-        if(is_safe) daq::instance().init<safe>(dual_sata,chmasks,rbits,ver);
-        else        daq::instance().init<unsafe>(dual_sata,chmasks,rbits,ver);
+    void resolution_bits(unsigned int *r, int n_adc_boards)
+    {
+        std::vector<unsigned int> res(n_adc_boards);
+        for(unsigned int i_adc_board=0; i_adc_board<n_adc_boards; ++i_adc_board)
+        {
+            res[i_adc_board] = r[i_adc_board];
+        }
+        daq::instance().resolution_bits(res);
+    }
+
+    void init(bool is_safe)
+    {
+        if(is_safe) daq::instance().init<safe>();
+        else        daq::instance().init<unsafe>();
+    }
+
+    void debug(bool d)
+    {
+        daq::instance().debug(d);
+    }
+
+    void add_processor_diskdump()
+    {
+        daq::instance().add_processor(new channel_data_diskdump(&daq::instance()));
+    }
+
+    void write_settings(const char *filename)
+    {
+        daq::instance().write_settings(filename);
+    }
+
+    void wait_finish()
+    {
+        daq::instance().wait_finish();
     }
 }
 #endif

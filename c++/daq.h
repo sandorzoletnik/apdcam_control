@@ -31,6 +31,10 @@ namespace apdcam10g
     private:
         bool debug_ = false;
 
+        bool dual_sata_ = false;
+
+        version fw_version_ = version::v1;
+
         // The period (number of shots) for calling the processor tasks on the channel data. The default 100 means that once there are
         // 100 new shots in the buffer, all processor tasks are triggered and run.
         unsigned int process_period_ = 10;
@@ -83,7 +87,7 @@ namespace apdcam10g
 
         // Being a singleton, the constructor is private and the only instance can be accessed
         // via the static daq::instance() function
-        daq() {}
+        daq();
 
     public:
 
@@ -95,6 +99,12 @@ namespace apdcam10g
             for(auto p : extractors_) delete p;
             for(auto p : all_enabled_channels_buffers_) delete p;
         }
+
+        daq &dual_sata(bool d) { dual_sata_ = d; return *this; }
+        bool dual_sata() const { return dual_sata_; }
+
+        daq &fw_version(version v) { fw_version_ = v; return *this; }
+        version fw_version() const { return fw_version_; }
 
         daq &clear_processors() { processors_.clear(); return *this; }
         daq &add_processor(channel_data_processor *p) 
@@ -135,7 +145,7 @@ namespace apdcam10g
 
         // The specified safeness is transmitted to the signal extractor
         template <safeness S=default_safeness>
-        daq &init(bool dual_sata, const std::vector<std::vector<bool>> &channel_masks, const std::vector<unsigned int> &resolution_bits, version ver);
+        daq &init();
 
         // Start the data processing with a given safeness. The specified safeness is transmitted to socket recv
         template <safeness S=default_safeness>
@@ -145,6 +155,9 @@ namespace apdcam10g
         // dumping to disk) threads to stop.
         template <safeness S=default_safeness>
         daq &stop(bool wait=true); 
+
+        // Wait for all threads to finish, join them
+        void wait_finish();
     };
 
 #define CLASS_DAQ_DEFINED
@@ -157,12 +170,19 @@ namespace apdcam10g
 extern "C"
 {
     using namespace apdcam10g;
-    daq          *create();
-    void         destroy();
-    void         mtu(int m);
-    void         start(bool wait=false);
-    void         stop(bool wait=true);
-    void         init(bool dual_sata, int n_adc_boards, bool **channel_masks, unsigned int *resolution_bits, version ver, bool safe);
+    void get_net_parameters();
+    //void         mtu(int m);
+    void start(bool wait=false);
+    void stop(bool wait=true);
+    void version(apdcam10g::version v);
+    void dual_sata(bool d);
+    void channel_masks(bool **m, int n_adc_boards);
+    void resolution_bits(unsigned int *r, int n_adc_boards);
+    void add_processor_diskdump();
+    void debug(bool d);
+    void init(bool safe);
+    void write_settings(const char *filename);
+    void wait_finish();        
 }
 #endif
 

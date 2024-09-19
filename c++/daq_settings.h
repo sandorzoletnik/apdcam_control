@@ -36,8 +36,11 @@ namespace apdcam10g
 
         // A lot of (redundant) information to be able to access and manipulate the memory storage
         // in different ways efficiently
-        std::vector<std::vector<bool>>              channel_masks_;           // Indices: ADC number, channel number within board 
-        std::vector<unsigned int>                   resolution_bits_;         // Index: ADC number
+        std::vector<std::vector<bool>>              channel_masks_;           // Indices: ADC number, channel number within board. It is initialized for all channels being enabled
+        std::vector<unsigned int>                   resolution_bits_;         // Index: ADC number. Initialized as 14 for all boards
+
+        // These data members below are not initialized by default. They are calculated by the 'calculate_channel_info' member function
+        // which must be called before the daq is started
         std::vector<unsigned int>                   board_bytes_per_shot_;    // index is ADC number
         std::vector<std::vector<unsigned int>>      chip_bytes_per_shot_;     // indices are ADC number (0..3max) and chip nummber (0..3)
         std::vector<std::vector<unsigned int>>      chip_offset_;             // Offset of the first data byte of the chip w.r.t. the board's first data byte, indices are ADC number and chip number
@@ -46,6 +49,8 @@ namespace apdcam10g
         std::vector<std::vector<channel_info*>> board_enabled_channels_info_; // First index is ADC board number, second index is the enabled channel index
 
     public:
+        daq_settings();
+
         ~daq_settings();
 
         // set/get the MTU value (Maximum Transmission Unit, the biggest size of packet that can be sent
@@ -57,18 +62,27 @@ namespace apdcam10g
         const std::string &interface() const { return interface_; }
         daq_settings &get_net_parameters();
 
+        // Set the channel masks
+        daq_settings &channel_masks(const std::vector<std::vector<bool>> &m) { channel_masks_ = m; return *this; }
+        // Get the enabled/disabled status of a given channel
         bool channel_mask(unsigned int i_adc, unsigned int i_channel_of_board) { return channel_masks_[i_adc][i_channel_of_board]; }
-        unsigned int resolution_bits(int i_adc) { return resolution_bits_[i_adc]; }
+
+        // Set the resolutions for all ADC boards (the vector 'r' must have as many elements as there are ADC boards)
+        daq_settings &resolution_bits(const std::vector<unsigned int> &r) { resolution_bits_ = r;  return *this; }
+        daq_settings &resolution_bits(std::initializer_list<unsigned int> r) {  resolution_bits(std::vector<unsigned int>{r}); return *this; }
+        // Get the resolution in bits for the given ADC board (0-based)
+        unsigned int resolution_bits(int i_adc) const { return resolution_bits_[i_adc]; }
+
+        // These functions only return meaningful results after calling calculate_channel_info();
         unsigned int board_bytes_per_shot(int i_adc) { return board_bytes_per_shot_[i_adc]; }
         unsigned int chip_bytes_per_shot(int i_adc, int i_chip) { return chip_bytes_per_shot_[i_adc][i_chip]; }
         unsigned int chip_offset(int i_adc, int i_chip) { return chip_offset_[i_adc][i_chip]; }
-//        const std::vector<channel_info> &channelinfo(unsigned int adc) { return channelinfo_[adc]; }
 
         // Return the number of all enabled channels
         unsigned int enabled_channels() { return all_enabled_channels_info_.size(); }
 
         // Return the number of enabled channels on board 'board_number' (0-based)
-        unsigned int enabled_channels(unsigned int board_number) { return board_enabled_channels_info_[board_number].size(); }
+//        unsigned int enabled_channels(unsigned int board_number) { return board_enabled_channels_info_[board_number].size(); }
 
         // Returns the maximum size of the packets: the CC header + the ADC data 
         // (but not including the UDP header, IPv4 header and Ethernet header)
@@ -77,9 +91,9 @@ namespace apdcam10g
         unsigned int max_udp_packet_size() const { return max_udp_packet_size_; }
         
 
-        // Read/write the configuration into a .json file
-        void write(const std::string &filename);
-        bool read(const std::string &filename);
+        // Read/write the configuration into a  file
+        void write_settings(const std::string &filename);
+        bool read_settings(const std::string &filename);
 
         // Calculate the byte/bit offsets of the channels within the ADC bytes of a given sample,
         // and the masks/shifts to extract the values

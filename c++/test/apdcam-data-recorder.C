@@ -70,38 +70,20 @@ try
     }
 
     daq::instance().get_net_parameters();
-
     daq::instance().add_processor(new channel_data_diskdump(&daq::instance()));
-
-    daq::instance().init(false,{
+    daq::instance().resolution_bits({14});
+    daq::instance().channel_masks(
+        {
             {
-                true,true,true,true,true,true,true,true,
-                true,true,true,true,true,true,true,true,
-                true,true,true,true,true,true,true,true,
-                true,true,true,true,true,true,true,true
-            },
-            {
-                true,true,true,true,true,true,true,true,
-                true,true,true,true,true,true,true,true,
-                true,true,true,true,true,true,true,true,
-                true,true,true,true,true,true,true,true
-            },
-            {
-                true,true,true,true,true,true,true,true,
-                true,true,true,true,true,true,true,true,
-                true,true,true,true,true,true,true,true,
-                true,true,true,true,true,true,true,true
-            },
-            {
-                true,true,true,true,true,true,true,true,
-                true,true,true,true,true,true,true,true,
-                true,true,true,true,true,true,true,true,
-                true,true,true,true,true,true,true,true
+                true,true,true,true,false,false,false,false,
+                true,true,true,false,false,false,false,false,
+                true,true,true,false,false,false,false,false,
+                true,true,true,false,false,false,false,false
             }
+        });
 
-        }, {14,14,14,14}, v2);
-
-    daq::instance().write("settings.json");
+    daq::instance().init();
+    daq::instance().write_settings("apdcam-daq.cnf");
 
 //    daq::instance().print_channel_map();
 

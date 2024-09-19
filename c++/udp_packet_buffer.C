@@ -4,11 +4,18 @@
 namespace apdcam10g
 {
     template <safeness S>
-    unsigned int udp_packet_buffer<S>::receive(udp_server &s)
+    unsigned int udp_packet_buffer<S>::receive(udp_server &s,std::stop_token &stok)
     {
         // Spin-locked wait to obtain a slot for a free record
         udp_packet_record *record_ptr;
-        while((record_ptr=future_element(0))==0);
+        while((record_ptr=future_element(0))==0 && !stok.stop_requested());
+
+        if(stok.stop_requested())
+        {
+            terminate();
+            return 0;
+        }
+
         // Get the pointer within the raw buffer, where the data should be received
         apdcam10g::byte* const ptr = record_ptr->address;
 
@@ -56,7 +63,13 @@ namespace apdcam10g
             for(unsigned int i=0; i<nof_lost_packets; ++i)
             {
                 // Spin-lock wait for a new slot
-                while((empty_record_ptr=future_element(i+1))==0);
+                while((empty_record_ptr=future_element(i+1))==0 && !stok.stop_requested());
+
+                if(stok.stop_requested())
+                {
+                    terminate();
+                    return 0;
+                }
 
                 // Then create a new zero-filled packet in the raw buffer, and append it to the ring buffer
                 add_empty_packet_(empty_record_ptr,expected_packet_counter_+i,max_udp_packet_size_);
@@ -86,7 +99,7 @@ namespace apdcam10g
         packet_counter = counter;
     }
 
-    template unsigned int udp_packet_buffer<apdcam10g::safe>::receive(udp_server &);
-    template unsigned int udp_packet_buffer<apdcam10g::unsafe>::receive(udp_server &);
+    template unsigned int udp_packet_buffer<apdcam10g::safe>::receive(udp_server &,std::stop_token &);
+    template unsigned int udp_packet_buffer<apdcam10g::unsafe>::receive(udp_server &,std::stop_token &);
 
 }
