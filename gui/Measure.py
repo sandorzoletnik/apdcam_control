@@ -158,6 +158,7 @@ class Measure(QtWidgets.QWidget):
         self.daq.resolution_bits(convertToCArray(res,ctypes.c_uint),len(res))
         self.daq.init(True);
         self.daq.write_settings(b"apdcam-daq.cnf");
+#        self.daq.dump()
         self.daq.start(False)
 
         print("Python has finished starting the DAQ")
