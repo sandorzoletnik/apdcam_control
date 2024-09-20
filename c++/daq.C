@@ -26,10 +26,15 @@ namespace apdcam10g
 {
     using namespace std;
 
+    // A utility class to transform POSIX signals such as SIGSEGV to c++ exceptions, which are then handled
+    // in a common way
     class signal2exception
     {
     private:
         static std::map<std::jthread::id,std::string> thread_names_;
+
+        // The signal-handler routine which can be set for POSIX signals. It simply throws an apdcam_error exception
+        // with the appropriate message
         static void run(int signum)
             {
                 APDCAM_ERROR("Signal " + std::to_string(signum) + " is caught in thread \"" + thread_names_[std::this_thread::get_id()] + "\"");
@@ -37,6 +42,11 @@ namespace apdcam10g
                 //raise (signum);
             }
     public:
+
+        // The below vararg 'set' functions can be used to set the signal handler for the given signals.
+        // The first argument is a name that will be associated with the calling thread for the user's
+        // convenience, subsequent integer args (any number of them) are signal numbers
+        // Usage: signal2exception::set("my_thread_name",SIGSEGV,SIGINT);
 
         static void set(const std::string &thread_name, int signum)
             {
@@ -160,9 +170,8 @@ namespace apdcam10g
         network_threads_.clear();
         extractor_threads_.clear();
         
-	// start creating the threads from tne end-consumer end, i.e. backwards, so that consumers are ready (should we ensure
-	// syncing?) and listening by the time data starts to arrive.
-        
+	// start creating the threads from tne end-consumer end, i.e. backwards, so that consumers are ready (should we further sync?)
+	// and listening by the time data starts to arrive.
         
         // ----------------------------- processor thread -------------------------------------------
         {
@@ -305,11 +314,14 @@ namespace apdcam10g
                         {
                             while(!stok.stop_requested())
                             {
+                                // The 'receive' function of the UDP packet buffer automatically takes care of lost packets
+                                // and inserts them with zero fill. We provide the stop_token 'stok' to this function
+                                // so that it can monitor eventual stop requests within the spin-lock waiting for new packets
                                 const auto received_packet_size = network_buffers_[i_socket]->receive(sockets_[i_socket],stok);
 
-			      // Reached the end of the stream. Both a partial packet, and the 'terminated' flag indicate
-                              // that the camera stopped sending more data
-			      if(received_packet_size != max_udp_packet_size_ || network_buffers_[i_socket]->terminated()) break;
+                                // Reached the end of the stream. Both a partial packet, and the 'terminated' flag indicate
+                                // that the camera stopped sending more data
+                                if(received_packet_size != max_udp_packet_size_ || network_buffers_[i_socket]->terminated()) break;
                             }
 
                             // Close the socket, no more data is accepted
