@@ -1,6 +1,7 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <signal.h>
 
 #include "daq.h"
 #include "utils.h"
@@ -10,7 +11,7 @@
 #include "channel_data_extractor.h"
 #include "shot_data_layout.h"
 #include <memory>
-
+#include <map>
 
 //#include <stdio.h>
 //#include <stdlib.h>
@@ -24,6 +25,34 @@
 namespace apdcam10g
 {
     using namespace std;
+
+    class signal2exception
+    {
+    private:
+        static std::map<std::jthread::id,std::string> thread_names_;
+        static void run(int signum)
+            {
+                APDCAM_ERROR("Signal " + std::to_string(signum) + " is caught in thread \"" + thread_names_[std::this_thread::get_id()] + "\"");
+                //signal (signum, SIG_DFL);
+                //raise (signum);
+            }
+    public:
+
+        static void set(const std::string &thread_name, int signum)
+            {
+                thread_names_[std::this_thread::get_id()] = thread_name;
+                signal(signum,signal2exception::run);
+            }
+
+        template <typename... SIGNUMS>
+        static void set(const std::string &thread_name, int signum1, SIGNUMS... signums)
+            {
+                signal(signum1,signal2exception::run);
+                set(thread_name,signums...);
+            }
+    };
+
+    std::map<std::jthread::id,std::string> signal2exception::thread_names_;
 
     daq::daq()
     {
@@ -47,7 +76,6 @@ namespace apdcam10g
         // Calculate the all_enabled_channels_info / board_enabled_channels_info vectors (ranges), and the
         // number of all enabled channels
         calculate_channel_info();
-
 
         if(mtu_ == 0) APDCAM_ERROR("MTU has not been set");
 
@@ -78,6 +106,8 @@ namespace apdcam10g
 
         board_last_channel_buffers_.resize(nof_adc);
 
+        // Resize all_channels_buffers_ to the maximum possible number of channels, and set all elements to
+        // a zero pointer
         all_channels_buffers_.clear();
         all_channels_buffers_.resize(nof_adc*config::channels_per_board,0);
 
@@ -95,9 +125,10 @@ namespace apdcam10g
             if(debug_)
             {
                 shot_data_layout layout(board_bytes_per_shot_[i_adc], resolution_bits_[i_adc], board_enabled_channels_info_[i_adc]);
-                cerr<<"---- SHOT DATA LAYOUT ----"<<endl;
+                layout.prompt("[DAQ]");
+                cerr<<"[DAQ] ---- SHOT DATA LAYOUT ----"<<endl;
                 layout.show();
-                cerr<<"--------------------------"<<endl;
+                cerr<<"[DAQ] --------------------------"<<endl;
             }
             cerr<<endl;
         }
@@ -128,271 +159,207 @@ namespace apdcam10g
     {
         network_threads_.clear();
         extractor_threads_.clear();
-
-	// Start creating the threads from tne end-consumer end, i.e. backwards, so that consumers are ready (should we ensure
+        
+	// start creating the threads from tne end-consumer end, i.e. backwards, so that consumers are ready (should we ensure
 	// syncing?) and listening by the time data starts to arrive.
-
-
-        // ----------------------------- Processor thread -------------------------------------------
-        cerr<<"[DAQ] STARTING PROCESSOR THREAD"<<endl;
+        
+        
+        // ----------------------------- processor thread -------------------------------------------
         {
-            processor_thread_ = std::jthread( [this](std::stop_token stok)
+            output_lock lck;
+            cerr<<"[DAQ] Starting processor thread"<<endl;
+        }
+        processor_thread_ = std::jthread( [this](std::stop_token stok)
+            {
                 {
+                    output_lock lck;
+                    cerr<<"[DAQ/PROC] Thread started"<<endl;
+                }
+                signal2exception::set("processor",SIGSEGV);
+                try
+                {
+                    for(unsigned int to_counter=process_period_; !stok.stop_requested(); )
+                    {
+                        size_t common_pop_counter=0;
+                        size_t common_push_counter=0;
+                        
+                        // check the last channels of each board, and spin-lock wait until they have a required new number
+                        // of entries, or are terminated
+                        bool non_terminated_exists = false;
+                        for(int i=0; i<board_last_channel_buffers_.size(); ++i)
+                        {
+                            const channel_data_buffer_t *b = board_last_channel_buffers_[i];
+                            bool terminated;
+                            size_t push_counter;
+                            while( (push_counter=b->push_counter())<to_counter && (terminated=b->terminated())==false );
+                        
+                            // re-query to capture the case when between the two and-ed conditions in the while loop there were new
+                            // entries added to the ring_buffer, and it was terminated as well.
+                            if(terminated)
+                            {
+                                push_counter = b->push_counter();
+                            }
+                            else non_terminated_exists = true;
+                            if(i==0 || push_counter<common_push_counter) common_push_counter = push_counter;
+                        
+                            size_t pop_counter = b->pop_counter();
+                            if(pop_counter > common_pop_counter) common_pop_counter = pop_counter;
+                        }
+                    
+                        if(common_push_counter > common_pop_counter)
+                        {
+                            // the counter to indicate the first element that is required to stay in the buffers
+                            // by any of the processors
+                            unsigned int needed = common_push_counter;
+                            for(auto p : processors_) 
+                            {
+                                const unsigned int this_processor_needs = p->run(common_pop_counter, common_push_counter);
+                                if(this_processor_needs > common_push_counter) APDCAM_ERROR("processor returned too high needed value");
+                                if(this_processor_needs < needed) needed = this_processor_needs;
+                            }
+                        
+                            // after all tasks have run, and reported what the earliest element in the buffers that they
+                            // need for further processing, clear the buffers up to this
+                            for(auto a: all_enabled_channels_buffers_) a->pop_to(needed);
+                        }
+                    
+                        if(!non_terminated_exists) break;
+                    
+                        to_counter = common_push_counter + process_period_;
+                    }
+                    {
+                        output_lock lck;
+                        cerr<<"[DAQ/PROC] Thread finished"<<endl;
+                    }
+                }
+                catch(apdcam10g::error &e) { cerr<<"[DAQ/PROC] "<<e.full_message()<<endl; }
+        });
+
+
+        // ------------------- channel data extractor threads ------------------------------------------
+        {
+            output_lock lck;
+            cerr<<"[DAQ] Starting extractor threads"<<endl;
+        }
+        
+        for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
+        {
+            extractor_threads_.push_back(std::jthread( [this, i_socket](std::stop_token stok)
+                {
+                    {
+                        output_lock lck;
+                        cerr<<"[DAQ/EXT] Thread "<<i_socket<<" started"<<endl;
+                    }
+                    signal2exception::set("extractor" + std::to_string(i_socket),SIGSEGV);
                     try
                     {
-                        for(unsigned int to_counter=process_period_; !stok.stop_requested(); )
-                        {
-                            //{
-                            //    output_lock lck; 
-                            //    cerr<<"  >> Processor thread waiting for shots up to "<<to_counter<<endl;
-                            // }
+                        extractors_[i_socket]->run(*network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]);
 
-                            size_t common_pop_counter=0;
-                            size_t common_push_counter=0;
-
-                            // Check the last channels of each board, and spin-lock wait until they have a required new number
-                            // of entries, or are terminated
-                            bool non_terminated_exists = false;
-                            for(int i=0; i<board_last_channel_buffers_.size(); ++i)
-                            {
-                                const channel_data_buffer_t *b = board_last_channel_buffers_[i];
-//                                {
-//                                    output_lock lck;
-//                                    cerr<<"  >> Checking channel "<<b->board_number<<"/"<<b->channel_number<<endl;
-//                                }
-                                bool terminated;
-                                size_t push_counter;
-                                while( (push_counter=b->push_counter())<to_counter && (terminated=b->terminated())==false );
-                                // {
-                                //     output_lock lck;
-                                //     cerr<<"  >> out of spin-lock, push_counter="<<push_counter<<endl;
-                                // }
-
-                                // Re-query to capture the case when between the two AND-ed conditions in the while loop there were new
-                                // entries added to the ring_buffer, and it was terminated as well.
-                                if(terminated)
-                                {
-                                    push_counter = b->push_counter();
-                                    // {
-                                    //     output_lock lck;
-                                    //     cerr<<"  >> push_counter r-queried: "<<push_counter<<endl;
-                                    // }
-                                }
-                                else non_terminated_exists = true;
-                                if(i==0 || push_counter<common_push_counter) common_push_counter = push_counter;
-
-                                // {
-                                //     output_lock lck;
-                                //     cerr<<"  >> comon_push_counter: "<<common_push_counter<<endl;
-                                // }
-
-                                size_t pop_counter = b->pop_counter();
-                                if(pop_counter > common_pop_counter) common_pop_counter = pop_counter;
-
-                                // {
-                                //     output_lock lck;
-                                //     cerr<<"  >> common_pop_counter: "<<common_pop_counter<<endl;
-                                // }
-                            }
-
-                            if(common_push_counter > common_pop_counter)
-                            {
-                                // The counter to indicate the first element that is required to stay in the buffers
-                                // by any of the processors
-                                unsigned int needed = common_push_counter;
-                                for(auto p : processors_) 
-                                {
-                                    const unsigned int this_processor_needs = p->run(common_pop_counter, common_push_counter);
-                                    if(this_processor_needs > common_push_counter) APDCAM_ERROR("Processor returned too high needed value");
-                                    if(this_processor_needs < needed) needed = this_processor_needs;
-                                }
-                                
-                                // After all tasks have run, and reported what the earliest element in the buffers that they
-                                // need for further processing, clear the buffers up to this
-                                for(auto a: all_enabled_channels_buffers_) a->pop_to(needed);
-                            }
-
-                            if(!non_terminated_exists) break;
-
-                            to_counter = common_push_counter + process_period_;
-                        }
+                        // Write a summary of what happened
                         {
                             output_lock lck;
-                            cerr<<"[DAQ] Processor thread finished"<<endl;
+                            cerr<<"[DAQ/EXT] Thread "<<i_socket<<" finished"<<endl;
+                            cerr<<"[DAQ/EXT] ---------- Data extraction summary  ------------------"<<endl;
+                            double sum=0, n=0, max=0;
+                            for(auto b : board_enabled_channels_buffers_[i_socket])
+                            {
+                                ++n;
+                                sum += b->mean_size();
+                                const auto m = b->max_size();
+                                if(m>max) max=m;
+                            }
+                            cerr<<"[DAQ/EXT] average buffer size : "<<sum/n<<endl;
+                            cerr<<"[DAQ/EXT] max buffer size     : "<<max<<endl;
+                            cerr<<"[DAQ/EXT] buffers' capacity   : "<<sample_buffer_size_<<endl;
+                            if(sum/n > sample_buffer_size_/2) cerr<<"[DAQ/EXT] we recommend increasing the buffer size"<<endl;
+                            cerr<<endl;
                         }
                     }
-                    catch(apdcam10g::error &e) { cerr<<"[DAQ] "<<e.full_message()<<endl; }
-                });
+                    catch(apdcam10g::error &e) { cerr<<"[DAQ/EXT] "<<e.full_message()<<endl; }
+                }));
         }
 
 
-        // ------------------- Channel data extractor threads ------------------------------------------
-        cerr<<"[DAQ] STARTING EXTRACTOR THREADS"<<endl;
-        if(separate_extractor_threads_)  // Start one thread for each socket
+
+        // -------------------------------- network reading thread(s) ----------------------------------
+        // these threads do nothing but continuously read udp packets into the udp packet buffers 'network_buffers_'
+        {
+            output_lock lck;
+            cerr<<"[DAQ] Starting network threads"<<endl;
+        }
         {
             for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
             {
-                extractor_threads_.push_back(std::jthread( [this, i_socket](std::stop_token stok)
-                    {
-                        try
-                        {
-//                            while(!stok.stop_requested())
-			    {
-				extractors_[i_socket]->run(*network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]);
-/*
-				if(extractors_[i_socket]->run(*network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]) < 0)
-                                {
-                                    cerr<<"****************************"<<endl;
-                                    break;
-                                }
-*/
-			    }
-
-                            {
-                                output_lock lck;
-                                cerr<<"[DAQ] ---------- Data extraction summary #"<<i_socket<<" ---------------------------"<<endl;
-                                double sum=0, n=0, max=0;
-                                for(auto b : board_enabled_channels_buffers_[i_socket])
-                                {
-                                    ++n;
-                                    sum += b->mean_size();
-                                    const auto m = b->max_size();
-                                    if(m>max) max=m;
-                                }
-                                cerr<<"[DAQ] Average buffer size : "<<sum/n<<endl;
-                                cerr<<"[DAQ] Max buffer size     : "<<max<<endl;
-                                cerr<<"[DAQ] Buffers' capacity   : "<<sample_buffer_size_<<endl;
-                                if(sum/n > sample_buffer_size_/2) cerr<<"[DAQ] WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
-                                cerr<<endl;
-                            }
-                        }
-                        catch(apdcam10g::error &e) { cerr<<"[DAQ] "<<e.full_message()<<endl; }
-                    }));
-            }
-        }
-        else
-        {
-            APDCAM_ERROR("Only separate extractor threads are working now...");
-/*
-            extractor_threads_.push_back(std::jthread( [this](std::stop_token stok)
-                {
-                    try
-                    {
-                        while(!stok.stop_requested())
-                        {
-                            int n_active = 0;
-                            for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
-                            {
-                                // If input is terminated, 'run' returns a negative number. Otherwise (zero or larger returned value) the
-                                // input socket is still active
-                                if(extractors_[i_socket]->run(network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]) >= 0) ++n_active;
-                            }
-                            if(n_active == 0) break;
-                        }
-                    }
-                    catch(apdcam10g::error &e) { cerr<<e.full_message()<<endl; }
-                }));
-*/
-        }
-
-
-        // -------------------------------- Network reading thread(s) ----------------------------------
-        // These threads do nothing but continuously read UDP packets into the udp packet buffers 'network_buffers_'
-        cerr<<"[DAQ] STARTING NETWORK THREADS"<<endl;
-        if(separate_network_threads_)  // Start one thread for each socket
-        {
-            output_lock lck;
-            for(unsigned int i=0; i<sockets_.size(); ++i)
-            {
-                // Make the corresponding socket blocking. This thread is reading only from one socket, so
+                // make the corresponding socket blocking. this thread is reading only from one socket, so
                 // we can safely be blocked until data is available 
-                sockets_[i].blocking(true);
+                sockets_[i_socket].blocking(true);
 
-                network_threads_.push_back(std::jthread( [this, i](std::stop_token stok)
+                network_threads_.push_back(std::jthread( [this, i_socket](std::stop_token stok)
                     {
+                        {
+                            output_lock lck;
+                            cerr<<"[DAQ/NET] Thread "<<i_socket<<" started"<<endl;
+                        }
+                        signal2exception::set("net" + std::to_string(i_socket),SIGSEGV);
                         try
                         {
                             while(!stok.stop_requested())
                             {
-                                const auto received_packet_size = network_buffers_[i]->receive(sockets_[i],stok);
+                                const auto received_packet_size = network_buffers_[i_socket]->receive(sockets_[i_socket],stok);
 
 			      // Reached the end of the stream. Both a partial packet, and the 'terminated' flag indicate
                               // that the camera stopped sending more data
-			      if(received_packet_size != max_udp_packet_size_ || network_buffers_[i]->terminated()) break;
+			      if(received_packet_size != max_udp_packet_size_ || network_buffers_[i_socket]->terminated()) break;
                             }
 
                             // Close the socket, no more data is accepted
-                            cerr<<"[DAQ] Closing socket on port "<<sockets_[i].port()<<endl;
-                            sockets_[i].close();
+                            {
+                                output_lock lck;
+                                cerr<<"[DAQ/NET] Closing socket on port "<<sockets_[i_socket].port()<<endl;
+                            }
+                            sockets_[i_socket].close();
 
                             // If we have quit the while loop due to stop_requested, we need to set the terminated flag
                             // to indicate no more data coming down from the network. If not, we set it again at no harm.
-                            network_buffers_[i]->terminate();
+                            network_buffers_[i_socket]->terminate();
 
                             // Write a summary
                             {
                                 output_lock lck;
-                                cerr<<"[DAQ] ---------- Network summary #"<<i<<" ---------------------------"<<endl;
-                                cerr<<"[DAQ] Received packets    : "<<network_buffers_[i]->received_packets()<<endl;
-                                cerr<<"[DAQ] Lost packets        : "<<network_buffers_[i]->lost_packets()<<endl;
-                                cerr<<"[DAQ] Average buffer size : "<<network_buffers_[i]->mean_size()<<endl;
-                                cerr<<"[DAQ] Maximum buffer size : "<<network_buffers_[i]->max_size()<<endl;
-                                cerr<<"[DAQ] Buffer capacity     : "<<network_buffer_size_<<endl;
-                                if(network_buffers_[i]->mean_size() > network_buffer_size_/2) cerr<<"[DAQ] WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
+                                cerr<<"[DAQ/NET] Thread "<<i_socket<<" finished"<<endl;
+                                cerr<<"[DAQ/NET] ---------- Network summary ---------------------------"<<endl;
+                                cerr<<"[DAQ/NET] Received packets    : "<<network_buffers_[i_socket]->received_packets()<<endl;
+                                cerr<<"[DAQ/NET] Lost packets        : "<<network_buffers_[i_socket]->lost_packets()<<endl;
+                                cerr<<"[DAQ/NET] Average buffer size : "<<network_buffers_[i_socket]->mean_size()<<endl;
+                                cerr<<"[DAQ/NET] Maximum buffer size : "<<network_buffers_[i_socket]->max_size()<<endl;
+                                cerr<<"[DAQ/NET] Buffer capacity     : "<<network_buffer_size_<<endl;
+                                if(network_buffers_[i_socket]->mean_size() > network_buffer_size_/2) cerr<<"[DAQ/NET] WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
                                 cerr<<endl;
                             }
 
                         }
-                        catch(apdcam10g::error &e) { cerr<<"[DAQ] "<<e.full_message()<<endl; }
+                        catch(apdcam10g::error &e) { cerr<<"[DAQ/NET] "<<e.full_message()<<endl; }
                     }));
             }
         }
-        else
-        {
-            // First, make all input sockets non-blocking, because we continuously loop
-            // over all of them, and if there is no data in one of them, that should not block
-            // the loop from trying to read from the others
-            for(unsigned int i=0; i<sockets_.size(); ++i) sockets_[i].blocking(false);
 
-            network_threads_.push_back(std::jthread( [this](std::stop_token stok)
-                {
-                    try
-                    {
-                        std::vector<bool> socket_active(sockets_.size(),true);
-		      
-                        while(!stok.stop_requested())
-                        {
-                            unsigned int n_active_sockets = 0;
-                            for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
-                            {
-                                if(!socket_active[i_socket] || network_buffers_[i_socket]->terminated()) continue;
-                                // We should set a timeout here as well.
-                                const auto received_packet_size = network_buffers_[i_socket]->receive(sockets_[i_socket],stok);
-                                
-                                if(received_packet_size != max_udp_packet_size_) socket_active[i_socket] = false;
-                                else ++n_active_sockets;
-                            }
-                            
-                            // stop the thread if there are no more active sockets 
-                            if(n_active_sockets == 0) break;
-                        }
-                        // Set the terminated flag of all network buffers to indicate to the consumer threads
-                        // that no more data is coming from us
-                        for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket) network_buffers_[i_socket]->terminated();
-                    }
-                    catch(apdcam10g::error &e) { cerr<<"[DAQ] "<<e.full_message()<<endl; }
-                }));
+        {
+            output_lock lck;
+            cerr<<"[DAQ] All threads have been started"<<endl;
         }
 
-        cerr<<"[DAQ] ALL THREADS HAVE BEEN STARTED"<<endl;
-
-        sleep(1);
-
-        if(wait) wait_finish();
-
-        cerr<<"[DAQ] RETURNING"<<endl;
+        if(wait)
+        {
+            sleep(1);
+            wait_finish();
+        }
 
         return *this;
+    }
+
+    void daq::dump()
+    {
+        daq_settings::dump();
     }
 
     void daq::wait_finish()
@@ -400,7 +367,10 @@ namespace apdcam10g
         if(processor_thread_.joinable()) processor_thread_.join();
         for(auto &t : extractor_threads_) if(t.joinable()) t.join();
         for(auto &t : network_threads_) if(t.joinable()) t.join();
-        cerr<<"[DAQ] All threads have been joined"<<endl;
+        {
+            output_lock lck;
+            cerr<<"[DAQ] All threads have been joined"<<endl;
+        }
     }
 
     template <safeness S>
@@ -491,6 +461,11 @@ extern "C"
     void wait_finish()
     {
         daq::instance().wait_finish();
+    }
+
+    void dump()
+    {
+        daq::instance().dump();
     }
 }
 #endif

@@ -24,14 +24,23 @@ using namespace std;
 using namespace apdcam10g;
 using namespace terminal;
 
+void print(int i)
+{
+    cerr<<i<<" ";
+}
+
+template <typename...SIGNUMS>
+void print(int i, SIGNUMS... signums)
+{
+    cerr<<i<<" ";
+    print(signums...);
+}
+
+
 int main()
 try
 {
-    std::atomic<int> i;
-    int expected = 12;
-    i = 12;
-    cerr<<i.compare_exchange_weak(expected,19,std::memory_order_seq_cst,std::memory_order_seq_cst)<<endl;
-    cerr<<i<<endl;
+    print(1,2,3,4,5);
     return 0;
 }
 catch(apdcam10g::error &e)

@@ -3,6 +3,8 @@
 
 #include "typedefs.h"
 #include "bytes.h"
+#include "utils.h"
+#include <iostream>
 
 namespace apdcam10g
 {
@@ -14,6 +16,20 @@ namespace apdcam10g
 
     struct channel_info
     {
+        void dump()
+            {
+                using namespace std;
+                output_lock lck;
+                cerr<<"Board: "<<board_number<<", chip: "<<chip_number<<", channel: "<<channel_number<<", abs. channel: "<<absolute_channel_number<<", enabled channel: "<<enabled_channel_number<<endl;
+                cerr<<"Byte offset: "<<byte_offset<<endl;
+                cerr<<"Nbytes: "<<nbytes<<endl;
+                cerr<<"Nbits:  "<<nbits<<endl;
+                cerr<<"Shift:  "<<shift<<endl;
+                cerr<<endl;
+                
+            }
+
+
         // The number (0..3) of the ADC board of this channel
         unsigned int board_number;
 

@@ -14,6 +14,8 @@
  */
 
 #include "channel_info.h"
+#include "terminal.h"
+#include "utils.h"
 #include <vector>
 #include <string>
 #include <iostream>
@@ -49,6 +51,64 @@ namespace apdcam10g
         std::vector<std::vector<channel_info*>> board_enabled_channels_info_; // First index is ADC board number, second index is the enabled channel index
 
     public:
+        void dump()
+            {
+                using namespace std;
+                output_lock lck;
+                cerr<<"Interface: "<<interface_<<endl;
+                cerr<<"MTU      : "<<mtu_<<endl;
+                cerr<<"Octet    : "<<octet_<<endl;
+                cerr<<"Max packet size: "<<max_udp_packet_size_<<endl;
+
+                cerr<<"Channel masks: "<<endl;
+                for(int i=0; i<channel_masks_.size(); ++i)
+                {
+                    for(int j=0; j<channel_masks_[i].size(); ++j) 
+                    {
+                        if(channel_masks_[i][j]) cerr<<terminal::green_bg<<terminal::black_fg;
+                        cerr<<j;
+                        if(channel_masks_[i][j]) cerr<<terminal::reset;
+                        cerr<<"  ";
+                    }
+                    cerr<<endl;
+                }
+                cerr<<"Resolutions: [ ";
+                for(auto r : resolution_bits_) cerr<<r<<" ";
+                cerr<<" ]"<<endl;
+                cerr<<"Bytes per shot: ";
+                for(auto b : board_bytes_per_shot_) cerr<<b<<" ";
+                cerr<<endl;
+                cerr<<"Chip bytes per shot: ";
+                for(auto &a: chip_bytes_per_shot_)
+                {
+                    cerr<<"[ ";
+                    for(auto &b: a) cerr<<b<<" ";
+                    cerr<<"] ";
+                }
+                cerr<<endl;
+
+                cerr<<"Chip offsets: ";
+                for(auto &a: chip_offset_)
+                {
+                    cerr<<"[ ";
+                    for(auto &b: a) cerr<<b<<" ";
+                    cerr<<"] ";
+                }
+                cerr<<endl;
+
+                cerr<<"All enabled channels: "<<endl;
+                for(auto a: all_enabled_channels_info_) a->dump();
+
+                cerr<<endl;
+                cerr<<"Board enabled channels: "<<endl;
+                for(int i=0; i<board_enabled_channels_info_.size(); ++i)
+                {
+                    cerr<<"Board "<<i<<endl;
+                    for(auto a: board_enabled_channels_info_[i]) a->dump();
+                }
+
+            }
+
         daq_settings();
 
         ~daq_settings();

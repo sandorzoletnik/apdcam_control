@@ -13,6 +13,8 @@ namespace apdcam10g
     class shot_data_layout
     {
     private:
+        std::string prompt_;
+
         class bit
         {
         public:
@@ -62,6 +64,8 @@ namespace apdcam10g
         
 
     public:
+        void prompt(const std::string &p) { prompt_ = p; }
+
         shot_data_layout(unsigned int n_bytes, unsigned int resolution_bits, const std::vector<ring_buffer<data_type,channel_info>*> &channels)
             {
                 std::vector<channel_info*> channels2(channels.size());
@@ -75,13 +79,13 @@ namespace apdcam10g
 
 
         // begin, end -- range of the bytes to start
-        void show(apdcam10g::byte *buffer=0, ostream &out = cout, int begin=0, int end=-1) const
+        void show(apdcam10g::byte *buffer=0, ostream &out = cerr, int begin=0, int end=-1) const
             {
                 if(end<0) end = bytes_.size();
                 if(end > bytes_.size()) end = bytes_.size();
                 for(unsigned int i_byte = begin; i_byte<end; ++i_byte)
                 {
-                    out<<"["<<std::setw(2)<<i_byte<<"]   ";
+                    out<<prompt_<<" ["<<std::setw(2)<<i_byte<<"]   ";
                     for(int i_bit=7; i_bit>=0; --i_bit)
                     {
                         const int chind = bytes_[i_byte].bits[i_bit].channel_index;

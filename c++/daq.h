@@ -39,9 +39,6 @@ namespace apdcam10g
         // 100 new shots in the buffer, all processor tasks are triggered and run.
         unsigned int process_period_ = 10;
 
-        bool separate_network_threads_ = true;
-        bool separate_extractor_threads_ = true;
-      
         std::vector<udp_server>  sockets_;
       
         // A set of buffers to store received UDP packets, transparently handling packet loss
@@ -138,11 +135,6 @@ namespace apdcam10g
         daq &network_buffer_size(unsigned int b) { network_buffer_size_ = b; return *this; }
         unsigned int network_buffer_size() const { return network_buffer_size_; }
 
-        // Set whether the data reception (over the sockets into the ring buffers) and data processing (from the ring buffers towards whatever data consumer)
-        // should be done by separate threads per ADC, or single thread.
-        // Must be called before init(...)
-        daq &separate_threads(bool network, bool extractor) { separate_network_threads_ = network; separate_extractor_threads_ = extractor; return *this; }
-
         // The specified safeness is transmitted to the signal extractor
         template <safeness S=default_safeness>
         daq &init();
@@ -158,6 +150,8 @@ namespace apdcam10g
 
         // Wait for all threads to finish, join them
         void wait_finish();
+
+        void dump();
     };
 
 #define CLASS_DAQ_DEFINED
@@ -183,6 +177,7 @@ extern "C"
     void init(bool safe);
     void write_settings(const char *filename);
     void wait_finish();        
+    void dump();
 }
 #endif
 

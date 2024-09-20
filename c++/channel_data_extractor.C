@@ -31,7 +31,6 @@ namespace apdcam10g
                                        const std::vector<ring_buffer<apdcam10g::data_type,channel_info>*> &board_enabled_channels_buffers)
 
     {
-        output_lock lck;
 
         // Spin-lock wait until we have a packet in the buffer
         while( network_buffer.empty() && !network_buffer.terminated() );
@@ -49,15 +48,16 @@ namespace apdcam10g
         const shot_data_layout layout(daq_->board_bytes_per_shot(adc_),
                                       daq_->resolution_bits(adc_),
                                       board_enabled_channels_buffers);
-
+/*
         if(debug_)
         {
+            output_lock lck;
             for(int shot_offset_tmp=0; shot_offset_tmp<packet_->adc_data_size(); shot_offset_tmp += daq_->board_bytes_per_shot(adc_))
             {
                 layout.show(packet_->adc_data_start()+shot_offset_tmp, cerr, 0, packet_->adc_data_size()-shot_offset_tmp);
             }
         }
-
+*/
         while(true)
         {
             for(unsigned int i_channel=0; i_channel<board_enabled_channels_buffers.size(); ++i_channel)
@@ -92,6 +92,7 @@ namespace apdcam10g
                         network_buffer.pop();
                         swap(packet_, next_packet_);
 
+/*
                         if(debug_)
                         {
                             for(int shot_offset_tmp = shot_offset; shot_offset_tmp < (int)packet_->adc_data_size(); shot_offset_tmp += daq_->board_bytes_per_shot(adc_))
@@ -102,6 +103,7 @@ namespace apdcam10g
                                             packet_->adc_data_size()-shot_offset_tmp);
                             }
                         }
+*/
                     }
                     // The value is entirely in the new packet
                     else
@@ -121,6 +123,7 @@ namespace apdcam10g
                         auto tmp = c->get_from_shot(packet_->adc_data_start() + shot_offset);
                         c->push(tmp);
 
+/*
                         if(debug_)
                         {
                             for(int shot_offset_tmp = shot_offset; shot_offset_tmp < (int)packet_->adc_data_size(); shot_offset_tmp += daq_->board_bytes_per_shot(adc_))
@@ -131,6 +134,7 @@ namespace apdcam10g
                                             packet_->adc_data_size()-shot_offset_tmp);
                             }
                         }
+*/
                     }
                 }
             }

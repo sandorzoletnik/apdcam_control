@@ -19,6 +19,8 @@ namespace apdcam10g
 
       void init()
       {
+          // Close all files, if there are any
+          for(auto &f : files_) f.close();
           files_.clear();
           files_.resize(daq_->all_enabled_channels_buffers_.size());
           for(unsigned int i=0; i<daq_->all_enabled_channels_buffers_.size(); ++i)
@@ -26,6 +28,7 @@ namespace apdcam10g
               const std::string filename = "channel_data_" + std::to_string(daq_->all_enabled_channels_buffers_[i]->absolute_channel_number) + ".dat";
               files_[i].open(filename);
           }
+          next_data_ = 0;
       }
 
       void finish()
