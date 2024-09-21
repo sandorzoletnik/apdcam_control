@@ -37,7 +37,8 @@ namespace apdcam10g
 
         // The period (number of shots) for calling the processor tasks on the channel data. The default 100 means that once there are
         // 100 new shots in the buffer, all processor tasks are triggered and run.
-        unsigned int process_period_ = 10;
+        // It must be a power of 2
+        unsigned int process_period_ = 128;
 
         std::vector<udp_server>  sockets_;
       
@@ -97,6 +98,15 @@ namespace apdcam10g
             for(auto p : all_enabled_channels_buffers_) delete p;
         }
 
+        void show_error(const std::string &msg, const std::string &location="")
+            {
+                cerr<<"[ERROR] "  <<msg<<" ["<<location<<"]"<<endl;
+            }
+        void show_warning(const std::string &msg, const std::string &location="")
+            {
+                cerr<<"[WARNING] "<<msg<<" ["<<location<<"]"<<endl;
+            }
+
         daq &dual_sata(bool d) { dual_sata_ = d; return *this; }
         bool dual_sata() const { return dual_sata_; }
 
@@ -120,8 +130,8 @@ namespace apdcam10g
             }
 
         // Set the process period (the number of shots to trigger the processor tasks to run)
-        // Must be called before init(...)
-        daq &process_period(unsigned int p) { process_period_ = p; return *this; }
+        // Must be called before init(...), the value must be a power of 2
+        daq &process_period(unsigned int p);
       
         // Set the buffer size, the number of channel signal values (for each ADC separately) buffered in memory before dumping them to disk
         // Must be called before init(...)

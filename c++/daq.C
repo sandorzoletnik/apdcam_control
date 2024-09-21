@@ -80,6 +80,17 @@ namespace apdcam10g
         for(auto p : processors_) p->finish();
     }
 
+    daq &daq::process_period(unsigned int p)
+    { 
+        if( (p-1)&p != 0)
+        {
+            show_error("Process period must be a power of 2","daq::process_period");
+            return *this;
+        }
+        process_period_ = p; 
+        return *this; 
+    }
+
     template <safeness S>
     daq &daq::init()
     {
@@ -180,9 +191,10 @@ namespace apdcam10g
         }
         processor_thread_ = std::jthread( [this](std::stop_token stok)
             {
+                const std::string prompt = "[DAQ/PROC ]";
                 {
                     output_lock lck;
-                    cerr<<"[DAQ/PROC] Thread started"<<endl;
+                    cerr<<prompt<<"Thread started"<<endl;
                 }
                 signal2exception::set("processor",SIGSEGV);
                 try
@@ -238,10 +250,14 @@ namespace apdcam10g
                     }
                     {
                         output_lock lck;
-                        cerr<<"[DAQ/PROC] Thread finished"<<endl;
+                        cerr<<prompt<<"Thread finished"<<endl;
                     }
                 }
-                catch(apdcam10g::error &e) { cerr<<"[DAQ/PROC] "<<e.full_message()<<endl; }
+                catch(apdcam10g::error &e) 
+                { 
+                    for(auto a: all_enabled_channels_buffers_) a->terminate();
+                    cerr<<prompt<<e.full_message()<<endl; 
+                }
         });
 
 
@@ -255,9 +271,10 @@ namespace apdcam10g
         {
             extractor_threads_.push_back(std::jthread( [this, i_socket](std::stop_token stok)
                 {
+                    const std::string prompt = "[DAQ/EXT/" + std::to_string(i_socket) + "] ";
                     {
                         output_lock lck;
-                        cerr<<"[DAQ/EXT] Thread "<<i_socket<<" started"<<endl;
+                        cerr<<prompt<<"Thread "<<i_socket<<" started"<<endl;
                     }
                     signal2exception::set("extractor" + std::to_string(i_socket),SIGSEGV);
                     try
@@ -267,8 +284,8 @@ namespace apdcam10g
                         // Write a summary of what happened
                         {
                             output_lock lck;
-                            cerr<<"[DAQ/EXT] Thread "<<i_socket<<" finished"<<endl;
-                            cerr<<"[DAQ/EXT] ---------- Data extraction summary  ------------------"<<endl;
+                            cerr<<prompt<<"Thread "<<i_socket<<" finished"<<endl;
+                            cerr<<prompt<<"---------- Data extraction summary  ------------------"<<endl;
                             double sum=0, n=0, max=0;
                             for(auto b : board_enabled_channels_buffers_[i_socket])
                             {
@@ -277,14 +294,18 @@ namespace apdcam10g
                                 const auto m = b->max_size();
                                 if(m>max) max=m;
                             }
-                            cerr<<"[DAQ/EXT] average buffer size : "<<sum/n<<endl;
-                            cerr<<"[DAQ/EXT] max buffer size     : "<<max<<endl;
-                            cerr<<"[DAQ/EXT] buffers' capacity   : "<<sample_buffer_size_<<endl;
-                            if(sum/n > sample_buffer_size_/2) cerr<<"[DAQ/EXT] we recommend increasing the buffer size"<<endl;
+                            cerr<<prompt<<"average buffer size : "<<sum/n<<endl;
+                            cerr<<prompt<<"max buffer size     : "<<max<<endl;
+                            cerr<<prompt<<"buffers' capacity   : "<<sample_buffer_size_<<endl;
+                            if(sum/n > sample_buffer_size_/2) cerr<<prompt<<"we recommend increasing the buffer size"<<endl;
                             cerr<<endl;
                         }
                     }
-                    catch(apdcam10g::error &e) { cerr<<"[DAQ/EXT] "<<e.full_message()<<endl; }
+                    catch(apdcam10g::error &e) 
+                    { 
+                        for(auto a : board_enabled_channels_buffers_[i_socket]) a->terminate();
+                        cerr<<prompt<<e.full_message()<<endl; 
+                    }
                 }));
         }
 
@@ -305,9 +326,10 @@ namespace apdcam10g
 
                 network_threads_.push_back(std::jthread( [this, i_socket](std::stop_token stok)
                     {
+                        const std::string prompt = "[DAQ/NET/" + std::to_string(i_socket) + "] ";
                         {
                             output_lock lck;
-                            cerr<<"[DAQ/NET] Thread "<<i_socket<<" started"<<endl;
+                            cerr<<prompt<<"Thread "<<i_socket<<" started"<<endl;
                         }
                         signal2exception::set("net" + std::to_string(i_socket),SIGSEGV);
                         try
@@ -327,7 +349,7 @@ namespace apdcam10g
                             // Close the socket, no more data is accepted
                             {
                                 output_lock lck;
-                                cerr<<"[DAQ/NET] Closing socket on port "<<sockets_[i_socket].port()<<endl;
+                                cerr<<prompt<<"Closing socket on port "<<sockets_[i_socket].port()<<endl;
                             }
                             sockets_[i_socket].close();
 
@@ -338,19 +360,23 @@ namespace apdcam10g
                             // Write a summary
                             {
                                 output_lock lck;
-                                cerr<<"[DAQ/NET] Thread "<<i_socket<<" finished"<<endl;
-                                cerr<<"[DAQ/NET] ---------- Network summary ---------------------------"<<endl;
-                                cerr<<"[DAQ/NET] Received packets    : "<<network_buffers_[i_socket]->received_packets()<<endl;
-                                cerr<<"[DAQ/NET] Lost packets        : "<<network_buffers_[i_socket]->lost_packets()<<endl;
-                                cerr<<"[DAQ/NET] Average buffer size : "<<network_buffers_[i_socket]->mean_size()<<endl;
-                                cerr<<"[DAQ/NET] Maximum buffer size : "<<network_buffers_[i_socket]->max_size()<<endl;
-                                cerr<<"[DAQ/NET] Buffer capacity     : "<<network_buffer_size_<<endl;
-                                if(network_buffers_[i_socket]->mean_size() > network_buffer_size_/2) cerr<<"[DAQ/NET] WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
+                                cerr<<prompt<<"Thread "<<i_socket<<" finished"<<endl;
+                                cerr<<prompt<<"---------- Network summary ---------------------------"<<endl;
+                                cerr<<prompt<<"Received packets    : "<<network_buffers_[i_socket]->received_packets()<<endl;
+                                cerr<<prompt<<"Lost packets        : "<<network_buffers_[i_socket]->lost_packets()<<endl;
+                                cerr<<prompt<<"Average buffer size : "<<network_buffers_[i_socket]->mean_size()<<endl;
+                                cerr<<prompt<<"Maximum buffer size : "<<network_buffers_[i_socket]->max_size()<<endl;
+                                cerr<<prompt<<"Buffer capacity     : "<<network_buffer_size_<<endl;
+                                if(network_buffers_[i_socket]->mean_size() > network_buffer_size_/2) cerr<<prompt<<"WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
                                 cerr<<endl;
                             }
 
                         }
-                        catch(apdcam10g::error &e) { cerr<<"[DAQ/NET] "<<e.full_message()<<endl; }
+                        catch(apdcam10g::error &e) 
+                        { 
+                            network_buffers_[i_socket]->terminate();
+                            cerr<<prompt<<e.full_message()<<endl; 
+                        }
                     }));
             }
         }
