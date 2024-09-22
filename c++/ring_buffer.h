@@ -82,6 +82,11 @@ namespace apdcam10g
             resize(buffer_size,extra_size);
         }
 
+        T *raw_buffer() const
+        {
+            return buffer_;
+        }
+
         void resize(size_t buffer_size, size_t extra_size=0)
         {
             mask_ = buffer_size-1;
@@ -358,11 +363,18 @@ namespace apdcam10g
             return buffer_[(pop_counter_+index)&mask_];
         }
 
+        size_t capacity() const
+        {
+            return mask_+1;
+        }
+
+        // Returns the actual number of elements in the buffer. operator[] can be called with values from 0 to size()-1
         size_t size() const
         {
             return push_counter_.load(std::memory_order_acquire)-pop_counter_.load(std::memory_order_acquire);
         }
 
+        // Return whether the buffer is empty - i.e. there are actually no data stored in it.
         bool empty() const
         {
             return size()==0;

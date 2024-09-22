@@ -18,6 +18,7 @@
 #include "daq_settings.h"
 #include "channel_data_extractor.h"
 #include "channel_data_processor.h"
+#include "utils.h"
 
 namespace apdcam10g
 {
@@ -51,8 +52,9 @@ namespace apdcam10g
     public:
         typedef ring_buffer<apdcam10g::data_type,channel_info> channel_data_buffer_t;
     private:
-        // a vector of nof_adc*chips_per_board*channels_per_chip buffer pointers. Non-enabled channels will be
-        // associated with a null pointer
+        // a vector of nof_adc*channels_per_board buffer pointers. Non-enabled channels will be
+        // associated with a null pointer. No room is allocated for missing entire ADC boards
+        // since these would be 0 pointers
         std::vector<channel_data_buffer_t*> all_channels_buffers_;
 
         // Flattened vector of the pointers to buffers for all enabled channels from all boards
@@ -98,13 +100,21 @@ namespace apdcam10g
             for(auto p : all_enabled_channels_buffers_) delete p;
         }
 
+        channel_data_buffer_t *channel_buffer(unsigned int absolute_channel_number) 
+        {
+            if(absolute_channel_number>=all_channels_buffers_.size()) return 0;
+            return all_channels_buffers_[absolute_channel_number];
+        }
+
         void show_error(const std::string &msg, const std::string &location="")
             {
-                cerr<<"[ERROR] "  <<msg<<" ["<<location<<"]"<<endl;
+                output_lock lck;
+                cerr<<terminal::red_fg<<"[ERROR] "  <<msg<<" ["<<location<<"]"<<terminal::reset<<endl;
             }
         void show_warning(const std::string &msg, const std::string &location="")
             {
-                cerr<<"[WARNING] "<<msg<<" ["<<location<<"]"<<endl;
+                output_lock lck;
+                cerr<<terminal::orange_fg<<"[WARNING] "<<msg<<" ["<<location<<"]"<<terminal::reset<<endl;
             }
 
         daq &dual_sata(bool d) { dual_sata_ = d; return *this; }
@@ -188,7 +198,14 @@ extern "C"
     void write_settings(const char *filename);
     void wait_finish();        
     void dump();
+
+    // Return the channel #absolute_chnanel_number data's ring buffer's size and memory buffer
+    // in the 2nd and 3rd argument
+    void get_buffer(unsigned int absolute_channel_number, unsigned int *buffersize, apdcam10g::data_type **buffer);
 }
+
+
+
 #endif
 
 #endif

@@ -13,6 +13,7 @@ Qt = QtCore.Qt
 # from PyQt6.QtWidgets import QApplication, QWidget,  QFormLayout, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget, QLineEdit, QDateEdit, QPushButton, QTextEdit, QGroupBox, QLabel, QSpinBox, QCheckBox
 # from PyQt6.QtCore import Qt
 from .ApdcamUtils import *
+from .RingBuffer import *
 from .GuiMode import *
 from functools import partial
 
@@ -133,6 +134,9 @@ class Measure(QtWidgets.QWidget):
         self.daq.init.restype = None
         self.daq.init.argtypes = [ctypes.c_bool]
 
+        self.daq.get_buffer.restype = None
+        self.daq.get_buffer.argtypes = [ctypes.c_uint,ctypes.POINTER(ctypes.c_uint),ctypes.POINTER(ctypes.POINTER(ctypes.c_uint16))]
+
         return True
 
     def measure(self):
@@ -157,6 +161,15 @@ class Measure(QtWidgets.QWidget):
         res = [14]
         self.daq.resolution_bits(convertToCArray(res,ctypes.c_uint),len(res))
         self.daq.init(True);
+
+        buffers = [None]*128
+        for i in range(128):
+            b = ctypes.POINTER(ctypes.c_uint16)()
+            n = ctypes.c_uint()
+            self.daq.get_buffer(i,ctypes.byref(n),ctypes.byref(b))
+            if b:
+                buffers[i] = RingBuffer(ctypes.c_uint16,n.value,b)
+
         self.daq.write_settings(b"apdcam-daq.cnf");
 #        self.daq.dump()
         self.daq.start(False)

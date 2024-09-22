@@ -505,5 +505,23 @@ extern "C"
     {
         daq::instance().dump();
     }
+
+    void get_buffer(unsigned int absolute_channel_number, unsigned int *buffersize, apdcam10g::data_type **buffer)
+    {
+        auto b = daq::instance().channel_buffer(absolute_channel_number);
+        if(b)
+        {
+            *buffersize = b->capacity();
+            *buffer = b->raw_buffer();
+            return;
+        }
+        *buffersize = 0;
+        *buffer = 0;
+    }
 }
+
+
+
+
+
 #endif
