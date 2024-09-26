@@ -109,6 +109,8 @@ namespace apdcam10g
 
             }
 
+        // Initialize with all possible ADC boards being present, with all of their channels being
+        // enabled, and all ADC boards' resolution being set to 14 bits
         daq_settings();
 
         ~daq_settings();

@@ -7,7 +7,8 @@
 #include "utils.h"
 #include "error.h"
 #include "pstream.h"
-#include "channel_data_diskdump.h"
+#include "processor_diskdump.h"
+#include "processor_python.h"
 #include "channel_data_extractor.h"
 #include "shot_data_layout.h"
 #include <memory>
@@ -41,6 +42,8 @@ namespace apdcam10g
                 //signal (signum, SIG_DFL);
                 //raise (signum);
             }
+
+
     public:
 
         // The below vararg 'set' functions can be used to set the signal handler for the given signals.
@@ -67,6 +70,44 @@ namespace apdcam10g
     daq::daq()
     {
         
+    }
+
+    bool daq::python_analysis_stop()
+    {
+        return python_analysis_stop_.test(std::memory_order_acquire);
+    }
+    void daq::python_analysis_stop(bool b)
+    {
+        if(b) python_analysis_stop_.test_and_set(std::memory_order_release);
+        else python_analysis_stop_.clear();
+    }
+
+    void daq::python_analysis_wait_for_data(size_t *from_counter, size_t *to_counter)
+    {
+        python_analysis_run_.wait(false,std::memory_order_acquire);
+        *from_counter = python_analysis_data_available_from_;
+        *to_counter   = python_analysis_data_available_to_;
+    }
+
+    size_t daq::python_analysis_wait_finish()
+    {
+        python_analysis_run_.wait(true,std::memory_order_acquire);
+        return python_analysis_needs_data_from_;
+    }
+
+    void daq::python_analysis_start(size_t from_counter, size_t to_counter)
+    {
+        python_analysis_data_available_from_ = from_counter;
+        python_analysis_data_available_to_   = to_counter;
+        python_analysis_run_.test_and_set(std::memory_order_release);
+        python_analysis_run_.notify_one();
+    }
+
+    void daq::python_analysis_done(size_t need_data_from)
+    {
+        python_analysis_needs_data_from_ = need_data_from;
+        python_analysis_run_.clear(std::memory_order_release);
+        python_analysis_run_.notify_one();
     }
 
     daq &daq::instance()
@@ -429,6 +470,13 @@ namespace apdcam10g
         return *this;
     }
 
+    daq &daq::clear_processors()
+    {
+        for(auto p : processors_) delete p;
+        processors_.clear();
+        return *this; 
+    }
+
     template daq &daq::stop<safe>(bool);
     template daq &daq::stop<unsafe>(bool);
     template daq &daq::start<safe>(bool);
@@ -436,6 +484,7 @@ namespace apdcam10g
     template daq &daq::init<safe>  ();
     template daq &daq::init<unsafe>();
 }
+
 
 #ifdef FOR_PYTHON
 extern "C"
@@ -488,7 +537,12 @@ extern "C"
 
     void add_processor_diskdump()
     {
-        daq::instance().add_processor(new channel_data_diskdump(&daq::instance()));
+        daq::instance().add_processor(new processor_diskdump);
+    }
+
+    void add_processor_python()
+    {
+        daq::instance().add_processor(new processor_python);
     }
 
     void write_settings(const char *filename)
@@ -518,6 +572,32 @@ extern "C"
         *buffersize = 0;
         *buffer = 0;
     }
+
+    void python_analysis_wait_for_data(size_t *from_counter, size_t *to_counter)
+    {
+        daq::instance().python_analysis_wait_for_data(from_counter, to_counter);
+    }
+
+    void python_analysis_done(size_t from_counter)
+    {
+        daq::instance().python_analysis_done(from_counter);
+    }
+
+    void test()
+    {
+        cerr<<"daq::test"<<endl;
+    }
+
+    void clear_processors()
+    {
+        daq::instance().clear_processors();
+    }
+
+    bool python_analysis_stop()
+    {
+        return daq::instance().python_analysis_stop();
+    }
+
 }
 
 

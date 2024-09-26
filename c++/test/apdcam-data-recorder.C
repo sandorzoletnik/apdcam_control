@@ -1,5 +1,5 @@
 #include "daq.h"
-#include "channel_data_diskdump.h"
+#include "processor_diskdump.h"
 #include "shot_data_layout.h"
 #include <iostream>
 #include <string>
@@ -70,7 +70,7 @@ try
     }
 
     daq::instance().get_net_parameters();
-    daq::instance().add_processor(new channel_data_diskdump(&daq::instance()));
+    daq::instance().add_processor(new processor_diskdump);
     daq::instance().resolution_bits({14});
     daq::instance().channel_masks(
         {

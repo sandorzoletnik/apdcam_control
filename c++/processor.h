@@ -1,5 +1,5 @@
-#ifndef __APDCAM10G_CHANNEL_DATA_PROCESSOR_H__
-#define __APDCAM10G_CHANNEL_DATA_PROCESSOR_H__
+#ifndef __APDCAM10G_PROCESSOR_H__
+#define __APDCAM10G_PROCESSOR_H__
 
 #include "error.h"
 #include "ring_buffer.h"
@@ -9,18 +9,17 @@ namespace apdcam10g
 {
     class daq;
 
-    class channel_data_processor
+    class processor
     {
     protected:
         daq *daq_ = 0;
         
     public:
-        channel_data_processor() {}
-        channel_data_processor(daq *d) : daq_(d) {}
+        processor() {}
 
-        // Initialization function called before starting the data acquisition
-        virtual void init() = 0;
-        virtual void finish() = 0;
+        // Initialization function called before starting the data acquisition. The defaults do nothing
+        virtual void init() {};
+        virtual void finish() {};
 
         void set_daq(daq *d) { daq_ = d; }
 

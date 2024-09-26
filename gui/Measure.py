@@ -2,6 +2,7 @@ import sys
 import time
 import os
 import ctypes
+import daq
 
 import importlib
 from .QtVersion import QtVersion
@@ -16,7 +17,7 @@ from .ApdcamUtils import *
 from .RingBuffer import *
 from .GuiMode import *
 from functools import partial
-
+from .Processor import *
 
 # Convert a python list to a native C array of type 'ctype', if 'l' is a simple list,
 # or to a C nested array (array of pointers) if 'l' is a nested list, i.e. if each of its elements
@@ -55,8 +56,6 @@ class Measure(QtWidgets.QWidget):
         self.gui = parent
         layout = QtWidgets.QVBoxLayout()
         self.setLayout(layout)
-
-        self.daq = None
 
         h = QtWidgets.QHBoxLayout()
         layout.addLayout(h)
@@ -108,77 +107,37 @@ class Measure(QtWidgets.QWidget):
     def show_message(self,msg):
         self.messages.append(msg)
 
-    def load_daq(self,sopath):
-        if self.daq is not None:
-            return True
-
-        self.daq = ctypes.CDLL(sopath)
-        if self.daq is None:
-            return False
-
-        self.daq.write_settings.restype = None
-        self.daq.write_settings.argtypes = [ctypes.c_char_p]
-        
-        self.daq.start.restype = None
-        self.daq.start.argtypes = [ctypes.c_bool]
-
-        self.daq.stop.restype = None
-        self.daq.stop.argtypes = [ctypes.c_bool]
-
-        self.daq.dual_sata.restype = None
-        self.daq.dual_sata.argtypes = [ctypes.c_bool]
-
-        self.daq.debug.restype = None
-        self.daq.debug.argtypes = [ctypes.c_bool]
-
-        self.daq.init.restype = None
-        self.daq.init.argtypes = [ctypes.c_bool]
-
-        self.daq.get_buffer.restype = None
-        self.daq.get_buffer.argtypes = [ctypes.c_uint,ctypes.POINTER(ctypes.c_uint),ctypes.POINTER(ctypes.POINTER(ctypes.c_uint16))]
-
-        return True
 
     def measure(self):
 
         dir = os.path.dirname(__file__)
         dllpath = os.path.join(dir,"../c++/libapdcam10g.so")
-        if not self.load_daq(dllpath):
-            print("FAILED TO LOAD " + dllpath)
-            return
 
-        self.daq.debug(False)
-        self.daq.get_net_parameters()
-        self.daq.add_processor_diskdump();
-        #self.daq.dual_sata(self.getDualSata())
+        daq.instance().debug(False)
+        daq.instance().get_net_parameters()
+        daq.instance().add_processor_python(ProcessorTest())
+        daq.instance().add_processor_diskdump();
+        #daq.instance().dual_sata(self.getDualSata())
         
         masks = [ [True,True,True,True,False,False,False,False,
                    True,True,True,True,False,False,False,False,
                    True,True,True,True,False,False,False,False,
                    True,True,True,True,False,False,False,False] ]
 
-        self.daq.channel_masks(convertToCArray(masks,ctypes.c_bool),len(masks))
+        daq.instance().channel_masks(convertToCArray(masks,ctypes.c_bool),len(masks))
         res = [14]
-        self.daq.resolution_bits(convertToCArray(res,ctypes.c_uint),len(res))
-        self.daq.init(True);
+        daq.instance().resolution_bits(convertToCArray(res,ctypes.c_uint),len(res))
+        daq.instance().init(True);
 
-        buffers = [None]*128
-        for i in range(128):
-            b = ctypes.POINTER(ctypes.c_uint16)()
-            n = ctypes.c_uint()
-            self.daq.get_buffer(i,ctypes.byref(n),ctypes.byref(b))
-            if b:
-                buffers[i] = RingBuffer(ctypes.c_uint16,n.value,b)
-
-        self.daq.write_settings(b"apdcam-daq.cnf");
-#        self.daq.dump()
-        self.daq.start(False)
+        daq.instance().write_settings(b"apdcam-daq.cnf");
+#        daq.instance().dump()
+        daq.instance().start(False)
 
         print("Python has finished starting the DAQ")
         time.sleep(10)
 
         print("Python waiting for threads to finish")
-        self.daq.wait_finish()
+        daq.instance().wait_finish()
         print("Python DAQ has finished")
 
         return

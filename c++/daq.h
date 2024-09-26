@@ -17,7 +17,7 @@
 #include "safeness.h"
 #include "daq_settings.h"
 #include "channel_data_extractor.h"
-#include "channel_data_processor.h"
+#include "processor.h"
 #include "utils.h"
 
 namespace apdcam10g
@@ -27,9 +27,23 @@ namespace apdcam10g
     // The 'daq' class handles all sockets used for data transfer between the camera and the PC
     class daq : public daq_settings
     {
-        friend class channel_data_diskdump;
+        friend class processor_diskdump;
 
     private:
+
+        // An atomic flag to indicate whether the python task can run (or is running). Logically it should be a
+        // static variable in the scope of processor_python, but on the python side, we will load (ctypes.CDLL)
+        // all functions from  the shared library in the 'daq' "scope", so let's do the same here as well. Also,
+        // since class daq is a singleton with an on-demand created instance, we can use a simple data member, 
+        // no need to worry about global data initialization order, etc
+        std::atomic_flag python_analysis_run_;
+        std::atomic_flag python_analysis_stop_;
+
+        size_t python_analysis_needs_data_from_ = 0;
+        size_t python_analysis_data_available_from_ = 0;
+        size_t python_analysis_data_available_to_ = 0;
+        
+
         bool debug_ = false;
 
         bool dual_sata_ = false;
@@ -78,7 +92,7 @@ namespace apdcam10g
 
         // A vector of different channel data processors, doing different tasks. That is, each element of this vector is doing a different
         // analysis task on ALL channels of ALL ADC boards
-        std::vector<channel_data_processor *> processors_;
+        std::vector<processor *> processors_;
 
         unsigned int network_buffer_size_ = 1<<10;    // The size of the network input ring buffer size in terms of UDP packets (real mamory is MTU*this_value measured in bytes)
         unsigned int sample_buffer_size_ = 1<<18;   // The number of channel signal values stored in memory before dumping to disk
@@ -90,6 +104,30 @@ namespace apdcam10g
         daq();
 
     public:
+
+        bool python_analysis_stop();
+        void python_analysis_stop(bool b);
+
+
+        // To be called from the C++ code. Wait for the python analysis to finish. Block the calling thread until then
+        // It returns the 'need_data_from' value that the python analysis task communicated to the C++ code
+        size_t python_analysis_wait_finish();
+
+        // To be called from the python code. Block until we are allowed to run because
+        // there is new data in the buffer
+        // Return the available data range in the two arguments
+        void python_analysis_wait_for_data(size_t *from_counter, size_t *to_counter);
+
+        // To be called from C++
+        // Set the available data range such that the python task can query it, and
+        // set the flag which signals the python thread to run the analysis task
+        void python_analysis_start(size_t from_counter, size_t to_counter); 
+
+        // To be called from python. Clear the flag to signal the C++ backend that the analysis
+        // task is done. Also, communicate from which shot the python analysis requires data to
+        // remain in the buffer
+        void python_analysis_done(size_t need_data_from);
+
 
         // Accessing the singleton instance
         static daq &instance();
@@ -123,8 +161,9 @@ namespace apdcam10g
         daq &fw_version(version v) { fw_version_ = v; return *this; }
         version fw_version() const { return fw_version_; }
 
-        daq &clear_processors() { processors_.clear(); return *this; }
-        daq &add_processor(channel_data_processor *p) 
+        daq &clear_processors();
+
+        daq &add_processor(processor *p) 
             { 
                 p->set_daq(this);
                 processors_.push_back(p); 
@@ -176,6 +215,7 @@ namespace apdcam10g
 
 #define CLASS_DAQ_DEFINED
 
+
 }
 
 
@@ -193,15 +233,30 @@ extern "C"
     void channel_masks(bool **m, int n_adc_boards);
     void resolution_bits(unsigned int *r, int n_adc_boards);
     void add_processor_diskdump();
+    void add_processor_python();
     void debug(bool d);
     void init(bool safe);
     void write_settings(const char *filename);
     void wait_finish();        
     void dump();
+    void test();
+    void clear_processors();
 
     // Return the channel #absolute_chnanel_number data's ring buffer's size and memory buffer
     // in the 2nd and 3rd argument
     void get_buffer(unsigned int absolute_channel_number, unsigned int *buffersize, apdcam10g::data_type **buffer);
+
+    // To be called from a python analysis task: block the calling thread until data for the next python
+    // analysis task becomes available
+    void python_analysis_wait_for_data(size_t *from_counter, size_t *to_counter);
+
+    // From a python analysis task: set/communicate the earliest data counter to the C++ DAQ backend
+    // that the task still requires to stay in the ring buffers, and set a flag to inform the C++
+    // DAQ backend that the python task has finished analyzing the data
+    void python_analysis_done(size_t from_counter);
+
+    bool python_analysis_stop();
+
 }
 
 

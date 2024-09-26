@@ -1,22 +1,19 @@
-#ifndef __APDCAM10G__CHANNEL_DATA_DISKDUMP_H__
-#define __APDCAM10G__CHANNEL_DATA_DISKDUMP_H__
+#ifndef __APDCAM10G_PROCESSOR_DISKDUMP_H__
+#define __APDCAM10G_PROCESSOR_DISKDUMP_H__
 
-#include "channel_data_processor.h"
+#include "processor.h"
 #include "ring_buffer.h"
 #include "config.h"
 #include <fstream>
 
 namespace apdcam10g
 {
-  class channel_data_diskdump : public channel_data_processor
+  class processor_diskdump : public processor
   {
   private:
       std::vector<std::ofstream> files_;
       size_t next_data_ = 0;
   public:
-      channel_data_diskdump(daq *d) : channel_data_processor(d) {}
-      channel_data_diskdump() {}
-
       void init()
       {
           // Close all files, if there are any

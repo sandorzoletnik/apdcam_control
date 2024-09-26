@@ -18,7 +18,7 @@ namespace apdcam10g
 {
     daq_settings::daq_settings(): channel_masks_(config::max_boards), resolution_bits_(config::max_boards,14)
     {
-        // By default enable all channels
+        // By default enable all channels, with all possible ADC boards present
         for(auto &a : channel_masks_) a.resize(config::channels_per_board,true);
     }
 
