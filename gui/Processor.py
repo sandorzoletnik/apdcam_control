@@ -15,14 +15,13 @@ class ProcessorTest:
 
         # loop over all shots
         for i_shot in range(from_counter,to_counter):
-            print("SHOT #" + str(i_shot))
             # loop over all channels
             for i_channel in range(128):
                 # Take action only for the allowed channels
                 if buffers[i_channel] is not None:
                     # The first index in [i_channel] selects the channel. Subsequent values of
-                    # this channel can be accessed via the () operator using the counter i_shot
-                    #print("Channel #" + str(i_channel) + " value: " + str(buffers[i_channel](i_shot)))
+                    # this channel can be accessed via the [] operator using the counter i_shot
+                    #print("Channel #" + str(i_channel) + " value: " + str(buffers[i_channel][i_shot]))
                     buffers[i_channel][i_shot] += 10
 
         # set the shot counter that we need to analyze next. 

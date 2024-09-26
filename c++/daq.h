@@ -37,9 +37,17 @@ namespace apdcam10g
         // since class daq is a singleton with an on-demand created instance, we can use a simple data member, 
         // no need to worry about global data initialization order, etc
         std::atomic_flag python_analysis_run_;
+
+        // A flag to signal the python processor loop (if there are any python processors added)
+        // that the data flow has terminated. The python loop is not waiting on this, so it is necessary to wake
+        // it up by setting the python_analysis_run_ flag
         std::atomic_flag python_analysis_stop_;
 
+        // a variable into which each python processor's earliers data counter is written,
+        // which is required to stay in the buffer/memory
         size_t python_analysis_needs_data_from_ = 0;
+
+        // variables to communicate the available data range to the python processors
         size_t python_analysis_data_available_from_ = 0;
         size_t python_analysis_data_available_to_ = 0;
         

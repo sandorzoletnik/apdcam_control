@@ -1,6 +1,7 @@
 import ctypes
 import os
 import threading
+import Config
 
 from RingBuffer import *
 
@@ -32,6 +33,9 @@ def instance():
         if instance.instance_ is None:
             return None
 
+        instance.instance_.get_net_parameters.restype = None
+        instance.instance_.get_net_parameters.argtypes = []
+
         instance.instance_.write_settings.restype = None
         instance.instance_.write_settings.argtypes = [ctypes.c_char_p]
         
@@ -44,6 +48,18 @@ def instance():
         instance.instance_.dual_sata.restype = None
         instance.instance_.dual_sata.argtypes = [ctypes.c_bool]
 
+        instance.instance_.channel_masks.restype = None
+        instance.instance_.channel_masks.argtypes = [ctypes.POINTER(ctypes.POINTER(ctypes.c_bool)), ctypes.c_int]
+
+        instance.instance_.resolution_bits.restype = None
+        instance.instance_.resolution_bits.argtypes = [ctypes.POINTER(ctypes.c_uint), ctypes.c_int]
+
+        instance.instance_.add_processor_diskdump.restype = None
+        instance.instance_.add_processor_diskdump.argtypes = []
+
+        instance.instance_.add_processor_python.restype = None
+        instance.instance_.add_processor_python.argtypes = []
+
         instance.instance_.debug.restype = None
         instance.instance_.debug.argtypes = [ctypes.c_bool]
 
@@ -52,6 +68,10 @@ def instance():
 
         instance.instance_.get_buffer.restype = None
         instance.instance_.get_buffer.argtypes = [ctypes.c_uint,ctypes.POINTER(ctypes.c_uint),ctypes.POINTER(ctypes.POINTER(ctypes.c_uint16))]
+
+        # Tell the DAQ to wait for all threads, and finish
+        instance.instance_.wait_finish.restype = None
+        instance.instance_.wait_finish.argtypes = []
 
         # Overwrite the C++ library 'add_processor_python'
         orig_add_processor_python = instance.instance_.add_processor_python
@@ -83,8 +103,7 @@ def instance():
             instance.instance_.python_analysis_done(0)
             if len(instance.python_processors_) > 0:
 
-                print("Change hard-coded value of 128")
-                buffers = [None]*128
+                buffers = [None]*Config.max_channels
                 for i in range(len(buffers)):
                     b = ctypes.POINTER(ctypes.c_uint16)()
                     n = ctypes.c_uint()

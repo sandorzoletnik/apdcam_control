@@ -212,6 +212,10 @@ namespace apdcam10g
         // of the worker objects created since the last call
         debug(debug_);
 
+        // Make sure these communication flags are set to a correct initicial value
+        python_analysis_run_.clear();
+        python_analysis_stop_.clear();
+
         return *this;
     }
 
@@ -282,10 +286,19 @@ namespace apdcam10g
                         
                             // after all tasks have run, and reported what the earliest element in the buffers that they
                             // need for further processing, clear the buffers up to this
-                            for(auto a: all_enabled_channels_buffers_) a->pop_to(needed);
+                            for(auto a: all_enabled_channels_buffers_)
+                            {
+                                a->pop_to(needed);
+                            }
                         }
                     
-                        if(!non_terminated_exists) break;
+                        if(!non_terminated_exists)
+                        {
+                            python_analysis_stop_.test_and_set();  // Setting this will cause the python processor loop to stop
+                            python_analysis_run_.test_and_set();   // This and the subsequent notification wakes up the python processor loop
+                            python_analysis_run_.notify_one();     // and it will immediately learn that the stop flag was also set
+                            break;
+                        }
                     
                         to_counter = common_push_counter + process_period_;
                     }

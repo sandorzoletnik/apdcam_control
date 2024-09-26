@@ -116,6 +116,7 @@ class Measure(QtWidgets.QWidget):
         daq.instance().debug(False)
         daq.instance().get_net_parameters()
         daq.instance().add_processor_python(ProcessorTest())
+        daq.instance().add_processor_python(ProcessorTest())
         daq.instance().add_processor_diskdump();
         #daq.instance().dual_sata(self.getDualSata())
         
