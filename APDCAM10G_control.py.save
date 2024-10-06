@@ -65,6 +65,38 @@ def ADC2DAC_channel_mapping():
         data2[data1[i]-1] = i+1
     return data2
 
+# Convert a python list to a native C array of type 'ctype', if 'l' is a simple list,
+# or to a C nested array (array of pointers) if 'l' is a nested list, i.e. if each of its elements
+# are themselves lists.
+# ctype is the native C value type, for example ctypes.c_int, ctypes.c_uint, ctypes.c_bool, etc
+def convertToCArray(l,ctype):
+    # for non-lists, or empty lists, we return None
+    if type(l) is not list or len(l)==0:
+        return None;
+    
+    # a 1-dimensional list
+    if type(l[0]) is not list:
+        n = len(l)
+        # Create the C native array type of a given length
+        result = (ctype*n)()
+        for i in range(n):
+            result[i] = l[i]
+        return result
+        
+    else:
+        n1 = len(l)
+        n2 = len(l[0])  # we assume all list elements (thmeselves being lists) have the same size so just take the first one
+        # Create a native C array with size n1 of pointers to type 'ctype'
+        result = (ctypes.POINTER(ctype)*n1)()
+        for i in range(n1):
+            # For each element create a new native C array with size n2
+            result[i] = (ctype*n2)()
+            for j in range(n2):
+                result[i][j] = l[i][j]
+        return result
+    
+
+
 class APDCAM10G_codes_v1:
     """
     Instruction codes and other defines for V1 of the 10G communication card
@@ -747,6 +779,10 @@ class APDCAM10G_control:
         self.interface = None
         self.log = lambda msg: print(msg)
         self.errorHandler = None
+#        self.daq = ctypes.CDLL("c++/libapdcam10g.so")
+#        if self.daq is None:
+#            print("Could not load shared library libapdcam10g.so")
+#            return "Could not load shared library libapdcam10g.so"
 
     def setErrorHandler(self,func):
         self.errorHandler = func
@@ -3902,101 +3938,19 @@ class APDCAM10G_control:
             return err,"",None
 
         if (dataReceiver.lower() == 'apdtest'):
+            self.daq.debug(True)
+            self.daq.get_net_parameters()
+            self.daq.dual_sata(self.getDualSata())
 
-            if streamMode is not None:
-                print("Can not launch apdtest for the new hardware yet")
-                return "Can not launch apdtest for the new hardware yet"
+            masks = [ [True,True,True,True,False,False,False,False,
+                       True,True,True,True,False,False,False,False,
+                       True,True,True,True,False,False,False,False,
+                       True,True,True,True,False,False,False,False] ]
+            self.daq.channel_masks(convertToCArray(masks))
+            res = [14]
+            self.daq.resolution_bits(convertToCArray(res,ctypes.c_uint))
+            self.daq.start()
 
-            if (self.interface == ""):
-                error = "Cannot measure, as network interface could not be found." 
-                logger.show_error(error)
-                return error,"",None 
-            
-            cmdfile_name = "apd_python_meas.cmd"
-            cmdfile = datapath+'/'+cmdfile_name
-            logger.showMessage("[MEASUREMENT] Command file: " + cmdfile)
-            try:
-                f = open(cmdfile,"wt")
-            except:
-                error = "Error opening file "+cmdfile
-                logger.showError(error)
-                return error,"",None 
-            
-            ip = self.getIP()
-            interface = self.interface.decode('ascii')
-
-            # Calculate the number of active channels
-            chnum = 0
-            for i in range(len(self.status.ADC_address)):
-                chnum += bin(chmask[i]).count("1")
-
-            # add some safety margin to the buffer
-            numberOfSamples_plus = numberOfSamples + 10000    
-            buflen = numberOfSamples_plus * chnum * 2
-            min_buflen = 2e8
-            if (buflen > min_buflen):
-                buflen = round(min_buflen/float(buflen)*100)
-            else:
-                buflen = 100    
-            
-            try:
-                f.write("Open "+ip+"\n")
-                f.write("Stop\n")
-                f.write("Stream-Interface "+interface+"\n")
-                s = "Allocate "+str(round(numberOfSamples_plus))+" "+str(bits)+" " 
-                for i in range(4):
-                    s = s+"0x{:X} ".format(chmask[i])
-                s = s+"{:d}".format(buflen)
-                f.write(s+"\n")
-                f.write("Arm 0 "+str(round(numberOfSamples_plus))+" 0 1\n")
-                f.write("Start\n")
-                f.write("Wait " + str(timeout) + "\n")
-                f.write("Save\n")
-                # This clears the sample counter
-                f.write("CCCONTROL 276 6 0 0 0 0 0 0\n")
-                f.close()
-            except :
-                error = "Error writing command file " + cmdfile
-                logger.showError(error)
-                return error,"",None 
-                f.close()
-            
-            time.sleep(1)
-            thisdir = os.path.dirname(os.path.realpath(__file__))
-            apdtest_prog = 'APDTest_10G'
-            apdtest = os.path.join(thisdir,'../apdcam_control/APDTest_10G','APDTest_10G')
-            cmd = "killall -KILL "+apdtest_prog+" 2> /dev/null ; cd "+datapath+" ; rm APDTest_10G.out Channel*.dat 2> /dev/null ; "+apdtest+" "+cmdfile_name+" >APDTest_10G.out 2>&1 &"
-            logger.showMessage("[MEASUREMENT] Executing: " + cmd)
-
-            d = subprocess.run([cmd],check=False,shell=True)
-            sleeptime = 0.1
-            maxcount = int(10/sleeptime)+1
-            err = ""
-            started = False
-            for i in range(maxcount):
-                try:
-                    f = open(datapath+"/"+"APDTest_10G.out","rt")
-                except:
-                    time.sleep(sleeptime)
-                    continue
-                all_txt = f.readlines()
-                f.close()
-                for il in range(len(all_txt)):
-                   if (all_txt[il].lower().find("error") >= 0):
-                      err = "Error starting measurement: "+all_txt[il]
-                      logger.showError(err)
-                      return err,"",None
-                   if (all_txt[il].lower().find("start succes") >= 0):
-                      started = True
-                      break
-                if (started):
-                    break
-                time.sleep(sleeptime)
-    
-            if (not started):
-                err = "APDCAM did not start"
-                logger.showError(err)
-                return err,"",None
         else:
             # Native Python measurement
             data_receiver = APDCAM10G_data(self,logger)

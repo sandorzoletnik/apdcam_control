@@ -1,7 +1,9 @@
 import copy
 
-def fff(a=1,b):
-    print(a)
-    print(b)
+def f():
+    return [1,2,3]
 
-fff(b=10)    
+[a,b,c] = f()
+print(a)
+print(b)
+print(c)

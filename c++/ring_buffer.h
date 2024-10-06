@@ -111,10 +111,7 @@ namespace apdcam10g
                 if(::mlock(buffer_,buffer_size+extra_size) != 0) APDCAM_ERROR_ERRNO("Failed to lock memory from swapping");
             }
 
-            // Initialize counters and terminated flag
-            push_counter_.store(0, std::memory_order_relaxed);
-            pop_counter_.store(0, std::memory_order_relaxed);
-            terminated_.clear(std::memory_order_relaxed);
+            clear();
         }
 
         ~ring_buffer()
@@ -378,6 +375,15 @@ namespace apdcam10g
         bool empty() const
         {
             return size()==0;
+        }
+
+        ring_buffer &clear()
+        {
+            // Initialize counters and terminated flag
+            push_counter_.store(0, std::memory_order_relaxed);
+            pop_counter_.store(0, std::memory_order_relaxed);
+            terminated_.clear(std::memory_order_relaxed);
+            return *this;
         }
 
         void dump()

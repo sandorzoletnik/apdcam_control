@@ -1,6 +1,8 @@
 #ifndef __APDCAM10G_CONFIG_H__
 #define __APDCAM10G_CONFIG_H__
 
+#include <string>
+
 namespace apdcam10g
 {
   namespace config

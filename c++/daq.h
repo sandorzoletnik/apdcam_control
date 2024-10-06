@@ -92,9 +92,12 @@ namespace apdcam10g
 //        std::vector<std::ranges::subrange<std::vector<channel_data_buffer_t>::iterator>> board_enabled_channels_buffers_;
 
         std::vector<std::jthread>  network_threads_;    // read the UDP packets and produce data in the ring buffer
+        std::atomic_flag           network_threads_active_[config::max_boards]; // flags which indicate whether the given threads are active
         std::vector<std::jthread>  extractor_threads_;  // extract the signals of the individual channels and store them in a per-channel ring buffer
+        std::atomic_flag           extractor_threads_active_[config::max_boards]; 
         std::jthread               processor_thread_;   // analyze the signals (search for some signature, write to disk, whatever else)
-  
+        std::atomic_flag           processor_thread_active_;
+
         // A vector of channel data extractors, one for each ADC board
         std::vector<apdcam10g::channel_data_extractor<default_safeness>*> extractors_;  
 
@@ -186,6 +189,17 @@ namespace apdcam10g
                 for(auto e : extractors_) e->debug(d);
             }
 
+        // Pause all diskdump processors (they will process the data but will not write it to disk)
+        void diskdump_pause();
+        
+        // Resume all diskdump processors (writing to disk continues)
+        void diskdump_resume();
+
+        // Set a sampling number for all diskdump processors. That is, only shot numbers being an integer multiple
+        // of 's' will be written to disk (to save space). Currently it writes no markers in the file so the user
+        // can not reconstruct the shot numbers from the file. This should be further developed. 
+        void diskdump_sampling(unsigned int s);
+
         // Set the process period (the number of shots to trigger the processor tasks to run)
         // Must be called before init(...), the value must be a power of 2
         daq &process_period(unsigned int p);
@@ -210,15 +224,34 @@ namespace apdcam10g
         template <safeness S=default_safeness>
         daq &start(bool wait=false);
 
-        // Request the data producer (reading from udp sockets into the ring buffers) and data consumer (reading from ring buffers and
-        // dumping to disk) threads to stop.
+        // Stops the DAQ process by gently interrupting the network input threads. These will then raise the 'terminated' flag in
+        // the network buffers, the data extractor threads will thereby be notified and stop, but they will also raise the
+        // 'terminated' flags in the channel data buffers, causing finally the processor thread to also terminate. So a soft
+        // stop in the network reader threads will propagate through all threads, and stop them.
+        // If the timeout argument is larger than zero, this function will block until all threads are finihsed, but latest
+        // the given time in seconds, and then gracelessly terminate all worker threads
         template <safeness S=default_safeness>
-        daq &stop(bool wait=true); 
+        daq &stop(unsigned int timeout_sec);
+
+        // Gracelessly kill the DAQ threads, sending them the KILL signal.
+        // Normally it should not be used, since 'stop' can do it gently
+        daq &kill();
 
         // Wait for all threads to finish, join them
-        void wait_finish();
+        daq &wait_finish();
 
         void dump();
+
+        // Returns the number of UDP packets and number of shots that have been received and processed.
+        // These are not exact numbers, the smallest of the number of packets on the 4 sockets,
+        // and the smallest of the number of shots in all channels is returned, at some not very precise
+        // moment in time
+        tuple<size_t,size_t> statistics() const;
+
+        // Return the number of active network threads, number of active extractor threads, 
+        // and the number (0 or 1) of active processor threads
+        tuple<unsigned int, unsigned int, unsigned int> status() const;
+
     };
 
 #define CLASS_DAQ_DEFINED
@@ -227,7 +260,7 @@ namespace apdcam10g
 }
 
 
-// Python-interface functions
+// -----------  Python-interface functions ----------------------------
 #ifdef FOR_PYTHON
 extern "C"
 {
@@ -236,6 +269,7 @@ extern "C"
     //void         mtu(int m);
     void start(bool wait=false);
     void stop(bool wait=true);
+    void kill_all();  // both 'kill' and 'abort' would conflict with existing standard C library functions
     void version(apdcam10g::version v);
     void dual_sata(bool d);
     void channel_masks(bool **m, int n_adc_boards);
@@ -249,6 +283,14 @@ extern "C"
     void dump();
     void test();
     void clear_processors();
+
+    void diskdump_sampling(unsigned int s);
+
+    // Return the number of acquired UDP packets and extracted shots
+    void statistics(unsigned int *n_packets, unsigned int *n_shots);
+
+    // Query the status of the DAQ process, in particular the number of active network, extractor and processor threads
+    void status(unsigned int *n_active_network_threads, unsigned int *n_active_extractor_threads, unsigned int *n_active_processor_thread);
 
     // Return the channel #absolute_chnanel_number data's ring buffer's size and memory buffer
     // in the 2nd and 3rd argument
@@ -264,6 +306,7 @@ extern "C"
     void python_analysis_done(size_t from_counter);
 
     bool python_analysis_stop();
+
 
 }
 

@@ -27,6 +27,16 @@ namespace apdcam10g
 {
     using namespace std;
 
+
+    class flag_locker
+    {
+    private:
+        std::atomic_flag *flag_;
+    public:
+        flag_locker(std::atomic_flag &flag) : flag_(&flag) {flag.test_and_set();}
+        ~flag_locker() {flag_->clear();}
+    };
+
     // A utility class to transform POSIX signals such as SIGSEGV to c++ exceptions, which are then handled
     // in a common way
     class signal2exception
@@ -76,6 +86,7 @@ namespace apdcam10g
     {
         return python_analysis_stop_.test(std::memory_order_acquire);
     }
+    
     void daq::python_analysis_stop(bool b)
     {
         if(b) python_analysis_stop_.test_and_set(std::memory_order_release);
@@ -225,6 +236,12 @@ namespace apdcam10g
     {
         network_threads_.clear();
         extractor_threads_.clear();
+        for(unsigned int i=0; i<config::max_boards; ++i)
+        {
+            network_threads_active_[i].clear();
+            extractor_threads_active_[i].clear();
+        }
+        processor_thread_active_.clear();
         
 	// start creating the threads from tne end-consumer end, i.e. backwards, so that consumers are ready (should we further sync?)
 	// and listening by the time data starts to arrive.
@@ -236,12 +253,13 @@ namespace apdcam10g
         }
         processor_thread_ = std::jthread( [this](std::stop_token stok)
             {
+                flag_locker flk(processor_thread_active_);
                 const std::string prompt = "[DAQ/PROC ]";
                 {
                     output_lock lck;
                     cerr<<prompt<<"Thread started"<<endl;
                 }
-                signal2exception::set("processor",SIGSEGV);
+                signal2exception::set("processor",SIGSEGV,SIGTERM);
                 try
                 {
                     for(unsigned int to_counter=process_period_; !stok.stop_requested(); )
@@ -325,12 +343,13 @@ namespace apdcam10g
         {
             extractor_threads_.push_back(std::jthread( [this, i_socket](std::stop_token stok)
                 {
+                    flag_locker flk(extractor_threads_active_[i_socket]);
                     const std::string prompt = "[DAQ/EXT/" + std::to_string(i_socket) + "] ";
                     {
                         output_lock lck;
                         cerr<<prompt<<"Thread "<<i_socket<<" started"<<endl;
                     }
-                    signal2exception::set("extractor" + std::to_string(i_socket),SIGSEGV);
+                    signal2exception::set("extractor" + std::to_string(i_socket),SIGSEGV,SIGTERM);
                     try
                     {
                         extractors_[i_socket]->run(*network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]);
@@ -380,12 +399,13 @@ namespace apdcam10g
 
                 network_threads_.push_back(std::jthread( [this, i_socket](std::stop_token stok)
                     {
+                        flag_locker flk(network_threads_active_[i_socket]);
                         const std::string prompt = "[DAQ/NET/" + std::to_string(i_socket) + "] ";
                         {
                             output_lock lck;
                             cerr<<prompt<<"Thread "<<i_socket<<" started"<<endl;
                         }
-                        signal2exception::set("net" + std::to_string(i_socket),SIGSEGV);
+                        signal2exception::set("net" + std::to_string(i_socket),SIGSEGV,SIGTERM);
                         try
                         {
                             while(!stok.stop_requested())
@@ -454,7 +474,7 @@ namespace apdcam10g
         daq_settings::dump();
     }
 
-    void daq::wait_finish()
+    daq &daq::wait_finish()
     {
         if(processor_thread_.joinable()) processor_thread_.join();
         for(auto &t : extractor_threads_) if(t.joinable()) t.join();
@@ -463,10 +483,11 @@ namespace apdcam10g
             output_lock lck;
             cerr<<"[DAQ] All threads have been joined"<<endl;
         }
+        return *this;
     }
 
     template <safeness S>
-    daq &daq::stop(bool wait)
+    daq &daq::stop(unsigned int timeout_sec)
     {
         // These threads do not need to be requested to stop because they do so anyway if their input
         // ring_buffers get their 'terminated' flag set. 
@@ -479,8 +500,63 @@ namespace apdcam10g
         // stop as well
         for(auto &t : network_threads_) t.request_stop();
 
-        if(wait) wait_finish();
+        if(timeout_sec>0)
+        {
+            for(unsigned int t=0; t<timeout_sec; ++t)
+            {
+                sleep(1);
+                auto [n1,n2,n3] = status();
+                if(n1==0 && n2==0 && n3==0) return *this;
+            }
+        }
+
+        kill();
         return *this;
+    }
+
+    daq &daq::kill()
+    {
+        for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
+        {
+            if(network_threads_active_[i_socket].test())   pthread_kill(network_threads_[i_socket].native_handle(), SIGTERM);
+            if(extractor_threads_active_[i_socket].test()) pthread_kill(extractor_threads_[i_socket].native_handle(), SIGTERM);
+        }
+        if(processor_thread_active_.test()) pthread_kill(processor_thread_.native_handle(), SIGTERM);
+
+        return *this;
+    }
+
+    tuple<unsigned int, unsigned int, unsigned int> daq::status() const
+    {
+        unsigned int active_network_threads = 0;
+        unsigned int active_extractor_threads = 0;
+        unsigned int active_processor_thread = 0;
+        for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
+        {
+            if(network_threads_active_[i_socket].test()) ++active_network_threads;
+            if(extractor_threads_active_[i_socket].test()) ++active_extractor_threads;
+            if(processor_thread_active_.test()) active_processor_thread = 1;
+        }
+        return {active_network_threads, active_extractor_threads, active_processor_thread};
+    }
+
+    tuple<size_t,size_t> daq::statistics() const
+    {
+        size_t n_packets = 0;
+        for(unsigned int i=0; i<network_buffers_.size(); ++i)
+        {
+            const auto c = network_buffers_[i]->push_counter();
+            if(i==0 || c<n_packets) n_packets = c;
+        }
+
+        size_t n_shots = 0;
+        for(unsigned int i=0; i<all_enabled_channels_buffers_.size(); ++i)
+        {
+            const auto c = all_enabled_channels_buffers_[i]->push_counter();
+            if(i==0 || c<n_shots) n_shots = c;
+        }
+
+        return {n_packets,n_shots};
     }
 
     daq &daq::clear_processors()
@@ -490,8 +566,35 @@ namespace apdcam10g
         return *this; 
     }
 
-    template daq &daq::stop<safe>(bool);
-    template daq &daq::stop<unsafe>(bool);
+    void daq::diskdump_pause()
+    {
+        for(auto p : processors_)
+        {
+            if(processor_diskdump *d = dynamic_cast<processor_diskdump*>(p)) d->pause();
+        }
+    }
+    void daq::diskdump_resume()
+    {
+        for(auto p : processors_)
+        {
+            if(processor_diskdump *d = dynamic_cast<processor_diskdump*>(p)) d->resume();
+        }
+    }
+
+    void daq::diskdump_sampling(unsigned int s)
+    {
+        // Set the default write sampling to the given value
+        processor_diskdump::default_sampling(s);
+        
+        // Also set the value for all existing instances of processor_diskdump
+        for(auto p : processors_) 
+        {
+            if(processor_diskdump *d = dynamic_cast<processor_diskdump*>(p)) d->sampling(s);
+        }
+    }
+
+    template daq &daq::stop<safe>(unsigned int timeout_sec);
+    template daq &daq::stop<unsafe>(unsigned int timeout_sec);
     template daq &daq::start<safe>(bool);
     template daq &daq::start<unsafe>(bool);
     template daq &daq::init<safe>  ();
@@ -503,9 +606,9 @@ namespace apdcam10g
 extern "C"
 {
     using namespace apdcam10g;
-    //void         mtu(int m) { daq::instance().mtu(m); }
     void         start(bool wait) { daq::instance().start(wait); }
     void         stop(bool wait) { daq::instance().stop(wait); }
+    void         kill_all() { daq::instance().kill(); }
     void         version(apdcam10g::version v) { daq::instance().fw_version(apdcam10g::version(v)); }
     void         dual_sata(bool d) { daq::instance().dual_sata(d); }
 
@@ -547,6 +650,7 @@ extern "C"
     {
         daq::instance().debug(d);
     }
+
 
     void add_processor_diskdump()
     {
@@ -601,9 +705,29 @@ extern "C"
         cerr<<"daq::test"<<endl;
     }
 
+    void statistics(unsigned int *n_packets, unsigned int *n_shots)
+    {
+        auto [np,ns] = daq::instance().statistics();
+        *n_packets = np;
+        *n_shots   = ns;
+    }
+
+    void status(unsigned int *n_active_network_threads, unsigned int *n_active_extractor_threads, unsigned int *n_active_processor_thread)
+    {
+        auto [net,ext,proc] = daq::instance().status();
+        *n_active_network_threads = net;
+        *n_active_extractor_threads = ext;
+        *n_active_processor_thread = proc;
+    }
+
     void clear_processors()
     {
         daq::instance().clear_processors();
+    }
+
+    void diskdump_sampling(unsigned int s)
+    {
+        daq::instance().diskdump_sampling(s);
     }
 
     bool python_analysis_stop()

@@ -8,6 +8,8 @@
 
 namespace apdcam10g
 {
+    std::string homedir();
+
     // Take the square of anything
     template <typename T>
     T sq(const T &t) { return t*t; }

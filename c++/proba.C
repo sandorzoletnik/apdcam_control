@@ -14,6 +14,7 @@
 #include <vector>
 #include <iostream>
 #include <string.h>
+#include <signal.h>
 #include "stopper.h"
 #include "error.h"
 #include "terminal.h"
@@ -24,23 +25,105 @@ using namespace std;
 using namespace apdcam10g;
 using namespace terminal;
 
-void print(int i)
-{
-    cerr<<i<<" ";
-}
 
-template <typename...SIGNUMS>
-void print(int i, SIGNUMS... signums)
+    class signal2exception
+    {
+    private:
+        static std::map<std::jthread::id,std::string> thread_names_;
+
+        // The signal-handler routine which can be set for POSIX signals. It simply throws an apdcam_error exception
+        // with the appropriate message
+        static void run(int signum)
+            {
+                APDCAM_ERROR("Signal " + std::to_string(signum) + " is caught");
+                //signal (signum, SIG_DFL);
+                //raise (signum);
+            }
+
+
+    public:
+
+        // The below vararg 'set' functions can be used to set the signal handler for the given signals.
+        // The first argument is a name that will be associated with the calling thread for the user's
+        // convenience, subsequent integer args (any number of them) are signal numbers
+        // Usage: signal2exception::set("my_thread_name",SIGSEGV,SIGINT);
+
+        static void set(const std::string &thread_name, int signum)
+            {
+                thread_names_[std::this_thread::get_id()] = thread_name;
+                signal(signum,signal2exception::run);
+            }
+
+        template <typename... SIGNUMS>
+        static void set(const std::string &thread_name, int signum1, SIGNUMS... signums)
+            {
+                signal(signum1,signal2exception::run);
+                set(thread_name,signums...);
+            }
+    };
+
+    std::map<std::jthread::id,std::string> signal2exception::thread_names_;
+
+
+
+class flag_locker
 {
-    cerr<<i<<" ";
-    print(signums...);
-}
+private:
+    std::atomic_flag *flag_;
+public:
+    flag_locker(std::atomic_flag &flag) : flag_(&flag) {flag.test_and_set();}
+    ~flag_locker() {flag_->clear();}
+};
 
 
 int main()
 try
 {
-    print(1,2,3,4,5);
+    {
+    ofstream file("~/kkk");
+    file<<"Hello world"<<endl;
+    return 0;
+    }
+
+    ifstream file("the_fifo");
+    string line;
+    cerr<<"Start"<<endl;
+    while(true)
+    {
+        while(getline(file,line))
+        {
+            cerr<<line<<endl;
+            if(line=="quit") return 0;
+        }
+        file.clear();
+    }
+
+    return 0;
+
+
+    std::atomic_flag running;
+
+    auto t = std::jthread([&running]()
+        {
+            signal2exception::set("The thread",SIGSEGV,SIGTERM,SIGKILL);
+            try
+            {
+                flag_locker flk(running);
+                sleep(100);
+            }
+            catch(apdcam10g::error &e)
+            {
+                cerr<<e.full_message()<<endl;
+            }
+        });
+
+    sleep(1);
+    cerr<<"Running: "<<running.test()<<endl;
+    pthread_kill(t.native_handle(),SIGTERM);
+    cerr<<"EJNYE"<<endl;
+    sleep(1);
+    cerr<<"Running: "<<running.test()<<endl;
+
     return 0;
 }
 catch(apdcam10g::error &e)
