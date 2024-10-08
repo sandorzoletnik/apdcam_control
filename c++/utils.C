@@ -1,4 +1,6 @@
 #include "utils.h"
+#include "config.h"
+#include "error.h"
 
 // To get the home dir of the current user
 #include <unistd.h>
@@ -12,11 +14,22 @@ using namespace std;
 
 namespace apdcam10g
 {
-    std::string homedir()
+    std::filesystem::path homedir()
     {
         return getenv("HOME");
         //passwd *pw = getpwuid(getuid());
         //return pw->pw_dir;
+    }
+
+    std::filesystem::path configdir()
+    {
+        auto path = homedir();
+        path /= config::configdir;
+        if(!std::filesystem::is_directory(path))
+        {
+            if(!std::filesystem::create_directory(path)) APDCAM_ERROR(std::string("Could not create config directory '") + path.string() + std::string("'"));
+        }
+        return path;
     }
 
     vector<string> split(const string &s,const string &separator)

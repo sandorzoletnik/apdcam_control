@@ -5,10 +5,13 @@
 #include <string>
 #include <concepts>
 #include <mutex>
+#include <filesystem>
 
 namespace apdcam10g
 {
-    std::string homedir();
+    std::filesystem::path homedir();
+
+    std::filesystem::path configdir();
 
     // Take the square of anything
     template <typename T>

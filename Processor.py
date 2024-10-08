@@ -1,4 +1,3 @@
-import daq
 
 class ProcessorTest:
 

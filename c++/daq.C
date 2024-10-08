@@ -2,6 +2,8 @@
 #include <iomanip>
 #include <fstream>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "daq.h"
 #include "utils.h"
@@ -13,6 +15,8 @@
 #include "shot_data_layout.h"
 #include <memory>
 #include <map>
+
+#include <unistd.h>
 
 //#include <stdio.h>
 //#include <stdlib.h>
@@ -37,6 +41,15 @@ namespace apdcam10g
         ~flag_locker() {flag_->clear();}
     };
 
+    class file_deleter
+    {
+    private:
+        std::filesystem::path path_;
+    public:
+        file_deleter(const std::filesystem::path &p) : path_(p) {}
+        ~file_deleter() { unlink(path_.c_str()); }
+    };
+
     // A utility class to transform POSIX signals such as SIGSEGV to c++ exceptions, which are then handled
     // in a common way
     class signal2exception
@@ -48,7 +61,11 @@ namespace apdcam10g
         // with the appropriate message
         static void run(int signum)
             {
-                APDCAM_ERROR("Signal " + std::to_string(signum) + " is caught in thread \"" + thread_names_[std::this_thread::get_id()] + "\"");
+                auto s = std::to_string(signum);
+                if(signum==SIGKILL) s = "SIGKILL";
+                if(signum==SIGTERM) s = "SIGTERM";
+                if(signum==SIGSEGV) s = "SIGSEGV";
+                APDCAM_ERROR("Signal " + s + " is caught in thread \"" + thread_names_[std::this_thread::get_id()] + "\"");
                 //signal (signum, SIG_DFL);
                 //raise (signum);
             }
@@ -234,6 +251,8 @@ namespace apdcam10g
     template <safeness S>
     daq &daq::start(bool wait)
     {
+        write_settings(configdir() / "daq.cnf");
+
         network_threads_.clear();
         extractor_threads_.clear();
         for(unsigned int i=0; i<config::max_boards; ++i)
@@ -455,6 +474,74 @@ namespace apdcam10g
             }
         }
 
+        // -------------------- start the command interpreter ----------------------------------
+        
+        command_thread_ = std::jthread( [this](std::stop_token stok)
+            {
+                flag_locker flk(processor_thread_active_);
+                const std::string prompt = "[DAQ/CMD] ";
+
+                // Create the fifo in configdir
+                auto fifo_name = configdir() / "cmd";
+                unlink(fifo_name.c_str());
+                if(mkfifo(fifo_name.c_str(),0666) != 0) APDCAM_ERROR("Failed to create command fifo '" + fifo_name.string() + "'");
+                file_deleter auto_delete_fifo(fifo_name);
+
+                {
+                    output_lock lck;
+                    cerr<<prompt<<"Thread started, waiting for command in the FIFO "<<fifo_name<<endl;
+                }
+
+                string line;
+                while(!stok.stop_requested())
+                {
+                    // Reopen the file repeatedly because if we send commands into the FIFO file by echo, it closes the
+                    // file, and fifo.clear() (i.e. clearing all error bits on the ifstream) does not help. 
+                    ifstream fifo(fifo_name);
+                    while(!stok.stop_requested() && getline(fifo,line))
+                    {
+                        cerr<<prompt<<line<<endl;
+                        istringstream inputstr(line);
+                        string cmd;
+                        inputstr>>cmd;
+                        if     (cmd == "diskdump_pause")
+                        {
+                            cerr<<prompt<<"Pausing diskdump"<<endl;
+                            daq::instance().diskdump_pause();
+                        }
+                        else if(cmd == "diskdump_resume")
+                        {
+                            cerr<<prompt<<"Resuming diskdump"<<endl;
+                            daq::instance().diskdump_resume();
+                        }
+                        else if(cmd == "diskdump_sampling")
+                        {
+                            unsigned int s;
+                            if(!(inputstr>>s)) 
+                            {
+                                cerr<<"Error, integer expected after diskdump_sampling"<<endl;
+                                continue;
+                            }
+                            cerr<<prompt<<"Setting diskdump sampling of "<<s<<endl;
+                            daq::instance().diskdump_sampling(s);
+                        }
+                        else if(cmd == "stop")
+                        {
+                            unsigned int timeout_sec;
+                            if(!(inputstr>>timeout_sec)) timeout_sec = 0;
+                            cerr<<prompt<<"Stopping the DAQ";
+                            if(timeout_sec>0) cerr<<" with a timeout of "<<timeout_sec<<" seconds";
+                            cerr<<endl;
+                            daq::instance().stop(timeout_sec);
+                        }
+                        else
+                        {
+                            cerr<<prompt<<"Ignoring bad command: "<<line<<endl;
+                        }
+                    }
+                }
+            });
+
         {
             output_lock lck;
             cerr<<"[DAQ] All threads have been started"<<endl;
@@ -489,6 +576,8 @@ namespace apdcam10g
     template <safeness S>
     daq &daq::stop(unsigned int timeout_sec)
     {
+        cerr<<"[DAQ] Stopping with timeout "<<timeout_sec<<endl;
+
         // These threads do not need to be requested to stop because they do so anyway if their input
         // ring_buffers get their 'terminated' flag set. 
         //processor_thread_.request_stop();
@@ -508,14 +597,15 @@ namespace apdcam10g
                 auto [n1,n2,n3] = status();
                 if(n1==0 && n2==0 && n3==0) return *this;
             }
+            kill();
         }
 
-        kill();
         return *this;
     }
 
     daq &daq::kill()
     {
+        cerr<<"[DAQ] Killing all threads"<<endl;
         for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
         {
             if(network_threads_active_[i_socket].test())   pthread_kill(network_threads_[i_socket].native_handle(), SIGTERM);

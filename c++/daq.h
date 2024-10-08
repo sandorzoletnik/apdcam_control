@@ -97,6 +97,8 @@ namespace apdcam10g
         std::atomic_flag           extractor_threads_active_[config::max_boards]; 
         std::jthread               processor_thread_;   // analyze the signals (search for some signature, write to disk, whatever else)
         std::atomic_flag           processor_thread_active_;
+        std::jthread               command_thread_;
+        std::atomic_flag           command_thread_active_;
 
         // A vector of channel data extractors, one for each ADC board
         std::vector<apdcam10g::channel_data_extractor<default_safeness>*> extractors_;  
@@ -231,7 +233,7 @@ namespace apdcam10g
         // If the timeout argument is larger than zero, this function will block until all threads are finihsed, but latest
         // the given time in seconds, and then gracelessly terminate all worker threads
         template <safeness S=default_safeness>
-        daq &stop(unsigned int timeout_sec);
+        daq &stop(unsigned int timeout_sec=0);
 
         // Gracelessly kill the DAQ threads, sending them the KILL signal.
         // Normally it should not be used, since 'stop' can do it gently

@@ -154,8 +154,8 @@ namespace apdcam10g
         
 
         // Read/write the configuration into a  file
-        void write_settings(const std::string &filename);
-        bool read_settings(const std::string &filename);
+        void write_settings(const std::filesystem::path &filename);
+        bool read_settings(const std::filesystem::path &filename);
 
         // Calculate the byte/bit offsets of the channels within the ADC bytes of a given sample,
         // and the masks/shifts to extract the values

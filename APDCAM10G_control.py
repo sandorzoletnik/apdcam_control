@@ -39,6 +39,7 @@ import Config
 # specifying the directory for the APDCAM10G_registers script
 dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(dir)
+from DAQ import *
 from APDCAM10G_registers import *
 
 def showtrace():
@@ -3795,79 +3796,85 @@ class APDCAM10G_control:
 
         logger.showMessage("[MEASUREMENT] Starts")
 
-"""
-        # Argument consistency checks
-        if self.version >= 105:
-            if streamMode is None:
-                return "Stream mode must be specified for firmware version >=1.05"
-        else:
-            if streamMode is not None:
-                return "Stream mode must not be given for firmware version <1.05"
 
-#        if streamMode is not None and streamMode.lower() != 'gated' and numberOfSamples is not None:
-#            return "Number of samples can only be specified if stream mode is 'gated'"
+        n_adc = len(channelMasks)
 
-        self.readStatus()
 
-        n_adc = len(self.status.ADC_address)
 
-        # sampleDiv is not needed for the DAQ so if this argument was provided by the user, set it in the camera
-        # but that's all. 
-        if (sampleDiv != None):
-            self.setSampleDivider(sampleDiv)
+#         # Argument consistency checks
+#         if self.version >= 105:
+#             if streamMode is None:
+#                 return "Stream mode must be specified for firmware version >=1.05"
+#         else:
+#             if streamMode is not None:
+#                 return "Stream mode must not be given for firmware version <1.05"
 
-        trigstate = None
-        if hasattr(self.CC_settings,"TRIGSTATE"):
-            trigstate = self.CC_settings.TRIGSTATE
-        elif hasattr(self.CC_settings,"G1TRIGCONTROL"):
-            trigstate = self.CC_settings.G1TRIGCONTROL
+# #        if streamMode is not None and streamMode.lower() != 'gated' and numberOfSamples is not None:
+# #            return "Number of samples can only be specified if stream mode is 'gated'"
 
-        # IF TRIGGERS ARE NOT SPECIFIED, DO WE NEED TO READ THE TRIGGER SETTINGS FROM THE CAMERA AND WRITE IT BACK???
+#         self.readStatus()
+
+#         n_adc = len(self.status.ADC_address)
+
+#         # sampleDiv is not needed for the DAQ so if this argument was provided by the user, set it in the camera
+#         # but that's all. 
+#         if (sampleDiv != None):
+#             self.setSampleDivider(sampleDiv)
+
+#         trigstate = None
+#         if hasattr(self.CC_settings,"TRIGSTATE"):
+#             trigstate = self.CC_settings.TRIGSTATE
+#         elif hasattr(self.CC_settings,"G1TRIGCONTROL"):
+#             trigstate = self.CC_settings.G1TRIGCONTROL
+
+#         # IF TRIGGERS ARE NOT SPECIFIED, DO WE NEED TO READ THE TRIGGER SETTINGS FROM THE CAMERA AND WRITE IT BACK???
         
-        # Trigger settings
-        if externalTriggerPos is None: # default value, i.e. parameter not specified, then take it from the camera
-            #externalTriggerPos = bool(self.status.CC_settings[self.codes_CC.CC_REGISTER_TRIGSTATE] & (1<<0))
-            externalTriggerPos = trigstate.ETR(self.status.CC_settings)
+#         # Trigger settings
+#         if externalTriggerPos is None: # default value, i.e. parameter not specified, then take it from the camera
+#             #externalTriggerPos = bool(self.status.CC_settings[self.codes_CC.CC_REGISTER_TRIGSTATE] & (1<<0))
+#             externalTriggerPos = trigstate.ETR(self.status.CC_settings)
 
-        if externalTriggerNeg is None: 
-            externalTriggerNeg = trigstate.ETF(self.status.CC_settings)
+#         if externalTriggerNeg is None: 
+#             externalTriggerNeg = trigstate.ETF(self.status.CC_settings)
 
-        if internalTrigger is None: # default value, i.e. parameter not specified, then take it from the camera
-            internalTrigger = trigstate.IT(self.status.CC_settings)
+#         if internalTrigger is None: # default value, i.e. parameter not specified, then take it from the camera
+#             internalTrigger = trigstate.IT(self.status.CC_settings)
 
-        if triggerDelay is None: # default value, i.e. parameter not specified, then take it from the camera
-            #triggerDelay = int.from_bytes(self.status.CC_settings[self.codes_CC.CC_REGISTER_TRIGDELAY:self.codes_CC.CC_REGISTER_TRIGDELAY+4],'big')
-            triggerDelay = self.CC_settings.TRIGDELAY(self.status.CC_settings)
+#         if triggerDelay is None: # default value, i.e. parameter not specified, then take it from the camera
+#             #triggerDelay = int.from_bytes(self.status.CC_settings[self.codes_CC.CC_REGISTER_TRIGDELAY:self.codes_CC.CC_REGISTER_TRIGDELAY+4],'big')
+#             triggerDelay = self.CC_settings.TRIGDELAY(self.status.CC_settings)
 
-        if hasattr(self.codes_CC,"OP_SETTRIGGER"):
-            err = self.setTrigger(externalTriggerPos=externalTriggerPos,
-                                  externalTriggerNeg=externalTriggerNeg,
-                                  internalTrigger=internalTrigger,
-                                  triggerDelay=triggerDelay)
-        elif hasattr(self.codes_CC,"OP_SETG1TRIGGERMODULE"):
-            #print("FIXME! self.setTrigger in measure() must be updated for this firmware")
-            err = self.setTrigger(externalTriggerPos=externalTriggerPos,
-                                  externalTriggerNeg=externalTriggerNeg,
-                                  internalTrigger=internalTrigger,
-                                  camTimer0Pos=False,
-                                  camTimer0Neg=False,
-                                  triggerDelay=triggerDelay)
+#         if hasattr(self.codes_CC,"OP_SETTRIGGER"):
+#             err = self.setTrigger(externalTriggerPos=externalTriggerPos,
+#                                   externalTriggerNeg=externalTriggerNeg,
+#                                   internalTrigger=internalTrigger,
+#                                   triggerDelay=triggerDelay)
+#         elif hasattr(self.codes_CC,"OP_SETG1TRIGGERMODULE"):
+#             #print("FIXME! self.setTrigger in measure() must be updated for this firmware")
+#             err = self.setTrigger(externalTriggerPos=externalTriggerPos,
+#                                   externalTriggerNeg=externalTriggerNeg,
+#                                   internalTrigger=internalTrigger,
+#                                   camTimer0Pos=False,
+#                                   camTimer0Neg=False,
+#                                   triggerDelay=triggerDelay)
 
-        if numberOfSamples is None:
-            numberOfSamples = int.from_bytes(self.status.CC_settings[self.codes_CC.CC_REGISTER_SAMPLECOUNT:self.codes_CC.CC_REGISTER_SAMPLECOUNT+6],byteorder='big')
+#         if numberOfSamples is None:
+#             numberOfSamples = int.from_bytes(self.status.CC_settings[self.codes_CC.CC_REGISTER_SAMPLECOUNT:self.codes_CC.CC_REGISTER_SAMPLECOUNT+6],byteorder='big')
 
-        if (err != ""):
-            logger.showError(err)
-            return err,"",None
+#         if (err != ""):
+#             logger.showError(err)
+#             return err,"",None
         
-        if (internalTriggerADC is not None):
-            self.setInternalTriggerADC(adcBoard='all', enable=internalTriggerADC)
+#         if (internalTriggerADC is not None):
+#             self.setInternalTriggerADC(adcBoard='all', enable=internalTriggerADC)
     
-        err = self.syncADC()
-        if (err != ""):
-            logger.showError(err)
-            return err,"",None
-"""
+#         err = self.syncADC()
+#         if (err != ""):
+#             logger.showError(err)
+#             return err,"",None
+
+
+
 
 
         # If no channel mask was given by the user, read the CHENABLEx (x=1..4) registers from the camera
@@ -3893,11 +3900,11 @@ class APDCAM10G_control:
                 err = "Length of resolution list is not correct"
                 logger.showError(err)
                 return err,"",None
-            for i_adc in range(n_adc):
-                err = self.setAdcResolution(resolutionBits[i_adc],i_adc+1)
-                if err!='':
-                    logger.showError(err)
-                    return err,"",None
+#            for i_adc in range(n_adc):
+#                err = self.setAdcResolution(resolutionBits[i_adc],i_adc+1)
+#                if err!='':
+#                    logger.showError(err)
+#                    return err,"",None
         else:
             err,resolutionBits = self.getAdcResolution('all')
 
@@ -3921,7 +3928,6 @@ class APDCAM10G_control:
         DAQ().channel_masks(channelMasks)
         DAQ().resolution_bits(resolutionBits)
         DAQ().init(True)
-        DAQ().write_wettings(b"apdcam-daq.cnf")
         DAQ().start(False)
         
         if (waitForResult <=0):

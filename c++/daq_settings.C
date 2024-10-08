@@ -241,7 +241,7 @@ namespace apdcam10g
         }
     }
 
-    void daq_settings::write_settings(const std::string &filename)
+    void daq_settings::write_settings(const std::filesystem::path &filename)
     {
         //Json::Value settings_root;
         settings the_settings;
@@ -265,7 +265,7 @@ namespace apdcam10g
         file<<the_settings;
     }
 
-    bool daq_settings::read_settings(const std::string &filename)
+    bool daq_settings::read_settings(const std::filesystem::path &filename)
     {
         ifstream file(filename);
         if(!file) return false;

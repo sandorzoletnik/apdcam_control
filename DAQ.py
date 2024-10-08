@@ -23,13 +23,44 @@ DAQ().wait_finish()
 
 '''
 
+# Convert a python list to a native C array of type 'ctype', if 'l' is a simple list,
+# or to a C nested array (array of pointers) if 'l' is a nested list, i.e. if each of its elements
+# are themselves lists.
+# ctype is the native C value type, for example ctypes.c_int, ctypes.c_uint, ctypes.c_bool, etc
+def convertToCArray(l,ctype):
+    # for non-lists, or empty lists, we return None
+    if type(l) is not list or len(l)==0:
+        return None;
+    
+    # a 1-dimensional list
+    if type(l[0]) is not list:
+        n = len(l)
+        # Create the C native array type of a given length
+        result = (ctype*n)()
+        for i in range(n):
+            result[i] = l[i]
+        return result
+        
+    else:
+        n1 = len(l)
+        n2 = len(l[0])  # we assume all list elements (thmeselves being lists) have the same size so just take the first one
+        # Create a native C array with size n1 of pointers to type 'ctype'
+        result = (ctypes.POINTER(ctype)*n1)()
+        for i in range(n1):
+            # For each element create a new native C array with size n2
+            result[i] = (ctype*n2)()
+            for j in range(n2):
+                result[i][j] = l[i][j]
+        return result
+
+
 
 # Load the shared library if it hasnt been loaded yet, and set up the argument and return types
 # of the functions defined therein
 def DAQ():
     if DAQ.instance_ is None:
         dir = os.path.dirname(__file__)
-        dllpath = os.path.join(dir,"../c++/libapdcam10g.so")
+        dllpath = os.path.join(dir,"c++/libapdcam10g.so")
         DAQ.instance_ = ctypes.CDLL(dllpath)
 
         if DAQ.instance_ is None:

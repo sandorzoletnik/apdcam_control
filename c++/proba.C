@@ -21,6 +21,10 @@
 #include "bytes.h"
 #include "settings.h"
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
+
 using namespace std;
 using namespace apdcam10g;
 using namespace terminal;
@@ -79,23 +83,20 @@ public:
 int main()
 try
 {
-    {
-    ofstream file("~/kkk");
-    file<<"Hello world"<<endl;
-    return 0;
-    }
+    unlink("the_fifo");
+    mkfifo("the_fifo",0666);
 
-    ifstream file("the_fifo");
-    string line;
-    cerr<<"Start"<<endl;
     while(true)
     {
-        while(getline(file,line))
+        ifstream file("the_fifo");
+        string line;
+        cerr<<"Start"<<endl;
+
+        while((cerr<<"waiting for input..."), getline(file,line))
         {
             cerr<<line<<endl;
             if(line=="quit") return 0;
         }
-        file.clear();
     }
 
     return 0;

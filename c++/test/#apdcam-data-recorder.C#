@@ -83,6 +83,7 @@ try
         });
 
     daq::instance().init();
+
 //    daq::instance().write_settings("apdcam-daq.cnf");
 
 //    daq::instance().print_channel_map();

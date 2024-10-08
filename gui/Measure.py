@@ -2,7 +2,7 @@ import sys
 import time
 import os
 import ctypes
-import daq
+from DAQ import *
 
 import importlib
 from .QtVersion import QtVersion
@@ -17,37 +17,8 @@ from .ApdcamUtils import *
 from .RingBuffer import *
 from .GuiMode import *
 from functools import partial
-from .Processor import *
+from ..Processor import *
 
-# Convert a python list to a native C array of type 'ctype', if 'l' is a simple list,
-# or to a C nested array (array of pointers) if 'l' is a nested list, i.e. if each of its elements
-# are themselves lists.
-# ctype is the native C value type, for example ctypes.c_int, ctypes.c_uint, ctypes.c_bool, etc
-def convertToCArray(l,ctype):
-    # for non-lists, or empty lists, we return None
-    if type(l) is not list or len(l)==0:
-        return None;
-    
-    # a 1-dimensional list
-    if type(l[0]) is not list:
-        n = len(l)
-        # Create the C native array type of a given length
-        result = (ctype*n)()
-        for i in range(n):
-            result[i] = l[i]
-        return result
-        
-    else:
-        n1 = len(l)
-        n2 = len(l[0])  # we assume all list elements (thmeselves being lists) have the same size so just take the first one
-        # Create a native C array with size n1 of pointers to type 'ctype'
-        result = (ctypes.POINTER(ctype)*n1)()
-        for i in range(n1):
-            # For each element create a new native C array with size n2
-            result[i] = (ctype*n2)()
-            for j in range(n2):
-                result[i][j] = l[i][j]
-        return result
 
 
 class Measure(QtWidgets.QWidget):
@@ -110,35 +81,42 @@ class Measure(QtWidgets.QWidget):
 
     def measure(self):
 
-        daq.instance().debug(False)
-        daq.instance().get_net_parameters()
-        daq.instance().add_processor_python(ProcessorTest())
-        daq.instance().add_processor_python(ProcessorTest())
-        daq.instance().add_processor_diskdump();
-        #daq.instance().dual_sata(self.getDualSata())
-        
         masks = [ [True,True,True,True,False,False,False,False,
                    True,True,True,True,False,False,False,False,
                    True,True,True,True,False,False,False,False,
                    True,True,True,True,False,False,False,False] ]
 
-        # daq.instance().channel_masks(convertToCArray(masks,ctypes.c_bool),len(masks))
-        DAQ.instance().channel_masks(masks)
-        res = [14]
-        #daq.instance().resolution_bits(convertToCArray(res,ctypes.c_uint),len(res))
-        DAQ.instance().resolution_bits(res)
-        daq.instance().init(True);
+        self.gui.camera.measure(channelMasks=masks,resolutionBits=14)
 
-        daq.instance().write_settings(b"apdcam-daq.cnf");
-#        daq.instance().dump()
-        daq.instance().start(False)
+#         daq.instance().debug(False)
+#         daq.instance().get_net_parameters()
+#         daq.instance().add_processor_python(ProcessorTest())
+#         daq.instance().add_processor_python(ProcessorTest())
+#         daq.instance().add_processor_diskdump();
+#         #daq.instance().dual_sata(self.getDualSata())
+        
+#         masks = [ [True,True,True,True,False,False,False,False,
+#                    True,True,True,True,False,False,False,False,
+#                    True,True,True,True,False,False,False,False,
+#                    True,True,True,True,False,False,False,False] ]
 
-        print("Python has finished starting the DAQ")
-        time.sleep(10)
+#         # daq.instance().channel_masks(convertToCArray(masks,ctypes.c_bool),len(masks))
+#         DAQ.instance().channel_masks(masks)
+#         res = [14]
+#         #daq.instance().resolution_bits(convertToCArray(res,ctypes.c_uint),len(res))
+#         DAQ.instance().resolution_bits(res)
+#         daq.instance().init(True);
 
-        print("Python waiting for threads to finish")
-        daq.instance().wait_finish()
-        print("Python DAQ has finished")
+#         daq.instance().write_settings(b"apdcam-daq.cnf");
+# #        daq.instance().dump()
+#         daq.instance().start(False)
+
+#         print("Python has finished starting the DAQ")
+#         time.sleep(10)
+
+#         print("Python waiting for threads to finish")
+#         daq.instance().wait_finish()
+#         print("Python DAQ has finished")
 
         return
 
