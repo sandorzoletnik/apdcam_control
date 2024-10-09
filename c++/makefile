@@ -7,13 +7,13 @@ OBJS = $(SRCS:.C=.o)
 
 all : libapdcam10g.so
 
-.PHONY: test clean
-test:
-	cd test; $(MAKE)
+.PHONY: tools clean
+tools:
+	cd tools; $(MAKE)
 
 clean :
 	rm -f *.o *.so *.d *~
-	cd test; $(MAKE) clean
+	cd tools; $(MAKE) clean
 
 # uncomment this
 include $(DEPS)

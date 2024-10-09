@@ -4,6 +4,32 @@
 namespace apdcam10g
 {
     template <safeness S>
+    void udp_packet_buffer<S>::resize(unsigned int size_in_packets, unsigned int max_udp_packet_size)
+    {
+        ring_buffer<udp_packet_record>::resize(size_in_packets);
+        
+        size_in_packets_ = size_in_packets;
+        max_udp_packet_size_ = max_udp_packet_size;
+        if(raw_buffer_) delete [] raw_buffer_;
+        
+        // Allocate the raw buffer. For each packet allocate 2 more bytes so that if there is a channel
+        // value which spills over into a next packet (by max 2 bytes), we can copy it to the end of
+        // the previous buffer
+        raw_buffer_ = new apdcam10g::byte[size_in_packets*(max_udp_packet_size+2)];
+        
+        // Store the pointers to 'max_udp_packet_size' chunks within the raw buffer into
+        // the ring_buffer. 
+        for(unsigned int i=0; i<size_in_packets_; ++i)
+        {
+            if(auto p = future_element(i)) *p = { raw_buffer_ + i*(max_udp_packet_size_+2), 0 };
+            else APDCAM_ERROR("This should not happen");
+        }
+
+        reset_statistics();
+    }
+
+
+    template <safeness S>
     unsigned int udp_packet_buffer<S>::receive(udp_server &s,std::stop_token &stok)
     {
         // Spin-locked wait to obtain a slot for a free record

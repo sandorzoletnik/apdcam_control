@@ -481,64 +481,74 @@ namespace apdcam10g
                 flag_locker flk(processor_thread_active_);
                 const std::string prompt = "[DAQ/CMD] ";
 
-                // Create the fifo in configdir
-                auto fifo_name = configdir() / "cmd";
-                unlink(fifo_name.c_str());
-                if(mkfifo(fifo_name.c_str(),0666) != 0) APDCAM_ERROR("Failed to create command fifo '" + fifo_name.string() + "'");
-                file_deleter auto_delete_fifo(fifo_name);
-
+                signal2exception::set("command",SIGSEGV,SIGTERM);
+                try
                 {
-                    output_lock lck;
-                    cerr<<prompt<<"Thread started, waiting for command in the FIFO "<<fifo_name<<endl;
-                }
-
-                string line;
-                while(!stok.stop_requested())
-                {
-                    // Reopen the file repeatedly because if we send commands into the FIFO file by echo, it closes the
-                    // file, and fifo.clear() (i.e. clearing all error bits on the ifstream) does not help. 
-                    ifstream fifo(fifo_name);
-                    while(!stok.stop_requested() && getline(fifo,line))
+                    
+                    // Create the fifo in configdir
+                    auto fifo_name = configdir() / "cmd";
+                    unlink(fifo_name.c_str());
+                    if(mkfifo(fifo_name.c_str(),0666) != 0) APDCAM_ERROR("Failed to create command fifo '" + fifo_name.string() + "'");
+                    file_deleter auto_delete_fifo(fifo_name);
+                    
                     {
-                        cerr<<prompt<<line<<endl;
-                        istringstream inputstr(line);
-                        string cmd;
-                        inputstr>>cmd;
-                        if     (cmd == "diskdump_pause")
+                        output_lock lck;
+                        cerr<<prompt<<"Thread started, waiting for command in the FIFO "<<fifo_name<<endl;
+                    }
+                    
+                    string line;
+                    while(!stok.stop_requested())
+                    {
+                        // Reopen the file repeatedly because if we send commands into the FIFO file by echo, it closes the
+                        // file, and fifo.clear() (i.e. clearing all error bits on the ifstream) does not help. 
+                        ifstream fifo(fifo_name);
+                        while(!stok.stop_requested() && getline(fifo,line))
                         {
-                            cerr<<prompt<<"Pausing diskdump"<<endl;
-                            daq::instance().diskdump_pause();
-                        }
-                        else if(cmd == "diskdump_resume")
-                        {
-                            cerr<<prompt<<"Resuming diskdump"<<endl;
-                            daq::instance().diskdump_resume();
-                        }
-                        else if(cmd == "diskdump_sampling")
-                        {
-                            unsigned int s;
-                            if(!(inputstr>>s)) 
+                            cerr<<prompt<<line<<endl;
+                            istringstream inputstr(line);
+                            string cmd;
+                            inputstr>>cmd;
+                            if     (cmd == "diskdump_pause")
                             {
-                                cerr<<"Error, integer expected after diskdump_sampling"<<endl;
-                                continue;
+                                cerr<<prompt<<"Pausing diskdump"<<endl;
+                                daq::instance().diskdump_pause();
                             }
-                            cerr<<prompt<<"Setting diskdump sampling of "<<s<<endl;
-                            daq::instance().diskdump_sampling(s);
-                        }
-                        else if(cmd == "stop")
-                        {
-                            unsigned int timeout_sec;
-                            if(!(inputstr>>timeout_sec)) timeout_sec = 0;
-                            cerr<<prompt<<"Stopping the DAQ";
-                            if(timeout_sec>0) cerr<<" with a timeout of "<<timeout_sec<<" seconds";
-                            cerr<<endl;
-                            daq::instance().stop(timeout_sec);
-                        }
-                        else
-                        {
-                            cerr<<prompt<<"Ignoring bad command: "<<line<<endl;
+                            else if(cmd == "diskdump_resume")
+                            {
+                                cerr<<prompt<<"Resuming diskdump"<<endl;
+                                daq::instance().diskdump_resume();
+                            }
+                            else if(cmd == "diskdump_sampling")
+                            {
+                                unsigned int s;
+                                if(!(inputstr>>s)) 
+                                {
+                                    cerr<<"Error, integer expected after diskdump_sampling"<<endl;
+                                    continue;
+                                }
+                                cerr<<prompt<<"Setting diskdump sampling of "<<s<<endl;
+                                daq::instance().diskdump_sampling(s);
+                            }
+                            else if(cmd == "stop")
+                            {
+                                unsigned int timeout_sec;
+                                if(!(inputstr>>timeout_sec)) timeout_sec = 0;
+                                cerr<<prompt<<"Stopping the DAQ";
+                                if(timeout_sec>0) cerr<<" with a timeout of "<<timeout_sec<<" seconds";
+                                cerr<<endl;
+                                daq::instance().stop(timeout_sec);
+                            }
+                            else
+                            {
+                                cerr<<prompt<<"Ignoring bad command: "<<line<<endl;
+                            }
                         }
                     }
+                }
+                catch(apdcam10g::error &d)
+                {
+                    output_lock lck;
+                    cerr<<prompt<<" Terminated"<<endl;
                 }
             });
 
@@ -563,6 +573,7 @@ namespace apdcam10g
 
     daq &daq::wait_finish()
     {
+        if(command_thread_.joinable()) command_thread_.join();
         if(processor_thread_.joinable()) processor_thread_.join();
         for(auto &t : extractor_threads_) if(t.joinable()) t.join();
         for(auto &t : network_threads_) if(t.joinable()) t.join();
@@ -578,6 +589,8 @@ namespace apdcam10g
     {
         cerr<<"[DAQ] Stopping with timeout "<<timeout_sec<<endl;
 
+        command_thread_.request_stop();
+
         // These threads do not need to be requested to stop because they do so anyway if their input
         // ring_buffers get their 'terminated' flag set. 
         //processor_thread_.request_stop();
@@ -588,6 +601,7 @@ namespace apdcam10g
         // the channel data buffers' flags to true, which in turn will cause the processor thread to
         // stop as well
         for(auto &t : network_threads_) t.request_stop();
+
 
         if(timeout_sec>0)
         {
@@ -612,6 +626,7 @@ namespace apdcam10g
             if(extractor_threads_active_[i_socket].test()) pthread_kill(extractor_threads_[i_socket].native_handle(), SIGTERM);
         }
         if(processor_thread_active_.test()) pthread_kill(processor_thread_.native_handle(), SIGTERM);
+        if(command_thread_active_.test()) pthread_kill(command_thread_.native_handle(), SIGTERM);
 
         return *this;
     }

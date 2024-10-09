@@ -86,7 +86,9 @@ class Measure(QtWidgets.QWidget):
                    True,True,True,True,False,False,False,False,
                    True,True,True,True,False,False,False,False] ]
 
-        self.gui.camera.measure(channelMasks=masks,resolutionBits=14)
+        processors = [ProcessorTest(),"diskdump"]
+
+        self.gui.camera.measure(channelMasks=masks,resolutionBits=14,processorTasks=processors)
 
 #         daq.instance().debug(False)
 #         daq.instance().get_net_parameters()

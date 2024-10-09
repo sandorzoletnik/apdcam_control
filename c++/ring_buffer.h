@@ -86,6 +86,14 @@ namespace apdcam10g
         {
             return buffer_;
         }
+        
+        // Reset the statistics data, which calculates the maximum buffer (fill) size during operation, the average
+        // fill size, and its sigma
+        virtual void reset_statistics()
+        {
+            sum_size_ = sum_size2_ = sum_n_ = 0;
+            max_size_=0;
+        }
 
         void resize(size_t buffer_size, size_t extra_size=0)
         {

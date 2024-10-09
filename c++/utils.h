@@ -9,8 +9,16 @@
 
 namespace apdcam10g
 {
+    // Concatenate a filesystem::path and a string, without directory separator.
+    inline std::filesystem::path operator+(const std::filesystem::path &p1, const std::string &p2)
+    {
+        return p1.string()+p2;
+    }
+
+    // Return the home directory of the current user
     std::filesystem::path homedir();
 
+    // Return the directory where configuration and working files (such as the command FIFO) are stored
     std::filesystem::path configdir();
 
     // Take the square of anything

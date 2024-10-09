@@ -2,6 +2,7 @@
 #include "error.h"
 #include <iostream>
 #include <string.h>
+#include "utils.h"
 
 using namespace std;
 
@@ -58,8 +59,9 @@ try
     }
     if(!settings_ok) 
     {
-        cerr<<"Trying to read settings from default file: settings.cnf"<<endl;
-        cam.read_settings("apdcam-daq.cnf");
+        auto settings_filename = apdcam10g::configdir() / "daq.cnf";
+        cerr<<"Trying to read settings from default file: "<<settings_filename<<endl;
+        cam.read_settings(settings_filename);
     }
 
     // Determine the MTU, set package size, etc

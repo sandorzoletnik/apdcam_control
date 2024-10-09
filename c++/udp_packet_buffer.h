@@ -11,8 +11,8 @@ namespace apdcam10g
 {
     struct udp_packet_record 
     {
-        apdcam10g::byte *address;
-        unsigned int size;
+        apdcam10g::byte *address; // Memory address where the data is stored
+        unsigned int size;        // Size of the packetin bytes
     };
 
     template <safeness S=default_safeness>
@@ -41,35 +41,24 @@ namespace apdcam10g
         udp_packet_buffer() {}
         udp_packet_buffer(unsigned int size_in_packets, unsigned int max_udp_packet_size) 
         {
-
             resize(size_in_packets,max_udp_packet_size);
         }
 
-        unsigned int lost_packets() const { return lost_packets_; }
-        unsigned int received_packets() const { return received_packets_; }
-
-        void resize(unsigned int size_in_packets, unsigned int max_udp_packet_size)
+        // Reset the statistics (max and average buffer fill size, and the number of lost/received packets)
+        void reset_statistics() override
         {
-            ring_buffer<udp_packet_record>::resize(size_in_packets);
-            
-	    size_in_packets_ = size_in_packets;
-            max_udp_packet_size_ = max_udp_packet_size;
-            if(raw_buffer_) delete [] raw_buffer_;
-
-            // Allocate the raw buffer. For each packet allocate 2 more bytes so that if there is a channel
-            // value which spills over into a next packet (by max 2 bytes), we can copy it to the end of
-            // the previous buffer
-            raw_buffer_ = new apdcam10g::byte[size_in_packets*(max_udp_packet_size+2)];
-
-            // Store the pointers to 'max_udp_packet_size' chunks within the raw buffer into
-            // the ring_buffer. 
-            for(unsigned int i=0; i<size_in_packets_; ++i)
-            {
-                if(auto p = future_element(i)) *p = { raw_buffer_ + i*(max_udp_packet_size_+2), 0 };
-                else APDCAM_ERROR("This should not happen");
-            }
+            ring_buffer<udp_packet_record>::reset_statistics();
+            received_packets_ = lost_packets_ = 0;
         }
 
+        // Returns the number of lost packets since the last 'reset_statistics' call
+        unsigned int lost_packets() const { return lost_packets_; }
+
+        // Returns the number of received packets since the last 'reset_statistics' call
+        unsigned int received_packets() const { return received_packets_; }
+
+        // Resize the buffer's capacity, and reset the statistics counters
+        void resize(unsigned int size_in_packets, unsigned int max_udp_packet_size);
         
         ~udp_packet_buffer()
         {
@@ -78,10 +67,9 @@ namespace apdcam10g
 
         // Receive a UDP packet from the server. Detect missing packets (by the packet_counter field of the CC header),
         // and if packets are lost, substitute them with dummy packets containing all zeros.
-        // This function should not be called simultaneously from concurrent threads!
-        // It returns the number of bytes received, or a negative number on error. When this 
+        // This function MUST NOT be called simultaneously from concurrent threads!
+        // It returns the number of bytes received, or a negative number on error.
         unsigned int receive(udp_server &s,std::stop_token &stok);
-
 
     };
 }

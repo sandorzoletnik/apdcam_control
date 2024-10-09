@@ -22,9 +22,14 @@
 
 namespace apdcam10g
 {
-    //template <safeness S = default_safeness> class channel_data_extractor;
+    // The 'daq' class is the topmost element in the DAQ system. It starts "network threads"
+    // for each input socket which  dump the UDP packets into ring-buffers associated with each socket.
+    // It starts "extraction threads" for each socket to extract the data packed into and split among
+    // subsequent UDP packets, and dump this data into ring buffers associated with each channel.
+    // It starts a data processor thread that runs a sequence of processor tasks which can be
+    // defined by the user. And finally, it starts a command interpreter thread which reads input from
+    // the FIFO ~/.apdcam10g/cmd in order to provide a very simple control interface for external programs.
 
-    // The 'daq' class handles all sockets used for data transfer between the camera and the PC
     class daq : public daq_settings
     {
         friend class processor_diskdump;
@@ -34,12 +39,13 @@ namespace apdcam10g
         // An atomic flag to indicate whether the python task can run (or is running). Logically it should be a
         // static variable in the scope of processor_python, but on the python side, we will load (ctypes.CDLL)
         // all functions from  the shared library in the 'daq' "scope", so let's do the same here as well. Also,
-        // since class daq is a singleton with an on-demand created instance, we can use a simple data member, 
+        // since class 'daq' is a singleton with an on-demand created instance, we can use a simple data member, 
         // no need to worry about global data initialization order, etc
         std::atomic_flag python_analysis_run_;
 
         // A flag to signal the python processor loop (if there are any python processors added)
-        // that the data flow has terminated. The python loop is not waiting on this, so it is necessary to wake
+        // that the data flow has terminated (nor more data is going to be processed).
+        // The python loop is not waiting on this, so it is necessary to wake
         // it up by setting the python_analysis_run_ flag
         std::atomic_flag python_analysis_stop_;
 
@@ -50,19 +56,22 @@ namespace apdcam10g
         // variables to communicate the available data range to the python processors
         size_t python_analysis_data_available_from_ = 0;
         size_t python_analysis_data_available_to_ = 0;
-        
 
+        // A flag to control debugging output
         bool debug_ = false;
 
+        // Self-explanatory flag
         bool dual_sata_ = false;
 
+        // Firmware version of the camera hardware
         version fw_version_ = version::v1;
 
-        // The period (number of shots) for calling the processor tasks on the channel data. The default 100 means that once there are
-        // 100 new shots in the buffer, all processor tasks are triggered and run.
+        // The period (number of shots) for calling the processor tasks on the channel data. The default 128 means that once there are
+        // 128 new shots in the buffer, all processor tasks are triggered and run.
         // It must be a power of 2
         unsigned int process_period_ = 128;
 
+        // The input network sockets to read data from
         std::vector<udp_server>  sockets_;
       
         // A set of buffers to store received UDP packets, transparently handling packet loss
@@ -71,12 +80,13 @@ namespace apdcam10g
   
         // In order to store channel info (which ADC board this channel belongs to, channel number, chip number etc),
         // the 3rd template argument of ring_buffer is channel_info so that we derive from channel_info 
-    public:
         typedef ring_buffer<apdcam10g::data_type,channel_info> channel_data_buffer_t;
-    private:
-        // a vector of nof_adc*channels_per_board buffer pointers. Non-enabled channels will be
-        // associated with a null pointer. No room is allocated for missing entire ADC boards
-        // since these would be 0 pointers
+
+        // a vector of nof_adc*channels_per_board buffer pointers. That is, we have a slot for each hardware
+        // channel, even if it is not enabled, and will receive no data.
+        // Non-enabled channels will be  associated with a null pointer. Rationale: python analysis tasks
+        // do not need to 
+        // However, no room is allocated for missing entire ADC boards since these would be 0 pointers
         std::vector<channel_data_buffer_t*> all_channels_buffers_;
 
         // Flattened vector of the pointers to buffers for all enabled channels from all boards
@@ -118,11 +128,14 @@ namespace apdcam10g
 
     public:
 
+        // A function to query the status of the python_analysis_stop_ flag. It will be called from the python
+        // code within the processor loop to terminate if this is true
         bool python_analysis_stop();
+
+        // Setting the phthon_analysis_stop_ flag (from C++) to stop the python analysis loop. 
         void python_analysis_stop(bool b);
 
-
-        // To be called from the C++ code. Wait for the python analysis to finish. Block the calling thread until then
+        // To be called from the C++ code. Wait for the python analysis to finish. Block the calling thread until then.
         // It returns the 'need_data_from' value that the python analysis task communicated to the C++ code
         size_t python_analysis_wait_finish();
 
@@ -132,7 +145,8 @@ namespace apdcam10g
         void python_analysis_wait_for_data(size_t *from_counter, size_t *to_counter);
 
         // To be called from C++
-        // Set the available data range such that the python task can query it, and
+        // Set the available data range such that the python task can query it (via the 
+        // above 'python_analysis_wait_for_data function') and
         // set the flag which signals the python thread to run the analysis task
         void python_analysis_start(size_t from_counter, size_t to_counter); 
 
@@ -140,7 +154,6 @@ namespace apdcam10g
         // task is done. Also, communicate from which shot the python analysis requires data to
         // remain in the buffer
         void python_analysis_done(size_t need_data_from);
-
 
         // Accessing the singleton instance
         static daq &instance();

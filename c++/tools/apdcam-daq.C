@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <filesystem>
 
 using namespace apdcam10g;
 using namespace std;
@@ -16,6 +17,10 @@ void help()
 {
     cout<<"Usage: apdcam-data-recorder [options]"<<endl<<endl;
     cout<<"  -i <interface>                   Set the network interface. Defaults to 'lo'"<<endl;
+    cout<<"  -c <command ...>                 Send a command to a running APDCAM DAQ process. The rest of the command"<<endl;
+    cout<<"                                   line arguments is interpreted as the command and is simply written"<<endl;
+    cout<<"                                   into the named pipe ~/.apdcam10g/cmd"<<endl;
+    cout<<"  -d directory                     Specify the output directory for diskdump (i.e. where the per-channel data is written)"<<endl;
     cout<<"  -s|--sample-buffer <interface>   Set the sample buffer size. Must be power of 2. Defaults to "<<daq::instance().sample_buffer_size()<<endl;
     cout<<"  -n|--network-buffer <interface>  Set the network ring buffer size in terms of UDP packets. Must be power of 2. Defaults to "<<daq::instance().network_buffer_size()<<endl;
     cout<<"  -d                               Set debug mode"<<endl;
@@ -50,6 +55,27 @@ try
     for(unsigned int opt=1; opt<argc; ++opt)
     {
         if(!strcmp(argv[opt],"-h") || !strcmp(argv[opt],"--help")) help();
+        else if(!strcmp(argv[opt],"-c"))
+        {
+            auto fifo_name = configdir() / "cmd";
+            if(!std::filesystem::is_fifo(fifo_name)) 
+            {
+                cerr<<"No apdcam data acquisition process seems to be running. The FIFO "<<fifo_name<<" does not exist"<<endl;
+                exit(1);
+            }
+            ofstream fifo(fifo_name);
+            for(int i=opt+1; i<argc; ++i)
+            {
+                if(i>opt+1) fifo<<" ";
+                fifo<<argv[i];
+            }
+            fifo<<endl;
+        }
+        else if(!strcmp(argv[opt],"-d"))
+        {
+            if(opt+1>=argc) APDCAM_ERROR("Directory name expected after -d");
+            processor_diskdump::default_output_dir(argv[++opt]);
+        }
         else if(!strcmp(argv[opt],"-i"))
         {
             if(opt+1>=argc) APDCAM_ERROR("Missing argument (interface) after -i");

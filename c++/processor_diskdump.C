@@ -4,29 +4,34 @@
 namespace apdcam10g
 {
     unsigned int processor_diskdump::default_sampling_ = 1;
+    std::filesystem::path processor_diskdump::default_output_dir_ = ".";
 
     void processor_diskdump::init()
     {
           // Close all files, if there are any
           for(auto &f : files_) f.close();
           files_.clear();
+
+          // Create a file for each enabled channel
           files_.resize(daq_->all_enabled_channels_buffers_.size());
 
+          // Reset the pause flag to false.
           pause_.clear();
           previous_pause_ = false;
 
+          // Open the files for each channel
           auto p = filename_pattern_.find('%');
           if(p==string::npos) APDCAM_ERROR("The filename pattern does not contain the character %");
-
           for(unsigned int i=0; i<daq_->all_enabled_channels_buffers_.size(); ++i)
           {
-              const std::string filename =
-                  output_dir_ + "/" +
+              const std::filesystem::path filename =
+                  output_dir_ / 
                   filename_pattern_.substr(0,p) + 
                   std::to_string(daq_->all_enabled_channels_buffers_[i]->absolute_channel_number) +
                   filename_pattern_.substr(p+1);
               files_[i].open(filename);
           }
+          // The next data (shot) to be processed is #0
           next_data_ = 0;
     }
 
