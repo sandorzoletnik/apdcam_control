@@ -36,6 +36,9 @@ namespace apdcam10g
         udp_packet_record *record_ptr;
         while((record_ptr=future_element(0))==0 && !stok.stop_requested());
 
+        // If the actual thread running this code was requested to stop,
+        // then simply return, and set the 'terminated' flag to true so that consumers can detect
+        // this and quit too.
         if(stok.stop_requested())
         {
             terminate();
@@ -45,7 +48,7 @@ namespace apdcam10g
         // Get the pointer within the raw buffer, where the data should be received
         apdcam10g::byte* const ptr = record_ptr->address;
 
-        // Receive the packet from the UDP socket
+        // Receive the packet from the UDP socket into this memory location
         const auto received_packet_size = s.recv<S>(ptr,max_udp_packet_size_);
 
         // If an error occurs (normally: timeout, the camera stops sending), set the 'terminated' flag
@@ -71,20 +74,23 @@ namespace apdcam10g
         byte_converter<6,std::endian::big> packet_counter(ptr+8);
         if(packet_counter < expected_packet_counter_) APDCAM_ERROR("Packet counter has decreased");
 
+        // If we received the expected packet, everything is all right
         if(packet_counter == expected_packet_counter_)
         {
-            // Advance the back of the ring buffer, thereby 'publishing' the new available data
+            // Advance the back of the ring buffer, thereby 'publishing' the new available data: one packet
             publish(1);
         }
-	else // packet loss
+	else // otherwise, packet loss...
 	{
             // First, create zero-filled packets in the raw buffer (physically AFTER the received packet,
             // although the time order should have been the opposite), and add them to the ring buffer
             const unsigned int nof_lost_packets = packet_counter - expected_packet_counter_;
             // We have not yet 'published' the new packet, so we need to have nof_lost_packets+1 free space available
 
+            // Keep track of how many packets have been lost in total (accumulative counter)
             lost_packets_ += nof_lost_packets;
-            
+
+            // Add nof_lost_packet empty packets to the buffer
             udp_packet_record *empty_record_ptr;
             for(unsigned int i=0; i<nof_lost_packets; ++i)
             {
@@ -101,24 +107,25 @@ namespace apdcam10g
                 add_empty_packet_(empty_record_ptr,expected_packet_counter_+i,max_udp_packet_size_);
             }
             
-            // Now the empty packets are after the received one. Swap the received one to the end
+            // Now the empty packets are after the received one. Swap the received one with the last empty to
+            // get the order right
             swap(*record_ptr,*empty_record_ptr);
             
             // And finally publish the new data to the consumers
             publish(nof_lost_packets+1);
 	}
+        
 	expected_packet_counter_ = packet_counter+1;
 	return received_packet_size;
     }
 
     template <safeness S>
-    //void udp_packet_buffer<S>::add_empty_packet_(apdcam10g::byte *address,unsigned int counter)
     void udp_packet_buffer<S>::add_empty_packet_(udp_packet_record *record_ptr,unsigned int counter, unsigned int packet_size)
     {
-      // Fill the next block with zeros
+        // Fill the next block with zeros
         memset(record_ptr->address,0,packet_size);
         record_ptr->size = packet_size;
-
+        
         // Set the packet counter in the header to the specified value
         // WARNING, we should set other header data as well!
         byte_converter<6,std::endian::big> packet_counter(record_ptr->address+8);

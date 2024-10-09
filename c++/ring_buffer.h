@@ -3,6 +3,10 @@
   ring_buffer is a fixed-size buffer offering a cyclic push-pop operation. It is only thread-safe in a
   single-producer/single-consumer scheme. 
 
+  Pop operation (i.e. removing objects from the buffer) do not call
+  the destructor of the removed objects. This is ok for built-in types
+  but may make surprises for class objects.
+
   Instead of cyclically reset the push/pop indices to zero whenever they reach the end of the buffer
   (this should be checked by an if statement every time these indices are updated, i.e. an element is
   pushed or popped), we keep track of the actual data stored in the buffer using two counters which
@@ -18,7 +22,16 @@
       the count of data of the individual channels that can be used. The above scheme (i.e. a
       continuously running counter for both push and pop positions) automatically provides
       this feature
-  
+
+  ring_buffer is a template class with two template types:
+  1 - The first type is of course the data type that this buffer can store
+  2 - An optional class from which ring_buffer will derive. It will inherit all public members
+      of this base class type. This is an elegant way to easily augment the functionality
+      of ring_buffer with further services. In the current context, this feature will be used
+      for the buffers storing the subsequent values of the individual channels. The ring_buffer
+      storing these values will derive from channel_info so that channel number, board number
+      and further info can directly be queried from the corresponding ring_buffer
+      
  */
   
 #ifndef __APDCAM10G_RING_BUFFER_H__
@@ -37,6 +50,7 @@ using namespace std;
 
 namespace apdcam10g
 {
+    // An empty class serving as the default base class type. It adds no overhead.
     class EMPTY_RING_BUFFER_BASE {};
 
     template<typename T, typename BASE=EMPTY_RING_BUFFER_BASE>
@@ -50,7 +64,7 @@ namespace apdcam10g
         alignas(std::hardware_destructive_interference_size) std::atomic<size_t> pop_counter_;
         std::atomic<size_t> push_counter_;
 
-        // mask_ is the buffersize-1. Buffersize must be power of 2 so mask will be used to
+        // mask_=buffersize-1. Buffersize must be power of 2 so mask will be used to
         // enforce cyclic indexing (modulo buffersize of the continuously running counters)
         size_t mask_;
 
@@ -131,21 +145,25 @@ namespace apdcam10g
             }
         }
 
+        // Copy the values from an instance of its base class using the base class's assignment operator
         void copy_values(const BASE &rhs)
         {
             BASE::operator=(rhs);
         }
 
+        // Query the 'terminated' flag
         bool terminated() const
         {
             return terminated_.test(std::memory_order_acquire);
         }
 
+        // Set the 'terminated' flag to signal consumers that no more data is coming down via this buffer
         void terminate()
         {
             terminated_.test_and_set(std::memory_order_release);
         }
 
+        // Query the pop and push counters
         size_t pop_counter() const 
         {
             return pop_counter_.load(std::memory_order_acquire);
@@ -155,7 +173,10 @@ namespace apdcam10g
             return push_counter_.load(std::memory_order_acquire);
         }
 
-        bool push(T const& value)
+        // Push a new element into the buffer. This function does not wait until free slots are avialable: it returns
+        // nullptr immediately if the buffer is full. So a wait loop needs to be implemented around the call of this function.
+        // In case of success, it returns a pointer to the newly stored object within the buffer.
+        T *push(T const& value)
         {
             // Take a snapshot of the current status. Read pop_index as second to very slightly increase the chance
             // that the consumer thread liberates space
@@ -167,6 +188,7 @@ namespace apdcam10g
             // Buffer is full
             if(push_counter >= pop_counter+mask_+1) return 0;
 
+            // Accumulate the statistical variables
             {
                 const size_t s = size();
                 ++sum_n_;
@@ -175,10 +197,11 @@ namespace apdcam10g
                 if(s>max_size_) max_size_ = s;
             }
 
-            // We are the only producers, and we have room. No other thread will produce data into the buffer, i.e.
-            // no other thread will decrease the available space. Just write to the new place
+            // We are the only producers, and we have room. No other thread is producing data into the buffer, i.e.
+            // no other thread has decreased the available space since we last checked it. So just write to the new place
             buffer_[push_counter&mask_] = value;
 
+            // Get a pointer to the newly stored object
             const T* ptr = buffer_+(push_counter&mask_);
 
             // We are the only producers, no other thread has changed push_counter_ in the meantime, so use the snapshot value 'push_counter', incremented
@@ -209,6 +232,7 @@ namespace apdcam10g
 
         // If the buffer is non-empty, copy the front element into 'value', remove it from the buffer, and return true
         // Otherwise return false;
+        // Does not call the destructor of the object that is removed from the buffer.
         bool pop(T &value)
         {
             // Take a snapshot of the current status. Read push_counter as second to very slightly increase the chance that the producer thread added new data

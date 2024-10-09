@@ -7,6 +7,12 @@
 #include <condition_variable>
 #include <mutex>
 
+/*
+  udp_packet_buffer is a class derived from ring_buffer which can store UDP packets of a (max) given size.
+  It offers a receive(...) function which interprets the CC header of the packets, and detects if some
+  packets were lost. In this case it automatically creates these packets, filled with zeros
+ */
+
 namespace apdcam10g
 {
     struct udp_packet_record 
@@ -19,7 +25,8 @@ namespace apdcam10g
     class udp_packet_buffer : public ring_buffer<udp_packet_record>
     {
     private:
-        // A raw buffer for the storage of the packets, of size integer times 'max_udp_packet_size_'
+        // A raw buffer for the storage of the packets. The raw memory buffer will have a size 
+        // which is an integer times 'max_udp_packet_size_' 
         apdcam10g::byte   *raw_buffer_ = 0;
 
         // Number of packets the buffer can store
