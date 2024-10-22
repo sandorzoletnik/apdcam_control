@@ -9,6 +9,8 @@ namespace apdcam10g
     {
     public:
 
+        processor_python() { name_ = "processor_python"; }
+
         // The 'run' method simply raises the semaphore for the next python analysist task, and then waits
         //until the python code releases the same semaphore. It then returns the value that the python
         // code communicated back to us, the counter of the next shot needed. 

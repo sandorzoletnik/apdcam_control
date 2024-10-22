@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 
 #include "daq.h"
 #include "utils.h"
@@ -253,6 +254,13 @@ namespace apdcam10g
     {
         write_settings(configdir() / "daq.cnf");
 
+        {
+            auto pid_file_name = configdir() / "pid";
+            ofstream pid_file(pid_file_name);
+            if(!pid_file.good()) APDCAM_ERROR("Could not create PID file " + pid_file_name.string());
+            pid_file<<getpid()<<endl;
+        }
+
         network_threads_.clear();
         extractor_threads_.clear();
         for(unsigned int i=0; i<config::max_boards; ++i)
@@ -273,7 +281,7 @@ namespace apdcam10g
         processor_thread_ = std::jthread( [this](std::stop_token stok)
             {
                 flag_locker flk(processor_thread_active_);
-                const std::string prompt = "[DAQ/PROC ]";
+                const std::string prompt = "[DAQ/PROC] ";
                 {
                     output_lock lck;
                     cerr<<prompt<<"Thread started"<<endl;
@@ -608,8 +616,9 @@ namespace apdcam10g
             for(unsigned int t=0; t<timeout_sec; ++t)
             {
                 sleep(1);
-                auto [n1,n2,n3] = status();
-                if(n1==0 && n2==0 && n3==0) return *this;
+                if(network_threads()==0 && extractor_threads()==0 && processor_threads()==0) return *this;
+                //auto [n1,n2,n3] = status();
+                //if(n1==0 && n2==0 && n3==0) return *this;
             }
             kill();
         }
@@ -631,6 +640,31 @@ namespace apdcam10g
         return *this;
     }
 
+    unsigned int daq::network_threads() const
+    {
+        unsigned int nthreads = 0;
+        for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
+        {
+            if(network_threads_active_[i_socket].test()) ++nthreads;
+        }
+        return nthreads;
+    }
+    unsigned int daq::extractor_threads() const
+    {
+        unsigned int nthreads = 0;
+        for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
+        {
+            if(extractor_threads_active_[i_socket].test()) ++nthreads;
+        }
+        return nthreads;
+    }
+    unsigned int daq::processor_threads() const
+    {
+        if(processor_thread_active_.test()) return 1;
+        return 0;
+    }
+
+    /*
     tuple<unsigned int, unsigned int, unsigned int> daq::status() const
     {
         unsigned int active_network_threads = 0;
@@ -644,7 +678,38 @@ namespace apdcam10g
         }
         return {active_network_threads, active_extractor_threads, active_processor_thread};
     }
+    */
 
+    size_t daq::received_packets(unsigned int i_stream) const
+    {
+        if(i_stream>=network_buffers_.size()) return 0;
+        return network_buffers_[i_stream]->push_counter();
+    }
+    size_t daq::lost_packets(unsigned int i_stream) const
+    {
+        if(i_stream>=network_buffers_.size()) return 0;
+        return network_buffers_[i_stream]->lost_packets();
+    }
+    size_t daq::extracted_shots(unsigned int i_channel) const
+    {
+        if(i_channel>=all_channels_buffers_.size()) return 0;
+        return all_channels_buffers_[i_channel]->push_counter();
+    }
+
+    size_t daq::network_buffer_content(unsigned int i_stream) const
+    {
+        if(i_stream>=network_buffers_.size()) return 0;
+        return network_buffers_[i_stream]->size();
+    }
+    size_t daq::channel_buffer_content(unsigned int i_channel) const
+    {
+        if(i_channel>=all_channels_buffers_.size()) return 0;
+        if(all_channels_buffers_[i_channel] == 0) return 0;
+        return all_channels_buffers_[i_channel]->size();
+    }
+
+
+    /*
     tuple<size_t,size_t> daq::statistics() const
     {
         size_t n_packets = 0;
@@ -663,6 +728,7 @@ namespace apdcam10g
 
         return {n_packets,n_shots};
     }
+    */
 
     daq &daq::clear_processors()
     {
@@ -711,133 +777,318 @@ namespace apdcam10g
 extern "C"
 {
     using namespace apdcam10g;
-    void         start(bool wait) { daq::instance().start(wait); }
-    void         stop(bool wait) { daq::instance().stop(wait); }
-    void         kill_all() { daq::instance().kill(); }
-    void         version(apdcam10g::version v) { daq::instance().fw_version(apdcam10g::version(v)); }
+
+    unsigned int n_adc()
+    {
+        return daq::instance().n_adc();
+    }
+    unsigned int n_channels()
+    {
+        return daq::instance().n_channels();
+    }
+
+    void         start(bool wait) 
+    { 
+        try
+        {
+            daq::instance().start(wait); 
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }
+    }
+    void         stop(bool wait) 
+    { 
+        try
+        {
+            daq::instance().stop(wait); 
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }
+    }
+    void         kill_all() 
+    { 
+        try
+        {
+            daq::instance().kill(); 
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }
+    }
+    void         version(apdcam10g::version v) 
+    { 
+        try
+        {
+            daq::instance().fw_version(apdcam10g::version(v)); 
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }
+    }
     void         dual_sata(bool d) { daq::instance().dual_sata(d); }
 
     void get_net_parameters()
     {
-        daq::instance().get_net_parameters();
+        try
+        {
+            daq::instance().get_net_parameters();
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }
     }
 
     void channel_masks(bool **m, int n_adc_boards)
     {
-        std::vector<std::vector<bool>> chmasks(n_adc_boards);
-        for(unsigned int i_adc_board=0; i_adc_board<n_adc_boards; ++i_adc_board)
+        try
         {
-            for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
+            std::vector<std::vector<bool>> chmasks(n_adc_boards);
+            for(unsigned int i_adc_board=0; i_adc_board<n_adc_boards; ++i_adc_board)
             {
-                chmasks[i_adc_board].push_back(m[i_adc_board][i_board_channel]);
+                for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
+                {
+                    chmasks[i_adc_board].push_back(m[i_adc_board][i_board_channel]);
+                }
             }
+            daq::instance().channel_masks(chmasks);
         }
-        daq::instance().channel_masks(chmasks);
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }
     }
 
     void resolution_bits(unsigned int *r, int n_adc_boards)
     {
-        std::vector<unsigned int> res(n_adc_boards);
-        for(unsigned int i_adc_board=0; i_adc_board<n_adc_boards; ++i_adc_board)
+        try
         {
-            res[i_adc_board] = r[i_adc_board];
+            std::vector<unsigned int> res(n_adc_boards);
+            for(unsigned int i_adc_board=0; i_adc_board<n_adc_boards; ++i_adc_board)
+            {
+                res[i_adc_board] = r[i_adc_board];
+            }
+            daq::instance().resolution_bits(res);
         }
-        daq::instance().resolution_bits(res);
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }
     }
 
     void init(bool is_safe)
     {
-        if(is_safe) daq::instance().init<safe>();
-        else        daq::instance().init<unsafe>();
+        try
+        {
+            if(is_safe) daq::instance().init<safe>();
+            else        daq::instance().init<unsafe>();
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }
     }
+
+    void network_buffer_size(unsigned int bufsize)
+        try
+        {
+            daq::instance().network_buffer_size(bufsize);
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }
+    void sample_buffer_size(unsigned int bufsize)
+        try
+        {
+            daq::instance().sample_buffer_size(bufsize);
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }
+
+    unsigned int get_network_buffer_size()
+    {
+        return daq::instance().network_buffer_size();
+    }
+    unsigned int get_sample_buffer_size()
+    {
+        return daq::instance().sample_buffer_size();
+    }
+
+    unsigned int get_mtu()
+    {
+        return daq::instance().mtu();
+    }
+    unsigned int get_octet()
+    {
+        return daq::instance().octet();
+    }
+
 
     void debug(bool d)
     {
         daq::instance().debug(d);
     }
 
-
     void add_processor_diskdump()
     {
-        daq::instance().add_processor(new processor_diskdump);
+        try
+        {
+            daq::instance().add_processor(new processor_diskdump);
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }            
     }
 
     void add_processor_python()
     {
-        daq::instance().add_processor(new processor_python);
+        try
+        {
+            daq::instance().add_processor(new processor_python);
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }            
     }
 
     void write_settings(const char *filename)
     {
-        daq::instance().write_settings(filename);
+        try
+        {
+            daq::instance().write_settings(filename);
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }            
     }
 
     void wait_finish()
-    {
-        daq::instance().wait_finish();
-    }
+        try
+        {
+            daq::instance().wait_finish();
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }            
 
     void dump()
     {
-        daq::instance().dump();
+        try
+        {
+            daq::instance().dump();
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }            
     }
 
     void get_buffer(unsigned int absolute_channel_number, unsigned int *buffersize, apdcam10g::data_type **buffer)
-    {
-        auto b = daq::instance().channel_buffer(absolute_channel_number);
-        if(b)
+        try
         {
-            *buffersize = b->capacity();
-            *buffer = b->raw_buffer();
-            return;
+            auto b = daq::instance().channel_buffer(absolute_channel_number);
+            if(b)
+            {
+                *buffersize = b->capacity();
+                *buffer = b->raw_buffer();
+                return;
+            }
+            *buffersize = 0;
+            *buffer = 0;
         }
-        *buffersize = 0;
-        *buffer = 0;
-    }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }    
 
     void python_analysis_wait_for_data(size_t *from_counter, size_t *to_counter)
-    {
-        daq::instance().python_analysis_wait_for_data(from_counter, to_counter);
-    }
+        try
+        {
+            daq::instance().python_analysis_wait_for_data(from_counter, to_counter);
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+    
 
     void python_analysis_done(size_t from_counter)
-    {
-        daq::instance().python_analysis_done(from_counter);
-    }
+        try
+        {
+            daq::instance().python_analysis_done(from_counter);
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }    
 
     void test()
     {
         cerr<<"daq::test"<<endl;
     }
 
-    void statistics(unsigned int *n_packets, unsigned int *n_shots)
+    unsigned int received_packets(unsigned int i_stream)
     {
-        auto [np,ns] = daq::instance().statistics();
-        *n_packets = np;
-        *n_shots   = ns;
+        return daq::instance().received_packets(i_stream);
     }
+    unsigned int lost_packets(unsigned int i_stream)
+    {
+        return daq::instance().lost_packets(i_stream);
+    }
+    unsigned int extracted_shots(unsigned int i_stream)
+    {
+        return daq::instance().extracted_shots(i_stream);
+    }
+    size_t network_buffer_content(unsigned int i_stream)
+    {
+        return daq::instance().network_buffer_content(i_stream);
+    }
+    size_t channel_buffer_content(unsigned int i_channel)
+    {
+        return daq::instance().channel_buffer_content(i_channel);
+    }
+    unsigned int network_threads()
+    {
+        return daq::instance().network_threads();
+    }
+    unsigned int extractor_threads()
+    {
+        return daq::instance().extractor_threads();
+    }
+    unsigned int processor_threads()
+    {
+        return daq::instance().processor_threads();
+    }
+    
+
+/*
+    void statistics(unsigned int *n_packets, unsigned int *n_shots)
+        try
+        {
+            auto [np,ns] = daq::instance().statistics();
+            *n_packets = np;
+            *n_shots   = ns;
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+    
 
     void status(unsigned int *n_active_network_threads, unsigned int *n_active_extractor_threads, unsigned int *n_active_processor_thread)
-    {
-        auto [net,ext,proc] = daq::instance().status();
-        *n_active_network_threads = net;
-        *n_active_extractor_threads = ext;
-        *n_active_processor_thread = proc;
-    }
+        try
+        {
+            auto [net,ext,proc] = daq::instance().status();
+            *n_active_network_threads = net;
+            *n_active_extractor_threads = ext;
+            *n_active_processor_thread = proc;
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+*/  
 
     void clear_processors()
-    {
-        daq::instance().clear_processors();
-    }
+        try
+        {
+            daq::instance().clear_processors();
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+    
 
     void diskdump_sampling(unsigned int s)
-    {
-        daq::instance().diskdump_sampling(s);
-    }
+        try
+        {
+            daq::instance().diskdump_sampling(s);
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+    
 
     bool python_analysis_stop()
     {
-        return daq::instance().python_analysis_stop();
+        try
+        {
+            return daq::instance().python_analysis_stop();
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+        return false;
     }
 
 }

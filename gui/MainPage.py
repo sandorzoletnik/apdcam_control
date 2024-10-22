@@ -52,13 +52,13 @@ class MainPage(QtWidgets.QWidget):
         self.disconnectCameraButton.setToolTip("Disconnect from the camera")
         l.addWidget(self.disconnectCameraButton)
 
-        self.startGuiUpdateButton = QtWidgets.QPushButton("Start GUI update")
-        self.startGuiUpdateButton.clicked.connect(self.gui.startGuiUpdate)
-        l.addWidget(self.startGuiUpdateButton)
+        self.startCameraUpdateButton = QtWidgets.QPushButton("Start camera status update")
+        self.startCameraUpdateButton.clicked.connect(lambda: self.gui.cameraPolling(True))
+        l.addWidget(self.startCameraUpdateButton)
 
-        self.stopGuiUpdateButton = QtWidgets.QPushButton("Stop GUI update")
-        self.stopGuiUpdateButton.clicked.connect(self.gui.stopGuiUpdate)
-        l.addWidget(self.stopGuiUpdateButton)
+        self.stopCameraUpdateButton = QtWidgets.QPushButton("Stop camera status update")
+        self.stopCameraUpdateButton.clicked.connect(lambda: self.gui.cameraPolling(False))
+        l.addWidget(self.stopCameraUpdateButton)
 
         self.cameraConnectedStatus = QtWidgets.QLabel("Camera status: camera disconnected");
         l.addWidget(self.cameraConnectedStatus)
@@ -69,7 +69,6 @@ class MainPage(QtWidgets.QWidget):
         layout.addWidget(self.messages)
 
     def cameraOff(self):
-        self.gui.stopGuiUpdate()
         self.cameraConnectedStatus.setText("Camera status: disconnected")
         self.gui.status.connected = False
         self.gui.camera.close()  # APDCAM10G.controller should handle the case if camera is on or off when calling close()
@@ -138,5 +137,7 @@ class MainPage(QtWidgets.QWidget):
             self.cameraOff()
             return
 
-        self.gui.startGuiUpdate()
+        # Why are we doing this here, and not in ApdcamGui?
+        # self.gui.startGuiUpdate()
+
         self.gui.initSettingsOnConnect()

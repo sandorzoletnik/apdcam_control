@@ -3,6 +3,7 @@ import time
 import os
 import ctypes
 from DAQ import *
+from .ApdcamUtils import *
 
 import importlib
 from .QtVersion import QtVersion
@@ -65,21 +66,150 @@ class Measure(QtWidgets.QWidget):
         h.addWidget(self.dataDirectoryDialogButton)
         self.dataDirectoryDialogButton.clicked.connect(lambda: self.dataDirectory.setText(str(QtWidgets.QFileDialog.getExistingDirectory(self, "Select Directory"))))
 
+        
+        daqGroup = QVGroupBox("DAQ settings and monitoring")
+        layout.addWidget(daqGroup)
+        h = QtWidgets.QHBoxLayout()
+        daqGroup.addLayout(h)
+        h.addWidget(QtWidgets.QLabel("Network buffer size: "))
+        self.daqNetworkBufferSize = QtWidgets.QSpinBox()
+        self.daqNetworkBufferSize.setMinimum(2)
+        self.daqNetworkBufferSize.setMaximum(1<<20)
+        self.daqNetworkBufferSize.setValue(DAQ().get_network_buffer_size())
+        self.daqNetworkBufferSize.lineEdit().returnPressed.connect(lambda: DAQ().network_buffer_size(self.daqNetworkBufferSize.value()))
+        h.addWidget(self.daqNetworkBufferSize)
+        h.addStretch(1)
+
+        h.addWidget(QtWidgets.QLabel("Sample buffer size: "))
+        self.daqSampleBufferSize = QtWidgets.QSpinBox()
+        self.daqSampleBufferSize.setMinimum(2)
+        self.daqSampleBufferSize.setMaximum(1<<20)
+        self.daqSampleBufferSize.setValue(DAQ().get_sample_buffer_size())
+        self.daqSampleBufferSize.lineEdit().returnPressed.connect(lambda: DAQ().sample_buffer_size(self.daqSampleBufferSize.value()))
+        h.addWidget(self.daqSampleBufferSize)
+        h.addStretch(5)
+
+        h = QtWidgets.QHBoxLayout()
+        daqGroup.addLayout(h)
+        h.addWidget(QtWidgets.QLabel("MTU: "))
+        self.MTU_label = QtWidgets.QLabel()
+        h.addWidget(self.MTU_label)
+        h.addStretch(1)
+        h.addWidget(QtWidgets.QLabel("OCTET: "))
+        self.OCTET_label = QtWidgets.QLabel()
+        h.addWidget(self.OCTET_label)
+        h.addStretch(6)
+
+        h = QtWidgets.QHBoxLayout()
+        daqGroup.addLayout(h)
+        h.addWidget(QtWidgets.QLabel("Network threads: "))
+        self.networkThreads = QtWidgets.QLabel("0")
+        h.addWidget(self.networkThreads)
+        h.addStretch(1)
+        h.addWidget(QtWidgets.QLabel("Extractor threads: "))
+        self.extractorThreads = QtWidgets.QLabel("0")
+        h.addWidget(self.extractorThreads)
+        h.addStretch(1)
+        h.addWidget(QtWidgets.QLabel("Processor threads: "))
+        self.processorThreads = QtWidgets.QLabel("0")
+        h.addWidget(self.processorThreads)
+        h.addStretch(10)
+
+
+        h = QtWidgets.QHBoxLayout()
+        daqGroup.addLayout(h)
+        g = QtWidgets.QGridLayout()
+        h.addLayout(g)
+        h.addStretch(1)
+        g.addWidget(QtWidgets.QLabel("Received packets"),0,1)
+        g.addWidget(QtWidgets.QLabel("Lost packets"),0,2)
+        g.addWidget(QtWidgets.QLabel("Network buffer content"),0,3)
+
+        self.adcLabels = [QtWidgets.QLabel() for i in range(Config.max_boards)]
+        self.receivedPackets = [QtWidgets.QLabel() for i in range(Config.max_boards)]
+        self.lostPackets = [QtWidgets.QLabel() for i in range(Config.max_boards)]
+        self.networkBufferContent = [QtWidgets.QLabel() for i in range(Config.max_boards)]
+        for i_adc in range(Config.max_boards):
+            self.adcLabels[i_adc].setText("ADC" + str(i_adc))
+            g.addWidget(self.adcLabels[i_adc],i_adc+1,0)
+            g.addWidget(self.receivedPackets[i_adc],i_adc+1,1)
+            g.addWidget(self.lostPackets[i_adc],i_adc+1,2)
+            g.addWidget(self.networkBufferContent[i_adc],i_adc+1,3)
+
+        h = QtWidgets.QHBoxLayout()
+        daqGroup.addLayout(h)
+        h.addWidget(QtWidgets.QLabel("Channel buffer content: "))
+        self.channelBufferContent = QtWidgets.QLabel("---")
+        h.addWidget(self.channelBufferContent)
+        h.addStretch(1)
+
+        h = QtWidgets.QHBoxLayout()
+        layout.addLayout(h)
+
         self.measureButton = QtWidgets.QPushButton("Start measurement")
-        self.measureButton.clicked.connect(self.measure)
+        self.measureButton.clicked.connect(self.startMeasurement)
         self.measureButton.setToolTip("Start the measurement")
-        layout.addWidget(self.measureButton)
+        h.addWidget(self.measureButton)
+
+        self.stopMeasureButton = QtWidgets.QPushButton("Stop measurement");
+        self.stopMeasureButton.clicked.connect(self.stopMeasurement)
+        self.stopMeasureButton.setToolTip("Gracefully stop the data acquisition")
+        h.addWidget(self.stopMeasureButton)
+
+        self.abortMeasureButton = QtWidgets.QPushButton("Abort measurement");
+        self.abortMeasureButton.clicked.connect(self.abortMeasurement)
+        self.abortMeasureButton.setToolTip("Abort the data acquisition")
+        h.addWidget(self.abortMeasureButton)
 
         self.messages = QtWidgets.QTextEdit(self)
         layout.addWidget(self.messages)
 
         layout.addStretch(1)
 
+    def updateDaqState(self):
+        self.networkThreads.setText(str(DAQ().network_threads()))
+        self.extractorThreads.setText(str(DAQ().extractor_threads()))
+        self.processorThreads.setText(str(DAQ().processor_threads()))
+
+        n_adc = DAQ().n_adc()
+        for i_adc in range(Config.max_boards):
+            if i_adc<n_adc:
+                self.adcLabels[i_adc].show()
+                self.receivedPackets[i_adc].show()
+                self.lostPackets[i_adc].show()
+                self.networkBufferContent[i_adc].show()
+            else:
+                self.adcLabels[i_adc].hide()
+                self.receivedPackets[i_adc].hide()
+                self.lostPackets[i_adc].hide()
+                self.networkBufferContent[i_adc].hide()
+                
+
+        for i_adc in range(n_adc):
+            self.receivedPackets[i_adc].setText(str(DAQ().received_packets(i_adc)))
+            self.lostPackets[i_adc].setText(str(DAQ().lost_packets(i_adc)))
+            self.networkBufferContent[i_adc].setText(str(DAQ().network_buffer_content(i_adc)))
+
+        channel_buffer_content = ""
+        for i_channel in range(DAQ().n_channels()):
+            channel_buffer_content += str(DAQ().channel_buffer_content(i_channel)) + "  "
+        self.channelBufferContent.setText(channel_buffer_content)
+
     def show_message(self,msg):
         self.messages.append(msg)
 
 
-    def measure(self):
+    def abortMeasurement(self):
+        DAQ().kill_all()
+
+    def stopMeasurement(self):
+        DAQ().stop(False)
+        
+    def startMeasurement(self):
+
+        DAQ().get_net_parameters()
+        self.MTU_label.setText(str(DAQ().get_mtu()))
+        self.OCTET_label.setText(str(DAQ().get_octet()))
 
         masks = [ [True,True,True,True,False,False,False,False,
                    True,True,True,True,False,False,False,False,
@@ -88,45 +218,17 @@ class Measure(QtWidgets.QWidget):
 
         processors = [ProcessorTest(),"diskdump"]
 
+        self.gui.cameraPolling(False)
+
         self.gui.camera.measure(channelMasks=masks,resolutionBits=14,processorTasks=processors)
 
-#         daq.instance().debug(False)
-#         daq.instance().get_net_parameters()
-#         daq.instance().add_processor_python(ProcessorTest())
-#         daq.instance().add_processor_python(ProcessorTest())
-#         daq.instance().add_processor_diskdump();
-#         #daq.instance().dual_sata(self.getDualSata())
-        
-#         masks = [ [True,True,True,True,False,False,False,False,
-#                    True,True,True,True,False,False,False,False,
-#                    True,True,True,True,False,False,False,False,
-#                    True,True,True,True,False,False,False,False] ]
+        # return
 
-#         # daq.instance().channel_masks(convertToCArray(masks,ctypes.c_bool),len(masks))
-#         DAQ.instance().channel_masks(masks)
-#         res = [14]
-#         #daq.instance().resolution_bits(convertToCArray(res,ctypes.c_uint),len(res))
-#         DAQ.instance().resolution_bits(res)
-#         daq.instance().init(True);
-
-#         daq.instance().write_settings(b"apdcam-daq.cnf");
-# #        daq.instance().dump()
-#         daq.instance().start(False)
-
-#         print("Python has finished starting the DAQ")
-#         time.sleep(10)
-
-#         print("Python waiting for threads to finish")
-#         daq.instance().wait_finish()
-#         print("Python DAQ has finished")
-
-        return
-
-        if not self.gui.status.connected:
-            self.gui.show_error("Camera is not connected")
-            return
-        self.gui.stopGuiUpdate()
-        self.gui.show_warning("After the measurement is completed, please re-start the GUI update manually by clicking on the corresponding button in the 'Main' tab")
-        time.sleep(1)
-        self.gui.saveSettings(ask=False)
-        self.gui.camera.measure(numberOfSamples=self.sampleNumber.value(),datapath=self.dataDirectory.text(),timeout=self.timeout.value()*1000)
+        # if not self.gui.status.connected:
+        #     self.gui.show_error("Camera is not connected")
+        #     return
+        # self.gui.stopGuiUpdate()
+        # self.gui.show_warning("After the measurement is completed, please re-start the GUI update manually by clicking on the corresponding button in the 'Main' tab")
+        # time.sleep(1)
+        # self.gui.saveSettings(ask=False)
+        # self.gui.camera.measure(numberOfSamples=self.sampleNumber.value(),datapath=self.dataDirectory.text(),timeout=self.timeout.value()*1000)

@@ -71,50 +71,54 @@ class ApdcamGui(QtWidgets.QMainWindow):
     AMP_TEMP_SENSOR = 6
     POWER_TEMP_SENSOR = 16
 
-    def updateCameraState(self):
-        self.infrastructure.updateCameraState()
-        self.adcControl.updateCameraState()
-        self.controlTiming.updateCameraState()
-        self.cameraTimer.updateCameraState()
+    cameraStateRefreshed = QtCore.pyqtSignal()
 
-    def updateDaqState(self):
-        self.measure.updateDaqState()
-        
-    # An infinite loop in the background repeating every 1 seconds to periodically check the
-    # camera status (if it is connected, and if this is not prohibited by setting self.updateCameraStateFlag to False
-    # to avoid polling the camera while it is sending data), and to query and display the DAQ status
-    def updateGuiLoop(self):
+    def pollCameraStatus(self):
         while True:
+            if self.updateGuiThreadStop:
+                print("Stopping GUI update loop")
+                # modifying the gui from this thread is deadly
+                #self.show_message("Stopping GUI update loop")
+                return
 
-            if self.status.connected and self.updateCameraStateFlag:
-                self.camera.readStatus()
-                self.updateCameraStateSignal.emit()
-
-            self.updateDaqStateSignal.emit()
-
+            # if the camera is disconnected, we break the infinite loop of the update thread
+            # and return, terminating the thread
+            if not self.status.connected:
+                print("Camera is  disconnected, stopping the GUI update loop")
+                # modifying the gui from this thread is deadly
+                #self.show_message("Camera is disconnected, stopping the GUI update loop")
+                return
+            
             time.sleep(1)
 
+            self.camera.readStatus()
+
+            self.cameraStateRefreshed.emit()
+        
     def version_specific_setup(self):
         children = self.findChildren(QtWidgets.QWidget)
         for child in children:
             if hasattr(child,"version_specific_setup"):
                 child.version_specific_setup(self.camera.status.CC_firmware.decode('utf-8'))
 
+    def updateGui(self):
+        """
+        This function updates the GUI widgets from the camera status self.camera.status
+        """
+        self.infrastructure.updateGui()
+        self.adcControl.updateGui()
+        self.controlTiming.updateGui()
+        self.cameraTimer.updateGui()
+    
     def onTabChange(self):
         pass
-
-    updateCameraStateSignal = QtCore.pyqtSignal()
-    updateDaqStateSignal    = QtCore.pyqtSignal()
-    
 
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.updateCameraStateFlag   = True
-
-        self.updateCameraStateSignal.connect(self.updateCameraState)
-        self.updateDaqStateSignal.connect(self.updateDaqState)
+        self.cameraStateRefreshed.connect(self.updateGui)
+        
 
         self.camera = APDCAM10G_control()
         self.camera.setErrorHandler(lambda msg: self.show_error(msg))
@@ -267,16 +271,47 @@ class ApdcamGui(QtWidgets.QMainWindow):
         if hasattr(self,"early_messages") and self.early_messages != "":
             self.messages.setText(self.early_messages)
 
+        self.updateGuiThreadStop = True
+        self.updateGuiThread = None 
+
         self.adcControl.addAdc(1,1)
 
-        self.updateGuiThread = threading.Thread(target=self.updateGuiLoop)
-        self.updateGuiThread.start()
 
     def exitAAA(self,rc):
+        self.stopGuiUpdate(wait=True)
         QtWidgets.QApplication.exit(rc)
 
-    def cameraPolling(self,flag):
-        self.updateCameraStateFlag = flag
+    def startGuiUpdate(self):
+        if not self.status.connected:
+            self.show_message("Camera is not connected")
+            return
+        if self.updateGuiThread == None:
+            self.show_message("Starting GUI update")
+            self.updateGuiThreadStop = False
+            self.updateGuiThread = threading.Thread(target=self.pollCameraStatus)
+            self.updateGuiThread.start()
+        else:
+            self.show_message("GUI update is already running")
+
+    def stopGuiUpdate(self,wait=True):
+        """
+        Sets the 'stop' flag for the thread making the periodic update of the widgets from the values
+        obtained from the camera, and waits for the thread to terminate
+
+        Parameters:
+        ^^^^^^^^^^^
+        wait - boolean
+            If True, the function does not return until the periodic gui-update thread stopped
+
+        """
+        self.show_message("Signaling the GUI update to stop")
+        self.updateGuiThreadStop = True
+        self.updateGuiThread = None
+        if wait:
+            while hasattr(self.updateGuiThread,"is_alive") and self.updateGuiThread.is_alive():
+                #print("Still alive")
+                time.sleep(0.5)
+        self.show_message("GUI update thread stopped")
 
     def beforeBackendCall(self,*,name="",where=""):
         if not self.status.connected:

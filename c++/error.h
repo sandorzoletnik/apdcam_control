@@ -40,6 +40,12 @@ namespace apdcam10g
             // no stack unwinding?)
             if(!handled_) std::cerr<<"Unhandled error: "<<message_<<std::endl;
         }
+        
+        void print(std::ostream &out = std::cerr)
+        {
+            out<<full_message()<<std::endl;
+        }
+
     };
 
     inline std::ostream &operator<<(std::ostream &out, const error &e) 

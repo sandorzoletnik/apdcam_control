@@ -134,5 +134,7 @@ namespace apdcam10g
 
     template unsigned int udp_packet_buffer<apdcam10g::safe>::receive(udp_server &,std::stop_token &);
     template unsigned int udp_packet_buffer<apdcam10g::unsafe>::receive(udp_server &,std::stop_token &);
+    template void udp_packet_buffer<apdcam10g::safe>::resize(unsigned int, unsigned int);
+    template void udp_packet_buffer<apdcam10g::unsafe>::resize(unsigned int, unsigned int);
 
 }

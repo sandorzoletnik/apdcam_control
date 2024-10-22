@@ -14,7 +14,7 @@ from .ApdcamUtils import *
 from .GuiMode import *
 
 class Adc(QtWidgets.QWidget):
-    def updateGui(self):
+    def updateCameraState(self):
         # the byte-array storing the entire register table of the ADC board
         data = self.gui.camera.status.ADC_registers[self.number-1]
 
@@ -802,9 +802,9 @@ class Adc(QtWidgets.QWidget):
             self.show_error("Failed to get read offsets for ADC board " + str(self.number))
             
 class AdcControl(QtWidgets.QWidget):
-    def updateGui(self):
+    def updateCameraState(self):
         for adc in self.adc:
-            adc.updateGui()
+            adc.updateCameraState()
 
     def __init__(self,parent):
         self.gui = parent

@@ -278,7 +278,7 @@ class Infrastructure(QtWidgets.QWidget):
             self.dualSata.setChecked(ccDualSata)
             self.dualSata.blockSignals(False)
 
-    def updateGui(self):
+    def updateCameraState(self):
         for i in range(4):
             self.hvActual[i].setText("{:.1f}".format(self.gui.camera.status.HV_act[i]))
 

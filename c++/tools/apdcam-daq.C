@@ -20,6 +20,7 @@ void help()
     cout<<"  -c <command ...>                 Send a command to a running APDCAM DAQ process. The rest of the command"<<endl;
     cout<<"                                   line arguments is interpreted as the command and is simply written"<<endl;
     cout<<"                                   into the named pipe ~/.apdcam10g/cmd"<<endl;
+    cout<<"  -k|--kill                        kill the running apdcam DAQ process (if there is any), the PID of which is in ~/.apdcam10g/pid"<<endl;
     cout<<"  -d directory                     Specify the output directory for diskdump (i.e. where the per-channel data is written)"<<endl;
     cout<<"  -s|--sample-buffer <interface>   Set the sample buffer size. Must be power of 2. Defaults to "<<daq::instance().sample_buffer_size()<<endl;
     cout<<"  -n|--network-buffer <interface>  Set the network ring buffer size in terms of UDP packets. Must be power of 2. Defaults to "<<daq::instance().network_buffer_size()<<endl;
@@ -70,6 +71,16 @@ try
                 fifo<<argv[i];
             }
             fifo<<endl;
+        }
+        else if(!strcmp(argv[opt],"-k") || !strcmp(argv[opt],"--kill"))
+        {
+            auto pid_file_name = configdir() / "pid";
+            ifstream pid_file(pid_file_name);
+            if(!pid_file.good()) APDCAM_ERROR(std::string("Did not find PID file: ") + pid_file_name.string());
+            pid_t pid;
+            pid_file>>pid;
+            kill(pid,SIGKILL);
+            
         }
         else if(!strcmp(argv[opt],"-d"))
         {

@@ -202,7 +202,7 @@ namespace apdcam10g
             buffer_[push_counter&mask_] = value;
 
             // Get a pointer to the newly stored object
-            const T* ptr = buffer_+(push_counter&mask_);
+            T* ptr = buffer_+(push_counter&mask_);
 
             // We are the only producers, no other thread has changed push_counter_ in the meantime, so use the snapshot value 'push_counter', incremented
             push_counter_.store(push_counter+1,std::memory_order_release);

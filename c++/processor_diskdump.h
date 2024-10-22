@@ -52,6 +52,7 @@ namespace apdcam10g
   public:
       processor_diskdump() : output_dir_(default_output_dir_)
       {
+          name_ = "processor_diskdump";
           sampling_.store(default_sampling_);
       }
 

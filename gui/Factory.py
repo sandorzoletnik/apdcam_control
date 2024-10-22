@@ -74,7 +74,9 @@ class Factory(QtWidgets.QWidget):
 
     def uploadCCFirmware(self):
         #self.uploadCCFirmwareMessages.clear()
-        self.gui.stopGuiUpdate(wait=True)
+        self.gui.cameraPolling(False)
+        time.sleep(2)
+
         # try:
         #     self.uploadCCFirmwareButton.clicked.disconnect()
         # except:

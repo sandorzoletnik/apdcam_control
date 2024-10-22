@@ -20,6 +20,7 @@ namespace apdcam10g
           previous_pause_ = false;
 
           // Open the files for each channel
+          cerr<<"Opening diskdump output files: "<<filename_pattern_<<endl;
           auto p = filename_pattern_.find('%');
           if(p==string::npos) APDCAM_ERROR("The filename pattern does not contain the character %");
           for(unsigned int i=0; i<daq_->all_enabled_channels_buffers_.size(); ++i)
@@ -30,6 +31,10 @@ namespace apdcam10g
                   std::to_string(daq_->all_enabled_channels_buffers_[i]->absolute_channel_number) +
                   filename_pattern_.substr(p+1);
               files_[i].open(filename);
+              if(!files_[i].good())
+              {
+                  APDCAM_ERROR("Failed to open output files: " + filename_pattern_);
+              }
           }
           // The next data (shot) to be processed is #0
           next_data_ = 0;

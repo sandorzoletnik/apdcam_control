@@ -102,6 +102,38 @@ def DAQ():
         DAQ.instance_.get_buffer.restype = None
         DAQ.instance_.get_buffer.argtypes = [ctypes.c_uint,ctypes.POINTER(ctypes.c_uint),ctypes.POINTER(ctypes.POINTER(ctypes.c_uint16))]
 
+        DAQ.instance_.network_buffer_size.restype = None
+        DAQ.instance_.network_buffer_size.argtypes = [ctypes.c_uint]
+        DAQ.instance_.sample_buffer_size.restype = None
+        DAQ.instance_.sample_buffer_size.argtypes = [ctypes.c_uint]
+
+        DAQ.instance_.get_network_buffer_size.restype = ctypes.c_uint
+        DAQ.instance_.get_network_buffer_size.argtypes = []
+        DAQ.instance_.get_sample_buffer_size.restype = ctypes.c_uint
+        DAQ.instance_.get_sample_buffer_size.argtypes = []
+
+        DAQ.instance_.get_mtu.restype = ctypes.c_uint
+        DAQ.instance_.get_mtu.argtypes = []
+        DAQ.instance_.get_octet.restype = ctypes.c_uint
+        DAQ.instance_.get_octet.argtypes = []
+
+        DAQ.instance_.received_packets.restype = ctypes.c_uint
+        DAQ.instance_.received_packets.argtypes = [ctypes.c_uint]
+        DAQ.instance_.lost_packets.restype = ctypes.c_uint
+        DAQ.instance_.lost_packets.argtypes = [ctypes.c_uint]
+        DAQ.instance_.extracted_shots.restype = ctypes.c_uint
+        DAQ.instance_.extracted_shots.argtypes = [ctypes.c_uint]
+        DAQ.instance_.network_threads.restype = ctypes.c_uint
+        DAQ.instance_.network_threads.argtypes = []
+        DAQ.instance_.extractor_threads.restype = ctypes.c_uint
+        DAQ.instance_.extractor_threads.argtypes = []
+        DAQ.instance_.processor_threads.restype = ctypes.c_uint
+        DAQ.instance_.processor_threads.argtypes = []
+        DAQ.instance_.n_adc.restype = ctypes.c_uint
+        DAQ.instance_.n_adc.argtypes = []
+        DAQ.instance_.n_channels.restype = ctypes.c_uint
+        DAQ.instance_.n_channels.argtypes = []
+
         # Tell the DAQ to wait for all threads, and finish
         DAQ.instance_.wait_finish.restype = None
         DAQ.instance_.wait_finish.argtypes = []
@@ -181,25 +213,25 @@ def DAQ():
             
         DAQ.instance_.start = start
 
-        # Overwrite the 'statistics' function of the C++ library with a wrapper that returns the results in a python list
-        orig_statistics = DAQ.instance_.statistics
-        def statistics():
-            n_packets = ctypes.c_uint()
-            n_shots   = ctypes.c_uint()
-            orig_statistics(ctypes.byref(n_packets),ctypes.byref(n_shots))
-            return [n_packets.value,n_shots.value]
-        DAQ.instance_.statistics = statistics
+        # # Overwrite the 'statistics' function of the C++ library with a wrapper that returns the results in a python list
+        # orig_statistics = DAQ.instance_.statistics
+        # def statistics():
+        #     n_packets = ctypes.c_uint()
+        #     n_shots   = ctypes.c_uint()
+        #     orig_statistics(ctypes.byref(n_packets),ctypes.byref(n_shots))
+        #     return [n_packets.value,n_shots.value]
+        # DAQ.instance_.statistics = statistics
 
-        # Replace the 'status' function of the C++ library by a wrapper that returns the results (number of active
-        # network, extractor and processor threads) in a python list
-        orig_status = DAQ.instance_.status
-        def status():
-            n_network_threads = ctypes.c_uint()
-            n_extractor_threads = ctypes.c_uint()
-            n_processor_thread = ctypes.c_uint()
-            orig_status(ctypes.byref(n_network_threads),ctypes.byref(n_extractor_threads),ctypes.byref(n_processor_thread))
-            return [n_network_threads.value,n_extractor_threads.value,n_processor_thread.value]
-        DAQ.instance_.status = status
+        # # Replace the 'status' function of the C++ library by a wrapper that returns the results (number of active
+        # # network, extractor and processor threads) in a python list
+        # orig_status = DAQ.instance_.status
+        # def status():
+        #     n_network_threads = ctypes.c_uint()
+        #     n_extractor_threads = ctypes.c_uint()
+        #     n_processor_thread = ctypes.c_uint()
+        #     orig_status(ctypes.byref(n_network_threads),ctypes.byref(n_extractor_threads),ctypes.byref(n_processor_thread))
+        #     return [n_network_threads.value,n_extractor_threads.value,n_processor_thread.value]
+        # DAQ.instance_.status = status
 
     return DAQ.instance_;
 

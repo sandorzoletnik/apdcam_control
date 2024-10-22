@@ -13,9 +13,13 @@ namespace apdcam10g
     {
     protected:
         daq *daq_ = 0;
+        std::string name_;
         
     public:
         processor() {}
+
+        void name(const std::string &n) { name_ = n; }
+        const std::string &name() const { return name_; }
 
         // Initialization function called before starting the data acquisition. The defaults do nothing
         virtual void init() {};

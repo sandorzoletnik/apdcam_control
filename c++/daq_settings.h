@@ -50,6 +50,10 @@ namespace apdcam10g
         std::vector<channel_info*>              all_enabled_channels_info_;
         std::vector<std::vector<channel_info*>> board_enabled_channels_info_; // First index is ADC board number, second index is the enabled channel index
 
+        // Set MTU
+        daq_settings &mtu(unsigned int m);
+        
+
     public:
         void dump()
             {
@@ -115,10 +119,11 @@ namespace apdcam10g
 
         ~daq_settings();
 
-        // set/get the MTU value (Maximum Transmission Unit, the biggest size of packet that can be sent
+        // get the MTU value (Maximum Transmission Unit, the biggest size of packet that can be sent
         // without fragmentation) used for all sockets
-        daq_settings &mtu(unsigned int m);
         unsigned int mtu() const { return mtu_; }
+
+        unsigned int octet() const { return octet_; }
 
         daq_settings &interface(const std::string &i) { interface_ = i; return *this; }
         const std::string &interface() const { return interface_; }

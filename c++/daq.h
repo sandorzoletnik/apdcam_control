@@ -6,6 +6,7 @@
 #include <vector>
 #include <cstddef>
 #include <thread>
+#include <fstream>
 #include <condition_variable>
 #include "ring_buffer.h"
 #include "udp_packet_buffer.h"
@@ -77,7 +78,7 @@ namespace apdcam10g
         // A set of buffers to store received UDP packets, transparently handling packet loss
         // (by replacing lost packets with zero-filled packets)
         std::vector<apdcam10g::udp_packet_buffer<default_safeness>*> network_buffers_;
-  
+
         // In order to store channel info (which ADC board this channel belongs to, channel number, chip number etc),
         // the 3rd template argument of ring_buffer is channel_info so that we derive from channel_info 
         typedef ring_buffer<apdcam10g::data_type,channel_info> channel_data_buffer_t;
@@ -128,6 +129,9 @@ namespace apdcam10g
 
     public:
 
+        unsigned int n_adc() const { return network_buffers_.size(); }
+        unsigned int n_channels() const { return all_channels_buffers_.size(); }
+
         // A function to query the status of the python_analysis_stop_ flag. It will be called from the python
         // code within the processor loop to terminate if this is true
         bool python_analysis_stop();
@@ -162,6 +166,7 @@ namespace apdcam10g
         {
             for(auto p : extractors_) delete p;
             for(auto p : all_enabled_channels_buffers_) delete p;
+            unlink((configdir() / "pid").c_str());
         }
 
         channel_data_buffer_t *channel_buffer(unsigned int absolute_channel_number) 
@@ -261,11 +266,27 @@ namespace apdcam10g
         // These are not exact numbers, the smallest of the number of packets on the 4 sockets,
         // and the smallest of the number of shots in all channels is returned, at some not very precise
         // moment in time
-        tuple<size_t,size_t> statistics() const;
+//        tuple<size_t,size_t> statistics() const;
+
+        // Returns the number of received packets of the given stream (0-based)
+        size_t received_packets(unsigned int i_stream) const;
+
+        // Returns the number of lost packets of the given stream
+        size_t lost_packets(unsigned int i_stream) const;
+
+        // Returns the number of extracted shots for the given channel (absolute channel number)
+        size_t extracted_shots(unsigned int i_channel) const;
 
         // Return the number of active network threads, number of active extractor threads, 
         // and the number (0 or 1) of active processor threads
-        tuple<unsigned int, unsigned int, unsigned int> status() const;
+//        tuple<unsigned int, unsigned int, unsigned int> status() const;
+
+        unsigned int network_threads() const;
+        unsigned int extractor_threads() const;
+        unsigned int processor_threads() const;
+
+        size_t network_buffer_content(unsigned int i_stream) const;
+        size_t channel_buffer_content(unsigned int i_channel) const;
 
     };
 
@@ -281,7 +302,10 @@ extern "C"
 {
     using namespace apdcam10g;
     void get_net_parameters();
-    //void         mtu(int m);
+
+    unsigned int n_adc();
+    unsigned int n_channels();
+
     void start(bool wait=false);
     void stop(bool wait=true);
     void kill_all();  // both 'kill' and 'abort' would conflict with existing standard C library functions
@@ -299,13 +323,32 @@ extern "C"
     void test();
     void clear_processors();
 
+    void network_buffer_size(unsigned int bufsize);
+    void sample_buffer_size(unsigned int bufsize); 
+
+    unsigned int get_network_buffer_size();
+    unsigned int get_sample_buffer_size();
+
+    unsigned int get_mtu();
+    unsigned int get_octet();
+
+    unsigned int received_packets(unsigned int i_stream);
+    unsigned int lost_packets(unsigned int i_stream);
+    unsigned int extracted_shots(unsigned int i_stream);
+    size_t network_buffer_content(unsigned int i_stream);
+    size_t channel_buffer_content(unsigned int i_channel);
+    unsigned int network_threads();
+    unsigned int extractor_threads();
+    unsigned int processor_threads();
+
     void diskdump_sampling(unsigned int s);
 
     // Return the number of acquired UDP packets and extracted shots
-    void statistics(unsigned int *n_packets, unsigned int *n_shots);
+//    void statistics(unsigned int *n_packets, unsigned int *n_shots);
 
     // Query the status of the DAQ process, in particular the number of active network, extractor and processor threads
-    void status(unsigned int *n_active_network_threads, unsigned int *n_active_extractor_threads, unsigned int *n_active_processor_thread);
+//    void status(unsigned int *n_active_network_threads, unsigned int *n_active_extractor_threads, unsigned int *n_active_processor_thread);
+
 
     // Return the channel #absolute_chnanel_number data's ring buffer's size and memory buffer
     // in the 2nd and 3rd argument

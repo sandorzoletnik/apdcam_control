@@ -13,7 +13,7 @@ from .ApdcamUtils import *
 
 
 class CameraTimer(QtWidgets.QWidget):
-    def updateGui(self):
+    def updateCameraState(self):
         pass
 
     def loadSettingsFromCamera(self):

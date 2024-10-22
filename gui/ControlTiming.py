@@ -162,7 +162,7 @@ class ControlTiming(QtWidgets.QWidget):
             # automatically guaranteed by having minimum=1
             self.adc_out_freq_div.setSingleStep(2)
 
-    def updateGui(self):
+    def updateCameraState(self):
         T = self.gui.camera.status.CCTemp
         self.ccCardTemp.setText("{:3d}".format(T))
         if self.ccCardMaxTemp.text()=="" or T>int(self.ccCardMaxTemp.text()):

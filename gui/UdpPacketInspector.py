@@ -207,7 +207,7 @@ class UdpPacketInspector(QtWidgets.QWidget):
         return result
 
     def get_data(self):
-        self.gui.stopGuiUpdate()
+        self.gui.cameraPolling(False)
         time.sleep(1)
 
         self.gui.show_warning("WE SHOULD QUERY THE CAMERA TO GET THE RESOLUTIONS FOR EACH ADC BOARDS, AND GET THE TEST PATTERN CODE TO AUTOMATICALLY MAKE A TEST PATTERN MATCH WITH THE CORRECT RESOLUTION")
@@ -288,7 +288,7 @@ class UdpPacketInspector(QtWidgets.QWidget):
             self.summary_display[i_adc].append("Expected: " + str(len(packets[i_adc])) + ". Received: " + str(receivedPackets))
             self.summary_display[i_adc].append("Number of data bytes in packet: " + str(data_receiver.octet) + "*8 = " + str(data_receiver.octet*8))
 
-        self.gui.startGuiUpdate()
+        self.gui.cameraPolling(True)
 
         if useTestPattern:
             self.gui.camera.readStatus()
