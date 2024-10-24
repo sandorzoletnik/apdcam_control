@@ -22,7 +22,7 @@ void help()
     cout<<"                                   into the named pipe ~/.apdcam10g/cmd"<<endl;
     cout<<"  -k|--kill                        kill the running apdcam DAQ process (if there is any), the PID of which is in ~/.apdcam10g/pid"<<endl;
     cout<<"  -d directory                     Specify the output directory for diskdump (i.e. where the per-channel data is written)"<<endl;
-    cout<<"  -s|--sample-buffer <interface>   Set the sample buffer size. Must be power of 2. Defaults to "<<daq::instance().sample_buffer_size()<<endl;
+    cout<<"  -s|--sample-buffer <interface>   Set the sample buffer size. Must be power of 2. Defaults to "<<daq::instance().channel_buffer_size()<<endl;
     cout<<"  -n|--network-buffer <interface>  Set the network ring buffer size in terms of UDP packets. Must be power of 2. Defaults to "<<daq::instance().network_buffer_size()<<endl;
     cout<<"  -d                               Set debug mode"<<endl;
     cout<<endl;
@@ -95,7 +95,7 @@ try
         else if(!strcmp(argv[opt],"-s") || !strcmp(argv[opt],"--sample-buffer"))
         {
             if(opt+1>=argc) APDCAM_ERROR(std::string("Missing argument (buffer size) after ") + argv[opt]);
-            daq::instance().sample_buffer_size(atoi(argv[++opt]));
+            daq::instance().channel_buffer_size(atoi(argv[++opt]));
         }
         else if(!strcmp(argv[opt],"-n") || !strcmp(argv[opt],"--network-buffer"))
         {

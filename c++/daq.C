@@ -227,7 +227,7 @@ namespace apdcam10g
         for(unsigned int i=0; i<all_enabled_channels_info_.size(); ++i)
         {
             const channel_info *ci = all_enabled_channels_info_[i];
-            channel_data_buffer_t *b = new channel_data_buffer_t(sample_buffer_size_,sample_buffer_extra_size_);
+            channel_data_buffer_t *b = new channel_data_buffer_t(channel_buffer_size_,channel_buffer_extra_size_);
             b->copy_values(*ci);
             all_enabled_channels_buffers_[i] = b;
             board_enabled_channels_buffers_[ci->board_number].push_back(b);
@@ -248,6 +248,93 @@ namespace apdcam10g
         return *this;
     }
 
+    void daq::stop_cmd_thread()
+    {
+        if(!command_thread_active_.test()) return;
+        pthread_kill(command_thread_.native_handle(), SIGTERM);
+        unlink(cmd_fifo_name_.c_str());
+        command_thread_.join();
+    }
+
+    void daq::start_cmd_thread()
+    {
+        if(command_thread_active_.test()) return;
+        command_thread_ = std::jthread( [this](std::stop_token stok)
+            {
+                flag_locker flk(command_thread_active_);
+                const std::string prompt = "[DAQ/CMD] ";
+
+                signal2exception::set("command",SIGSEGV,SIGTERM);
+                try
+                {
+                    
+                    // Create the fifo in configdir
+                    unlink(cmd_fifo_name_.c_str());
+                    if(mkfifo(cmd_fifo_name_.c_str(),0666) != 0) APDCAM_ERROR("Failed to create command fifo '" + cmd_fifo_name_.string() + "'");
+                    file_deleter auto_delete_fifo(cmd_fifo_name_);
+                    
+                    {
+                        output_lock lck;
+                        cerr<<prompt<<"Thread started, waiting for command in the FIFO "<<cmd_fifo_name_<<endl;
+                    }
+                    
+                    string line;
+                    while(!stok.stop_requested())
+                    {
+                        // Reopen the file repeatedly because if we send commands into the FIFO file by echo, it closes the
+                        // file, and fifo.clear() (i.e. clearing all error bits on the ifstream) does not help. 
+                        ifstream fifo(cmd_fifo_name_);
+                        while(!stok.stop_requested() && getline(fifo,line))
+                        {
+                            cerr<<prompt<<line<<endl;
+                            istringstream inputstr(line);
+                            string cmd;
+                            inputstr>>cmd;
+                            if     (cmd == "diskdump_pause")
+                            {
+                                cerr<<prompt<<"Pausing diskdump"<<endl;
+                                daq::instance().diskdump_pause();
+                            }
+                            else if(cmd == "diskdump_resume")
+                            {
+                                cerr<<prompt<<"Resuming diskdump"<<endl;
+                                daq::instance().diskdump_resume();
+                            }
+                            else if(cmd == "diskdump_sampling")
+                            {
+                                unsigned int s;
+                                if(!(inputstr>>s)) 
+                                {
+                                    cerr<<"Error, integer expected after diskdump_sampling"<<endl;
+                                    continue;
+                                }
+                                cerr<<prompt<<"Setting diskdump sampling of "<<s<<endl;
+                                daq::instance().diskdump_sampling(s);
+                            }
+                            else if(cmd == "stop")
+                            {
+                                unsigned int timeout_sec;
+                                if(!(inputstr>>timeout_sec)) timeout_sec = 0;
+                                cerr<<prompt<<"Stopping the DAQ";
+                                if(timeout_sec>0) cerr<<" with a timeout of "<<timeout_sec<<" seconds";
+                                cerr<<endl;
+                                daq::instance().stop(timeout_sec);
+                            }
+                            else
+                            {
+                                cerr<<prompt<<"Ignoring bad command: "<<line<<endl;
+                            }
+                        }
+                    }
+                }
+                catch(apdcam10g::error &d)
+                {
+                    output_lock lck;
+                    cerr<<prompt<<" Terminated: "<<d.message()<<endl;
+                }
+                unlink(cmd_fifo_name_.c_str());
+            });
+    }
 
     template <safeness S>
     daq &daq::start(bool wait)
@@ -396,8 +483,8 @@ namespace apdcam10g
                             }
                             cerr<<prompt<<"average buffer size : "<<sum/n<<endl;
                             cerr<<prompt<<"max buffer size     : "<<max<<endl;
-                            cerr<<prompt<<"buffers' capacity   : "<<sample_buffer_size_<<endl;
-                            if(sum/n > sample_buffer_size_/2) cerr<<prompt<<"we recommend increasing the buffer size"<<endl;
+                            cerr<<prompt<<"buffers' capacity   : "<<channel_buffer_size_<<endl;
+                            if(sum/n > channel_buffer_size_/2) cerr<<prompt<<"we recommend increasing the buffer size"<<endl;
                             cerr<<endl;
                         }
                     }
@@ -482,84 +569,6 @@ namespace apdcam10g
             }
         }
 
-        // -------------------- start the command interpreter ----------------------------------
-        
-        command_thread_ = std::jthread( [this](std::stop_token stok)
-            {
-                flag_locker flk(processor_thread_active_);
-                const std::string prompt = "[DAQ/CMD] ";
-
-                signal2exception::set("command",SIGSEGV,SIGTERM);
-                try
-                {
-                    
-                    // Create the fifo in configdir
-                    auto fifo_name = configdir() / "cmd";
-                    unlink(fifo_name.c_str());
-                    if(mkfifo(fifo_name.c_str(),0666) != 0) APDCAM_ERROR("Failed to create command fifo '" + fifo_name.string() + "'");
-                    file_deleter auto_delete_fifo(fifo_name);
-                    
-                    {
-                        output_lock lck;
-                        cerr<<prompt<<"Thread started, waiting for command in the FIFO "<<fifo_name<<endl;
-                    }
-                    
-                    string line;
-                    while(!stok.stop_requested())
-                    {
-                        // Reopen the file repeatedly because if we send commands into the FIFO file by echo, it closes the
-                        // file, and fifo.clear() (i.e. clearing all error bits on the ifstream) does not help. 
-                        ifstream fifo(fifo_name);
-                        while(!stok.stop_requested() && getline(fifo,line))
-                        {
-                            cerr<<prompt<<line<<endl;
-                            istringstream inputstr(line);
-                            string cmd;
-                            inputstr>>cmd;
-                            if     (cmd == "diskdump_pause")
-                            {
-                                cerr<<prompt<<"Pausing diskdump"<<endl;
-                                daq::instance().diskdump_pause();
-                            }
-                            else if(cmd == "diskdump_resume")
-                            {
-                                cerr<<prompt<<"Resuming diskdump"<<endl;
-                                daq::instance().diskdump_resume();
-                            }
-                            else if(cmd == "diskdump_sampling")
-                            {
-                                unsigned int s;
-                                if(!(inputstr>>s)) 
-                                {
-                                    cerr<<"Error, integer expected after diskdump_sampling"<<endl;
-                                    continue;
-                                }
-                                cerr<<prompt<<"Setting diskdump sampling of "<<s<<endl;
-                                daq::instance().diskdump_sampling(s);
-                            }
-                            else if(cmd == "stop")
-                            {
-                                unsigned int timeout_sec;
-                                if(!(inputstr>>timeout_sec)) timeout_sec = 0;
-                                cerr<<prompt<<"Stopping the DAQ";
-                                if(timeout_sec>0) cerr<<" with a timeout of "<<timeout_sec<<" seconds";
-                                cerr<<endl;
-                                daq::instance().stop(timeout_sec);
-                            }
-                            else
-                            {
-                                cerr<<prompt<<"Ignoring bad command: "<<line<<endl;
-                            }
-                        }
-                    }
-                }
-                catch(apdcam10g::error &d)
-                {
-                    output_lock lck;
-                    cerr<<prompt<<" Terminated"<<endl;
-                }
-            });
-
         {
             output_lock lck;
             cerr<<"[DAQ] All threads have been started"<<endl;
@@ -597,8 +606,6 @@ namespace apdcam10g
     {
         cerr<<"[DAQ] Stopping with timeout "<<timeout_sec<<endl;
 
-        command_thread_.request_stop();
-
         // These threads do not need to be requested to stop because they do so anyway if their input
         // ring_buffers get their 'terminated' flag set. 
         //processor_thread_.request_stop();
@@ -609,7 +616,6 @@ namespace apdcam10g
         // the channel data buffers' flags to true, which in turn will cause the processor thread to
         // stop as well
         for(auto &t : network_threads_) t.request_stop();
-
 
         if(timeout_sec>0)
         {
@@ -638,6 +644,21 @@ namespace apdcam10g
         if(command_thread_active_.test()) pthread_kill(command_thread_.native_handle(), SIGTERM);
 
         return *this;
+    }
+
+    bool daq::network_thread_active(unsigned int i_stream) const
+    {
+        if(i_stream>=config::max_boards) return false;
+        return network_threads_active_[i_stream].test();
+    }
+    bool daq::extractor_thread_active(unsigned int i_stream) const
+    {
+        if(i_stream>=config::max_boards) return false;
+        return extractor_threads_active_[i_stream].test();
+    }
+    bool daq::processor_thread_active() const
+    {
+        return processor_thread_active_.test();
     }
 
     unsigned int daq::network_threads() const
@@ -690,22 +711,50 @@ namespace apdcam10g
         if(i_stream>=network_buffers_.size()) return 0;
         return network_buffers_[i_stream]->lost_packets();
     }
-    size_t daq::extracted_shots(unsigned int i_channel) const
-    {
-        if(i_channel>=all_channels_buffers_.size()) return 0;
-        return all_channels_buffers_[i_channel]->push_counter();
-    }
 
     size_t daq::network_buffer_content(unsigned int i_stream) const
     {
         if(i_stream>=network_buffers_.size()) return 0;
         return network_buffers_[i_stream]->size();
     }
+    size_t daq::max_network_buffer_content(unsigned int i_stream) const
+    {
+        if(i_stream>=network_buffers_.size()) return 0;
+        return network_buffers_[i_stream]->max_size();
+    }
+
     size_t daq::channel_buffer_content(unsigned int i_channel) const
     {
         if(i_channel>=all_channels_buffers_.size()) return 0;
         if(all_channels_buffers_[i_channel] == 0) return 0;
         return all_channels_buffers_[i_channel]->size();
+    }
+    size_t daq::max_channel_buffer_content(unsigned int i_channel) const
+    {
+        if(i_channel>=all_channels_buffers_.size()) return 0;
+        if(all_channels_buffers_[i_channel] == 0) return 0;
+        return all_channels_buffers_[i_channel]->max_size();
+    }
+    size_t daq::channel_buffer_content_of_board(unsigned int i_adc) const
+    {
+        if(i_adc>=network_buffers_.size()) return 0;
+        return board_last_channel_buffers_[i_adc]->size();
+    }
+    size_t daq::max_channel_buffer_content_of_board(unsigned int i_adc) const
+    {
+        if(i_adc>=network_buffers_.size()) return 0;
+        return board_last_channel_buffers_[i_adc]->max_size();
+    }
+    
+    size_t daq::extracted_shots(unsigned int i_channel) const
+    {
+        if(i_channel>=all_channels_buffers_.size()) return 0;
+        return all_channels_buffers_[i_channel]->push_counter();
+    }
+    size_t daq::extracted_shots_of_board(unsigned int i_adc) const
+    {
+        if(i_adc>=board_last_channel_buffers_.size()) return 0;
+        return board_last_channel_buffers_[i_adc]->push_counter();
     }
 
 
@@ -777,6 +826,15 @@ namespace apdcam10g
 extern "C"
 {
     using namespace apdcam10g;
+
+    void start_cmd_thread()
+    {
+        daq::instance().start_cmd_thread();
+    }
+    void stop_cmd_thread()
+    {
+        daq::instance().stop_cmd_thread();
+    }
 
     unsigned int n_adc()
     {
@@ -886,10 +944,10 @@ extern "C"
         }
         catch(apdcam10g::error &e) {e.print();}
         catch(...) { cerr<<"Exception was thrown"<<endl; }
-    void sample_buffer_size(unsigned int bufsize)
+    void channel_buffer_size(unsigned int bufsize)
         try
         {
-            daq::instance().sample_buffer_size(bufsize);
+            daq::instance().channel_buffer_size(bufsize);
         }
         catch(apdcam10g::error &e) {e.print();}
         catch(...) { cerr<<"Exception was thrown"<<endl; }
@@ -898,9 +956,9 @@ extern "C"
     {
         return daq::instance().network_buffer_size();
     }
-    unsigned int get_sample_buffer_size()
+    unsigned int get_channel_buffer_size()
     {
-        return daq::instance().sample_buffer_size();
+        return daq::instance().channel_buffer_size();
     }
 
     unsigned int get_mtu()
@@ -1004,26 +1062,47 @@ extern "C"
         cerr<<"daq::test"<<endl;
     }
 
-    unsigned int received_packets(unsigned int i_stream)
+    size_t received_packets(unsigned int i_stream)
     {
         return daq::instance().received_packets(i_stream);
     }
-    unsigned int lost_packets(unsigned int i_stream)
+    size_t lost_packets(unsigned int i_stream)
     {
         return daq::instance().lost_packets(i_stream);
-    }
-    unsigned int extracted_shots(unsigned int i_stream)
-    {
-        return daq::instance().extracted_shots(i_stream);
     }
     size_t network_buffer_content(unsigned int i_stream)
     {
         return daq::instance().network_buffer_content(i_stream);
     }
+    size_t max_network_buffer_content(unsigned int i_stream)
+    {
+        return daq::instance().max_network_buffer_content(i_stream);
+    }
     size_t channel_buffer_content(unsigned int i_channel)
     {
         return daq::instance().channel_buffer_content(i_channel);
     }
+    size_t max_channel_buffer_content(unsigned int i_channel)
+    {
+        return daq::instance().max_channel_buffer_content(i_channel);
+    }
+    size_t channel_buffer_content_of_board(unsigned int i_adc)
+    {
+        return daq::instance().channel_buffer_content_of_board(i_adc);
+    }
+    size_t max_channel_buffer_content_of_board(unsigned int i_adc)
+    {
+        return daq::instance().max_channel_buffer_content_of_board(i_adc);
+    }
+    size_t extracted_shots(unsigned int i_channel)
+    {
+        return daq::instance().extracted_shots(i_channel);
+    }
+    size_t extracted_shots_of_board(unsigned int i_adc)
+    {
+        return daq::instance().extracted_shots_of_board(i_adc);
+    }
+
     unsigned int network_threads()
     {
         return daq::instance().network_threads();
@@ -1037,7 +1116,18 @@ extern "C"
         return daq::instance().processor_threads();
     }
     
-
+    bool network_thread_active(unsigned int i_stream)
+    {
+        return daq::instance().network_thread_active(i_stream);
+    }
+    bool extractor_thread_active(unsigned int i_stream)
+    {
+        return daq::instance().extractor_thread_active(i_stream);
+    }
+    bool processor_thread_active()
+    {
+        return daq::instance().processor_thread_active();
+    }
 /*
     void statistics(unsigned int *n_packets, unsigned int *n_shots)
         try

@@ -104,25 +104,40 @@ def DAQ():
 
         DAQ.instance_.network_buffer_size.restype = None
         DAQ.instance_.network_buffer_size.argtypes = [ctypes.c_uint]
-        DAQ.instance_.sample_buffer_size.restype = None
-        DAQ.instance_.sample_buffer_size.argtypes = [ctypes.c_uint]
+        DAQ.instance_.channel_buffer_size.restype = None
+        DAQ.instance_.channel_buffer_size.argtypes = [ctypes.c_uint]
 
         DAQ.instance_.get_network_buffer_size.restype = ctypes.c_uint
         DAQ.instance_.get_network_buffer_size.argtypes = []
-        DAQ.instance_.get_sample_buffer_size.restype = ctypes.c_uint
-        DAQ.instance_.get_sample_buffer_size.argtypes = []
+        DAQ.instance_.get_channel_buffer_size.restype = ctypes.c_uint
+        DAQ.instance_.get_channel_buffer_size.argtypes = []
+
+        DAQ.instance_.network_buffer_content.restype = ctypes.c_size_t
+        DAQ.instance_.network_buffer_content.argtypes = [ctypes.c_uint]
+        DAQ.instance_.max_network_buffer_content.restype = ctypes.c_size_t
+        DAQ.instance_.max_network_buffer_content.argtypes = [ctypes.c_uint]
+        DAQ.instance_.channel_buffer_content.restype = ctypes.c_size_t
+        DAQ.instance_.channel_buffer_content.argtypes = [ctypes.c_uint]
+        DAQ.instance_.max_channel_buffer_content.restype = ctypes.c_size_t
+        DAQ.instance_.max_channel_buffer_content.argtypes = [ctypes.c_uint]
+        DAQ.instance_.channel_buffer_content_of_board.restype = ctypes.c_size_t
+        DAQ.instance_.channel_buffer_content_of_board.argtypes = [ctypes.c_uint]
+        DAQ.instance_.max_channel_buffer_content_of_board.restype = ctypes.c_size_t
+        DAQ.instance_.max_channel_buffer_content_of_board.argtypes = [ctypes.c_uint]
+        DAQ.instance_.extracted_shots.restype = ctypes.c_size_t
+        DAQ.instance_.extracted_shots.argtypes = [ctypes.c_uint]
+        DAQ.instance_.extracted_shots_of_board.restype = ctypes.c_size_t
+        DAQ.instance_.extracted_shots_of_board.argtypes = [ctypes.c_uint]
 
         DAQ.instance_.get_mtu.restype = ctypes.c_uint
         DAQ.instance_.get_mtu.argtypes = []
         DAQ.instance_.get_octet.restype = ctypes.c_uint
         DAQ.instance_.get_octet.argtypes = []
 
-        DAQ.instance_.received_packets.restype = ctypes.c_uint
+        DAQ.instance_.received_packets.restype = ctypes.c_size_t
         DAQ.instance_.received_packets.argtypes = [ctypes.c_uint]
-        DAQ.instance_.lost_packets.restype = ctypes.c_uint
+        DAQ.instance_.lost_packets.restype = ctypes.c_size_t
         DAQ.instance_.lost_packets.argtypes = [ctypes.c_uint]
-        DAQ.instance_.extracted_shots.restype = ctypes.c_uint
-        DAQ.instance_.extracted_shots.argtypes = [ctypes.c_uint]
         DAQ.instance_.network_threads.restype = ctypes.c_uint
         DAQ.instance_.network_threads.argtypes = []
         DAQ.instance_.extractor_threads.restype = ctypes.c_uint

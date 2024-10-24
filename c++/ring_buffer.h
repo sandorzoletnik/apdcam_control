@@ -85,7 +85,7 @@ namespace apdcam10g
         double sum_size_=0;    // sum of the values of size sampled at every call to push(..) or publish(...)
         double sum_size2_=0;   // sum of the squared size values
         double sum_n_=0;       // Number of samplings of the size
-        size_t max_size_=0;
+        size_t max_size_=0;    // maximum size (content) of the buffer since it was reset
 
         ring_buffer(ring_buffer const&);
         void operator = (ring_buffer const&);

@@ -27,6 +27,7 @@ from .Factory import Factory
 from .Plot import Plot
 from .SimpleMeasurementControl import SimpleMeasurementControl
 from .GuiMode import *
+from DAQ import *
 
 #sys.path.append('/home/apdcam/Python/apdcam_devel/apdcam_control')
 #sys.path.append('/home/barna/fusion-instruments/apdcam/sw/flap_apdcam/apdcam_control')
@@ -273,6 +274,7 @@ class ApdcamGui(QtWidgets.QMainWindow):
         self.updateGuiThread.start()
 
     def exitAAA(self,rc):
+        DAQ().kill_all()
         QtWidgets.QApplication.exit(rc)
 
     def cameraPolling(self,flag):

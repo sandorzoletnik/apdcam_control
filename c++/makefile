@@ -5,7 +5,7 @@ SRCS = $(wildcard *.C)
 DEPS = $(SRCS:.C=.d)
 OBJS = $(SRCS:.C=.o)
 
-all : libapdcam10g.so
+all : libapdcam10g.so tools
 
 .PHONY: tools clean
 tools:
@@ -29,6 +29,5 @@ include makefile.params
 libapdcam10g.so : $(OBJS)
 	echo $(OBJS)
 	g++ -fPIC -shared -o $@ $^
-
 
 

@@ -3794,6 +3794,8 @@ class APDCAM10G_control:
 
         """
 
+        print("APDCAM10G_control.measure starts")
+
         logger.showMessage("[MEASUREMENT] Starts")
 
         # Argument consistency checks
@@ -3928,6 +3930,7 @@ class APDCAM10G_control:
             processorTasks = ["diskdump"]
 
         # Set up the processor tasks in the DAQ
+        print("Setting up DAQ")
         DAQ().clear_processors()
         for task in processorTasks:
             if type(task) is str:
@@ -3942,6 +3945,9 @@ class APDCAM10G_control:
         DAQ().channel_masks(channelMasks)
         DAQ().resolution_bits(resolutionBits)
         DAQ().init(True)
+
+        print("STarting DAQ")
+
         DAQ().start(False)
         
         if (waitForResult <=0):
@@ -3949,6 +3955,7 @@ class APDCAM10G_control:
 
         err,warning = self.waitForMeasurement(waitForResult)
         logger.showMessage("[MEASUREMENT] Finished")
+        print("APDCAM10G_control.measure finishses")
         return err,warning,None
    
     def measurementStatus(self):

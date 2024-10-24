@@ -66,7 +66,9 @@ class Measure(QtWidgets.QWidget):
         h.addWidget(self.dataDirectoryDialogButton)
         self.dataDirectoryDialogButton.clicked.connect(lambda: self.dataDirectory.setText(str(QtWidgets.QFileDialog.getExistingDirectory(self, "Select Directory"))))
 
-        
+
+        DAQ().start_cmd_thread()
+
         daqGroup = QVGroupBox("DAQ settings and monitoring")
         layout.addWidget(daqGroup)
         h = QtWidgets.QHBoxLayout()
@@ -84,7 +86,7 @@ class Measure(QtWidgets.QWidget):
         self.daqSampleBufferSize = QtWidgets.QSpinBox()
         self.daqSampleBufferSize.setMinimum(2)
         self.daqSampleBufferSize.setMaximum(1<<20)
-        self.daqSampleBufferSize.setValue(DAQ().get_sample_buffer_size())
+        self.daqSampleBufferSize.setValue(DAQ().get_channel_buffer_size())
         self.daqSampleBufferSize.lineEdit().returnPressed.connect(lambda: DAQ().sample_buffer_size(self.daqSampleBufferSize.value()))
         h.addWidget(self.daqSampleBufferSize)
         h.addStretch(5)
@@ -102,14 +104,6 @@ class Measure(QtWidgets.QWidget):
 
         h = QtWidgets.QHBoxLayout()
         daqGroup.addLayout(h)
-        h.addWidget(QtWidgets.QLabel("Network threads: "))
-        self.networkThreads = QtWidgets.QLabel("0")
-        h.addWidget(self.networkThreads)
-        h.addStretch(1)
-        h.addWidget(QtWidgets.QLabel("Extractor threads: "))
-        self.extractorThreads = QtWidgets.QLabel("0")
-        h.addWidget(self.extractorThreads)
-        h.addStretch(1)
         h.addWidget(QtWidgets.QLabel("Processor threads: "))
         self.processorThreads = QtWidgets.QLabel("0")
         h.addWidget(self.processorThreads)
@@ -119,29 +113,32 @@ class Measure(QtWidgets.QWidget):
         h = QtWidgets.QHBoxLayout()
         daqGroup.addLayout(h)
         g = QtWidgets.QGridLayout()
+        #g.setContentsMargins(20,0,20,0)
+        g.setSpacing(15)
         h.addLayout(g)
         h.addStretch(1)
-        g.addWidget(QtWidgets.QLabel("Received packets"),0,1)
-        g.addWidget(QtWidgets.QLabel("Lost packets"),0,2)
-        g.addWidget(QtWidgets.QLabel("Network buffer content"),0,3)
+        g.addWidget(QtWidgets.QLabel("STREAM"),0,0)
+        g.addWidget(QtWidgets.QLabel("Net. thread"),0,1)
+        g.addWidget(QtWidgets.QLabel("Ext. thread"),0,2)
+        g.addWidget(QtWidgets.QLabel("Received packets"),0,3)
+        g.addWidget(QtWidgets.QLabel("Lost packets"),0,4)
+        g.addWidget(QtWidgets.QLabel("Netbuf content"),0,5)
+        g.addWidget(QtWidgets.QLabel("Max. netbuf content"),0,6)
+        g.addWidget(QtWidgets.QLabel("Samplebuf content"),0,7)
+        g.addWidget(QtWidgets.QLabel("Max. Samplebuf content"),0,8)
+        g.addWidget(QtWidgets.QLabel("Shots extracted"),0,9)
+        self.streamDisplayColumns = 10
 
-        self.adcLabels = [QtWidgets.QLabel() for i in range(Config.max_boards)]
-        self.receivedPackets = [QtWidgets.QLabel() for i in range(Config.max_boards)]
-        self.lostPackets = [QtWidgets.QLabel() for i in range(Config.max_boards)]
-        self.networkBufferContent = [QtWidgets.QLabel() for i in range(Config.max_boards)]
+        self.streamDisplay = [[QtWidgets.QLabel() for i in range(self.streamDisplayColumns)] for j in range(Config.max_boards)]
         for i_adc in range(Config.max_boards):
-            self.adcLabels[i_adc].setText("ADC" + str(i_adc))
-            g.addWidget(self.adcLabels[i_adc],i_adc+1,0)
-            g.addWidget(self.receivedPackets[i_adc],i_adc+1,1)
-            g.addWidget(self.lostPackets[i_adc],i_adc+1,2)
-            g.addWidget(self.networkBufferContent[i_adc],i_adc+1,3)
+            for j in range(self.streamDisplayColumns):
+                if(j==0):
+                    self.streamDisplay[i_adc][j].setText(str(i_adc))
+                else:
+                    self.streamDisplay[i_adc][j].setText("---")
+                g.addWidget(self.streamDisplay[i_adc][j],i_adc+1,j)
 
-        h = QtWidgets.QHBoxLayout()
-        daqGroup.addLayout(h)
-        h.addWidget(QtWidgets.QLabel("Channel buffer content: "))
-        self.channelBufferContent = QtWidgets.QLabel("---")
-        h.addWidget(self.channelBufferContent)
-        h.addStretch(1)
+
 
         h = QtWidgets.QHBoxLayout()
         layout.addLayout(h)
@@ -167,33 +164,28 @@ class Measure(QtWidgets.QWidget):
         layout.addStretch(1)
 
     def updateDaqState(self):
-        self.networkThreads.setText(str(DAQ().network_threads()))
-        self.extractorThreads.setText(str(DAQ().extractor_threads()))
         self.processorThreads.setText(str(DAQ().processor_threads()))
 
         n_adc = DAQ().n_adc()
         for i_adc in range(Config.max_boards):
             if i_adc<n_adc:
-                self.adcLabels[i_adc].show()
-                self.receivedPackets[i_adc].show()
-                self.lostPackets[i_adc].show()
-                self.networkBufferContent[i_adc].show()
+                for j in range(self.streamDisplayColumns):
+                    self.streamDisplay[i_adc][j].show()
+                self.streamDisplay[i_adc][1].setText("run" if DAQ().network_thread_active(i_adc) else "")
+                self.streamDisplay[i_adc][2].setText("run" if DAQ().extractor_thread_active(i_adc) else "")
+                self.streamDisplay[i_adc][3].setText(str(DAQ().received_packets(i_adc)))
+                self.streamDisplay[i_adc][4].setText(str(DAQ().lost_packets(i_adc)))
+                self.streamDisplay[i_adc][5].setText(str(DAQ().network_buffer_content(i_adc)))
+                self.streamDisplay[i_adc][6].setText(str(DAQ().max_network_buffer_content(i_adc)))
+                self.streamDisplay[i_adc][7].setText(str(DAQ().channel_buffer_content_of_board(i_adc)))
+                self.streamDisplay[i_adc][8].setText(str(DAQ().max_channel_buffer_content_of_board(i_adc)))
+                self.streamDisplay[i_adc][9].setText(str(DAQ().extracted_shots_of_board(i_adc)))
             else:
-                self.adcLabels[i_adc].hide()
-                self.receivedPackets[i_adc].hide()
-                self.lostPackets[i_adc].hide()
-                self.networkBufferContent[i_adc].hide()
+                for j in range(self.streamDisplayColumns):
+                    if j>0:
+                        self.streamDisplay[i_adc][j].setText("")
+                    self.streamDisplay[i_adc][j].hide()
                 
-
-        for i_adc in range(n_adc):
-            self.receivedPackets[i_adc].setText(str(DAQ().received_packets(i_adc)))
-            self.lostPackets[i_adc].setText(str(DAQ().lost_packets(i_adc)))
-            self.networkBufferContent[i_adc].setText(str(DAQ().network_buffer_content(i_adc)))
-
-        channel_buffer_content = ""
-        for i_channel in range(DAQ().n_channels()):
-            channel_buffer_content += str(DAQ().channel_buffer_content(i_channel)) + "  "
-        self.channelBufferContent.setText(channel_buffer_content)
 
     def show_message(self,msg):
         self.messages.append(msg)
@@ -220,7 +212,9 @@ class Measure(QtWidgets.QWidget):
 
         self.gui.cameraPolling(False)
 
+        print("Calling self.gui.camera.measure")
         self.gui.camera.measure(channelMasks=masks,resolutionBits=14,processorTasks=processors)
+        print("Returned from self.gui.camera.measure")
 
         # return
 

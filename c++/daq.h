@@ -119,9 +119,10 @@ namespace apdcam10g
         std::vector<processor *> processors_;
 
         unsigned int network_buffer_size_ = 1<<10;    // The size of the network input ring buffer size in terms of UDP packets (real mamory is MTU*this_value measured in bytes)
-        unsigned int sample_buffer_size_ = 1<<18;   // The number of channel signal values stored in memory before dumping to disk
-        unsigned int sample_buffer_extra_size_ = 1<<8; // Extra size at the end of the sample buffers to flatten a flipped-back data range
+        unsigned int channel_buffer_size_ = 1<<18;   // The number of channel signal values stored in memory before dumping to disk
+        unsigned int channel_buffer_extra_size_ = 1<<8; // Extra size at the end of the sample buffers to flatten a flipped-back data range
 
+        std::filesystem::path cmd_fifo_name_ = configdir() / "cmd";
 
         // Being a singleton, the constructor is private and the only instance can be accessed
         // via the static daq::instance() function
@@ -226,15 +227,18 @@ namespace apdcam10g
       
         // Set the buffer size, the number of channel signal values (for each ADC separately) buffered in memory before dumping them to disk
         // Must be called before init(...)
-        daq &sample_buffer_size(unsigned int b) { sample_buffer_size_ = b; return *this; }
-        unsigned int sample_buffer_size() const { return sample_buffer_size_; }
-        daq &sample_buffer_extra_size(unsigned int e) { sample_buffer_extra_size_ = e; return *this; }
-        unsigned int sample_buffer_extra_size() const { return sample_buffer_extra_size_; }
+        daq &channel_buffer_size(unsigned int b) { channel_buffer_size_ = b; return *this; }
+        unsigned int channel_buffer_size() const { return channel_buffer_size_; }
+        daq &channel_buffer_extra_size(unsigned int e) { channel_buffer_extra_size_ = e; return *this; }
+        unsigned int channel_buffer_extra_size() const { return channel_buffer_extra_size_; }
 
         // Set the size of the network input ring buffer size in terms of UDP packets (real mamory is MTU*this_value measured in bytes)
         // Must be called before init(...)
         daq &network_buffer_size(unsigned int b) { network_buffer_size_ = b; return *this; }
         unsigned int network_buffer_size() const { return network_buffer_size_; }
+
+        void start_cmd_thread();
+        void stop_cmd_thread();
 
         // The specified safeness is transmitted to the signal extractor
         template <safeness S=default_safeness>
@@ -262,32 +266,36 @@ namespace apdcam10g
 
         void dump();
 
-        // Returns the number of UDP packets and number of shots that have been received and processed.
-        // These are not exact numbers, the smallest of the number of packets on the 4 sockets,
-        // and the smallest of the number of shots in all channels is returned, at some not very precise
-        // moment in time
-//        tuple<size_t,size_t> statistics() const;
-
         // Returns the number of received packets of the given stream (0-based)
         size_t received_packets(unsigned int i_stream) const;
 
         // Returns the number of lost packets of the given stream
         size_t lost_packets(unsigned int i_stream) const;
 
-        // Returns the number of extracted shots for the given channel (absolute channel number)
-        size_t extracted_shots(unsigned int i_channel) const;
-
-        // Return the number of active network threads, number of active extractor threads, 
-        // and the number (0 or 1) of active processor threads
-//        tuple<unsigned int, unsigned int, unsigned int> status() const;
+        bool network_thread_active(unsigned int i_stream) const;
+        bool extractor_thread_active(unsigned int i_stream) const;
+        bool processor_thread_active() const;
 
         unsigned int network_threads() const;
         unsigned int extractor_threads() const;
         unsigned int processor_threads() const;
 
         size_t network_buffer_content(unsigned int i_stream) const;
+        size_t max_network_buffer_content(unsigned int i_stream) const;
+        
         size_t channel_buffer_content(unsigned int i_channel) const;
+        size_t max_channel_buffer_content(unsigned int i_channel) const;
 
+        // Returns the actual content of the buffer of the last chnanel of the given board
+        // (other channels have the same number of entries in their buffer, or one more)
+        size_t channel_buffer_content_of_board(unsigned int i_adc) const;
+
+        // Returns the maximum content of the buffer of the last channel of the given board
+        // since the start of the dadta acqvisition
+        size_t max_channel_buffer_content_of_board(unsigned int i_adc) const;
+
+        size_t extracted_shots(unsigned int i_channel) const;
+        size_t extracted_shots_of_board(unsigned int i_adc) const;
     };
 
 #define CLASS_DAQ_DEFINED
@@ -323,25 +331,47 @@ extern "C"
     void test();
     void clear_processors();
 
+    // Set the network buffer and sample buffer sizes (capacities). It does not take immediate effect, only
+    // when daq::init is called
     void network_buffer_size(unsigned int bufsize);
-    void sample_buffer_size(unsigned int bufsize); 
+    void channel_buffer_size(unsigned int bufsize); 
 
     unsigned int get_network_buffer_size();
-    unsigned int get_sample_buffer_size();
+    unsigned int get_channel_buffer_size();
 
     unsigned int get_mtu();
     unsigned int get_octet();
 
-    unsigned int received_packets(unsigned int i_stream);
-    unsigned int lost_packets(unsigned int i_stream);
-    unsigned int extracted_shots(unsigned int i_stream);
+    size_t received_packets(unsigned int i_stream);
+    size_t lost_packets(unsigned int i_stream);
+
     size_t network_buffer_content(unsigned int i_stream);
+    size_t max_network_buffer_content(unsigned int i_stream);
     size_t channel_buffer_content(unsigned int i_channel);
+    size_t max_channel_buffer_content(unsigned int i_channel);
+    size_t channel_buffer_content_of_board(unsigned int i_stream);
+    size_t max_channel_buffer_content_of_board(unsigned int i_stream);
+
+    // Returns the number of extracted shots for the given channel (absolute channel number)
+    size_t extracted_shots(unsigned int i_channel);
+
+    // REturns hte number of extracted shots for the last enabled channel of the
+    // given board (previous channels of the same board have at least this many
+    // shots extracted)
+    size_t extracted_shots_of_board(unsigned int i_stream);
+
     unsigned int network_threads();
     unsigned int extractor_threads();
     unsigned int processor_threads();
 
+    bool network_thread_active(unsigned int i_stream);
+    bool extractor_thread_active(unsigned int i_stream);
+    bool processor_thread_active();
+
     void diskdump_sampling(unsigned int s);
+
+    void start_cmd_thread();
+    void stop_cmd_therad();
 
     // Return the number of acquired UDP packets and extracted shots
 //    void statistics(unsigned int *n_packets, unsigned int *n_shots);
