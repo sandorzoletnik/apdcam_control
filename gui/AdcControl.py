@@ -1,4 +1,5 @@
 import sys
+import os
 from functools import partial
 
 import importlib
@@ -12,6 +13,9 @@ Qt = importlib.import_module(QtVersion+".QtCore")
 # from PyQt6.QtGui import QDoubleValidator
 from .ApdcamUtils import *
 from .GuiMode import *
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import Config
 
 class Adc(QtWidgets.QWidget):
     def updateCameraState(self):
@@ -273,7 +277,7 @@ class Adc(QtWidgets.QWidget):
 
         channelStatusGroup = QVGroupBox("Channels on/off")
         topRow.addWidget(channelStatusGroup)
-        self.channelOn = [None]*32
+        self.channelOn = [None]*Config.channels_per_board
         l = QtWidgets.QGridLayout()
         l.setContentsMargins(10,0,0,0)
         l.setSpacing(15)

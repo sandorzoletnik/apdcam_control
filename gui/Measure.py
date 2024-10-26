@@ -199,21 +199,24 @@ class Measure(QtWidgets.QWidget):
         
     def startMeasurement(self):
 
+        channelMasks = []
+        resolutionBits = []
+        for adc in self.gui.adcControl.adc:
+            tmp = [True]*Config.channels_per_board
+            for i_channel in range(Config.channels_per_board):
+                tmp[i_channel] = adc.channelOn[i_channel].isChecked()
+            channelMasks.append(tmp)
+            resolutionBits.append(int(adc.bits.currentText()))
+
         DAQ().get_net_parameters()
         self.MTU_label.setText(str(DAQ().get_mtu()))
         self.OCTET_label.setText(str(DAQ().get_octet()))
-
-        masks = [ [True,True,True,True,False,False,False,False,
-                   True,True,True,True,False,False,False,False,
-                   True,True,True,True,False,False,False,False,
-                   True,True,True,True,False,False,False,False] ]
 
         processors = [ProcessorTest(),"diskdump"]
 
         self.gui.cameraPolling(False)
 
-        print("Calling self.gui.camera.measure")
-        self.gui.camera.measure(channelMasks=masks,resolutionBits=14,processorTasks=processors)
+        self.gui.camera.measure(channelMasks=channelMasks,resolutionBits=14,processorTasks=processors)
         print("Returned from self.gui.camera.measure")
 
         # return
