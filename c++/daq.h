@@ -197,11 +197,8 @@ namespace apdcam10g
 
         daq &add_processor(processor *p) 
             { 
-                cerr<<"daq::add_processor called: "<<p<<endl;
                 p->set_daq(this);
-                cerr<<"1 ok"<<endl;
                 processors_.push_back(p); 
-                cerr<<"2 ok"<<endl;
                 return *this ;
             }
 

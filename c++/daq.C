@@ -613,8 +613,6 @@ namespace apdcam10g
                 wait_finish();
             }
 
-            cerr<<"daq::start finished"<<endl;
-
             return *this;
         }
         catch(apdcam10g::error &e) { e.print(); }
@@ -778,6 +776,11 @@ namespace apdcam10g
     {
         if(i_adc>=network_buffers_.size()) return 0;
         if(i_adc > board_last_channel_buffers_.size())
+        {
+            cerr<<"It seems that no channels are enabled for this board"<<endl;
+            return 0;
+        }
+        if(board_last_channel_buffers_[i_adc] == 0)
         {
             cerr<<"It seems that no channels are enabled for this board"<<endl;
             return 0;
@@ -1033,7 +1036,6 @@ extern "C"
 
     void add_processor_diskdump(unsigned int process_period, unsigned int sampling)
     {
-        cerr<<"Add processor diskdump started"<<endl;
         try
         {
             auto d = new processor_diskdump();
@@ -1043,7 +1045,6 @@ extern "C"
         }
         catch(apdcam10g::error &e) {e.print();}
         catch(...) { cerr<<"Exception was thrown"<<endl; }            
-        cerr<<"Add processor diskdump finished"<<endl;
     }
 
     void add_processor_python()
