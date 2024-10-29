@@ -1,3 +1,5 @@
+#include <exception>
+#include <stacktrace>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -32,6 +34,27 @@ namespace apdcam10g
 {
     using namespace std;
 
+    void terminate_with_stacktrace() throw()
+    {
+        try
+        {
+            cerr<<std::stacktrace::current()<<endl;
+        }
+        catch(...)
+        {
+            cerr<<"Unexpected exception caught in 'terminate_with_stacktrace()'"<<endl;
+        }
+        abort();
+    }
+
+    bool setup_terminate()
+    {
+        cerr<<"Setting up terminate function"<<endl;
+        std::set_terminate(terminate_with_stacktrace);
+        return true;
+    }
+
+    bool dummy = setup_terminate();
 
     class flag_locker
     {
@@ -345,7 +368,6 @@ namespace apdcam10g
     {
         try
         {
-            cerr<<"daq:;start started"<<endl;
             write_settings(configdir() / "daq.cnf");
 
             {
@@ -391,6 +413,7 @@ namespace apdcam10g
                             // check the last channels of each board, and spin-lock wait until they have a required new number
                             // of entries, or are terminated
                             bool non_terminated_exists = false;
+
                             for(int i=0; i<board_last_channel_buffers_.size(); ++i)
                             {
                                 const channel_data_buffer_t *b = board_last_channel_buffers_[i];
@@ -410,7 +433,8 @@ namespace apdcam10g
                                 size_t pop_counter = b->pop_counter();
                                 if(pop_counter > common_pop_counter) common_pop_counter = pop_counter;
                             }
-                    
+
+                            bool data_in_buffer = false;
                             if(common_push_counter > common_pop_counter)
                             {
                                 // the counter to indicate the first element that is required to stay in the buffers
@@ -428,10 +452,12 @@ namespace apdcam10g
                                 for(auto a: all_enabled_channels_buffers_)
                                 {
                                     a->pop_to(needed);
+                                    if(!a->empty()) data_in_buffer = true;
                                 }
+
                             }
-                    
-                            if(!non_terminated_exists)
+
+                            if(!non_terminated_exists && !data_in_buffer)
                             {
                                 python_analysis_stop_.test_and_set();  // Setting this will cause the python processor loop to stop
                                 python_analysis_run_.test_and_set();   // This and the subsequent notification wakes up the python processor loop
@@ -751,6 +777,11 @@ namespace apdcam10g
     size_t daq::channel_buffer_content_of_board(unsigned int i_adc) const
     {
         if(i_adc>=network_buffers_.size()) return 0;
+        if(i_adc > board_last_channel_buffers_.size())
+        {
+            cerr<<"It seems that no channels are enabled for this board"<<endl;
+            return 0;
+        }
         return board_last_channel_buffers_[i_adc]->size();
     }
     size_t daq::max_channel_buffer_content_of_board(unsigned int i_adc) const
@@ -842,11 +873,22 @@ extern "C"
 
     void start_cmd_thread()
     {
-        daq::instance().start_cmd_thread();
+        try
+        {
+            daq::instance().start_cmd_thread();
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }
     }
     void stop_cmd_thread()
     {
-        daq::instance().stop_cmd_thread();
+        try
+        {
+            daq::instance().stop_cmd_thread();
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Exception was thrown"<<endl; }
+            
     }
 
     unsigned int n_adc()
@@ -989,14 +1031,19 @@ extern "C"
         daq::instance().debug(d);
     }
 
-    void add_processor_diskdump()
+    void add_processor_diskdump(unsigned int process_period, unsigned int sampling)
     {
+        cerr<<"Add processor diskdump started"<<endl;
         try
         {
-            daq::instance().add_processor(new processor_diskdump);
+            auto d = new processor_diskdump();
+            d->period(process_period);
+            d->sampling(sampling);
+            daq::instance().add_processor(d);
         }
         catch(apdcam10g::error &e) {e.print();}
         catch(...) { cerr<<"Exception was thrown"<<endl; }            
+        cerr<<"Add processor diskdump finished"<<endl;
     }
 
     void add_processor_python()
@@ -1038,6 +1085,7 @@ extern "C"
     }
 
     void get_buffer(unsigned int absolute_channel_number, unsigned int *buffersize, apdcam10g::data_type **buffer)
+    {
         try
         {
             auto b = daq::instance().channel_buffer(absolute_channel_number);
@@ -1052,23 +1100,27 @@ extern "C"
         }
         catch(apdcam10g::error &e) {e.print();}
         catch(...) { cerr<<"Exception was thrown"<<endl; }    
+    }
 
     void python_analysis_wait_for_data(size_t *from_counter, size_t *to_counter)
+    {
         try
         {
             daq::instance().python_analysis_wait_for_data(from_counter, to_counter);
         }
         catch(apdcam10g::error &e) {e.print();}
         catch(...) { cerr<<"Exception was thrown"<<endl; }    
-    
+    }
 
     void python_analysis_done(size_t from_counter)
+    {
         try
         {
             daq::instance().python_analysis_done(from_counter);
         }
         catch(apdcam10g::error &e) {e.print();}
         catch(...) { cerr<<"Exception was thrown"<<endl; }    
+    }
 
     void test()
     {

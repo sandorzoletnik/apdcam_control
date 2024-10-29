@@ -5,7 +5,7 @@ all : $(ALL)
 
 HEADERS = $(wildcard ../*.h)
 
-LDFLAGS = -L.. -lapdcam10g # -ljsoncpp
+LDFLAGS = -L.. -lapdcam10g -lstdc++_libbacktrace # -ljsoncpp
 
 apdcam-daq : apdcam-daq.C ../libapdcam10g.so $(HEADERS)
 	g++ $(CXXFLAGS)  -I.. -o $@ $< $(LDFLAGS)

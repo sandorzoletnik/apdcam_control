@@ -4,6 +4,8 @@
 namespace apdcam10g
 {
     unsigned int processor_diskdump::default_sampling_ = 1;
+    unsigned int processor_diskdump::default_period_ = 1000;
+    
     std::filesystem::path processor_diskdump::default_output_dir_ = ".";
 
     void processor_diskdump::init()
@@ -42,8 +44,9 @@ namespace apdcam10g
 
     size_t processor_diskdump::run(size_t from_counter, size_t to_counter)
     {
-          size_t start = std::max(from_counter, next_data_);
-          for(size_t i=start; i<to_counter; ++i)
+          const size_t start = std::max(from_counter, next_data_);
+          const size_t stop = std::min(to_counter, start+period_);
+          for(size_t i=start; i<stop; ++i)
           {
               const bool p = pause_.test(std::memory_order_acquire);
               if(p != previous_pause_)
@@ -70,7 +73,7 @@ namespace apdcam10g
                   }
               }
           }
-          return (next_data_ = to_counter);
+          return (next_data_ = stop);
     }
     
 

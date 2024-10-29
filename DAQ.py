@@ -87,8 +87,14 @@ def DAQ():
         DAQ.instance_.resolution_bits.restype = None
         DAQ.instance_.resolution_bits.argtypes = [ctypes.POINTER(ctypes.c_uint), ctypes.c_int]
 
+        # Overwrite the C++ library's "add_processor_diskdump" routine by a wrapper which offers
+        # default arguments
         DAQ.instance_.add_processor_diskdump.restype = None
-        DAQ.instance_.add_processor_diskdump.argtypes = []
+        DAQ.instance_.add_processor_diskdump.argtypes = [ctypes.c_uint,ctypes.c_uint]
+        orig_add_processor_diskdump = DAQ.instance_.add_processor_diskdump
+        def add_processor_diskdump(process_period=1000,sampling=1):
+            orig_add_processor_diskdump(process_period,sampling)
+        DAQ.instance_.add_processor_diskdump = add_processor_diskdump
 
         DAQ.instance_.add_processor_python.restype = None
         DAQ.instance_.add_processor_python.argtypes = []

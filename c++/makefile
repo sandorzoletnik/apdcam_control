@@ -21,13 +21,13 @@ include $(DEPS)
 include makefile.params
 
 %.o : %.C
-	g++ $(CXXFLAGS) -DFOR_PYTHON -fPIC -O2 -std=c++20 -Wno-interference-size -c -o $@ $<
+	g++ $(CXXFLAGS) -DFOR_PYTHON -fPIC -O2 -std=c++23 -Wno-interference-size -c -o $@ $<
 
 %.d : %.C
 	g++ -DFOR_PYTHON -M -MF $@ $^
 
 libapdcam10g.so : $(OBJS)
 	echo $(OBJS)
-	g++ -fPIC -shared -o $@ $^
+	g++ -fPIC -shared -o $@ $^ -lstdc++_libbacktrace
 
 

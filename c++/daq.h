@@ -197,8 +197,11 @@ namespace apdcam10g
 
         daq &add_processor(processor *p) 
             { 
+                cerr<<"daq::add_processor called: "<<p<<endl;
                 p->set_daq(this);
+                cerr<<"1 ok"<<endl;
                 processors_.push_back(p); 
+                cerr<<"2 ok"<<endl;
                 return *this ;
             }
 
@@ -321,7 +324,7 @@ extern "C"
     void dual_sata(bool d);
     void channel_masks(bool **m, int n_adc_boards);
     void resolution_bits(unsigned int *r, int n_adc_boards);
-    void add_processor_diskdump();
+    void add_processor_diskdump(unsigned int process_period,unsigned int sampling);
     void add_processor_python();
     void debug(bool d);
     void init(bool safe);

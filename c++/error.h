@@ -55,7 +55,7 @@ namespace apdcam10g
     }
 }
 
-#define APDCAM_ERROR(msg)       throw apdcam10g::error(msg,__FILE__,__LINE__)
+#define APDCAM_ERROR(msg)       { std::cerr<<"Throwing exception \""<<msg<<"\" in "<<__FILE__<<" line "<<__LINE__<<std::endl; throw apdcam10g::error(msg,__FILE__,__LINE__); }
 #define APDCAM_ERROR_ERRNO(msg) throw apdcam10g::error(std::string(msg) + ": " + std::string(strerror(errno)),__FILE__,__LINE__) 
 
 #endif

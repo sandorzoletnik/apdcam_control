@@ -57,7 +57,7 @@ namespace apdcam10g
         mtu_ = m; 
         const int max_adc_data_length = mtu_ - (packet::ipv4_header+packet::udp_header+packet::cc_streamheader);
         octet_ = max_adc_data_length/8; // INTEGER DIVISION!
-        if (octet_ < 1) APDCAM_ERROR("MTU value is too small!");
+        if (octet_ < 1) APDCAM_ERROR("MTU value is too small!" + std::to_string(m));
         max_udp_packet_size_ = 8*octet_ + packet::cc_streamheader;
         return *this; 
     }    
@@ -149,7 +149,8 @@ namespace apdcam10g
     
     void daq_settings::calculate_channel_info()
     {
-        if(resolution_bits_.size() != channel_masks_.size()) APDCAM_ERROR("Resolutions (" + std::to_string(resolution_bits_.size()) + ") and channel masks (" + std::to_string(channel_masks_.size()) + ") have different size");
+        if(resolution_bits_.size() != channel_masks_.size()) 
+            APDCAM_ERROR("Resolutions (" + std::to_string(resolution_bits_.size()) + ") and channel masks (" + std::to_string(channel_masks_.size()) + ") have different size");
         
         const int nof_adc = channel_masks_.size();
         board_bytes_per_shot_.resize(nof_adc);

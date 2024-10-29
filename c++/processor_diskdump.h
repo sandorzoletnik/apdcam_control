@@ -49,11 +49,19 @@ namespace apdcam10g
       // output files whenever we switch between paused/resumed states.
       bool previous_pause_;
 
+      // The maximum number of shots to be processed in one call to 'run', even if there are more
+      // available in the buffers
+      std::atomic<unsigned int> period_ = 1000;
+
+      // Default value for period_
+      static unsigned int default_period_;
+
   public:
       processor_diskdump() : output_dir_(default_output_dir_)
       {
           name_ = "processor_diskdump";
           sampling_.store(default_sampling_);
+          period_.store(default_period_);
       }
 
       // Set the filename pattern. The pattern must contain the character '%' which is replaced by the
@@ -88,6 +96,18 @@ namespace apdcam10g
       static void default_sampling(unsigned int s)
       {
           default_sampling_ = s;
+      }
+
+      void period(unsigned int p)
+      {
+          period_.store(p,std::memory_order_seq_cst);
+      }
+
+      // Set the default period value. All instances created after this will have their
+      // process period initialized from this value
+      static void default_period(unsigned int p)
+      {
+          default_period_ = p;
       }
 
       // Initialize the task. Called by the DAQ framework.
