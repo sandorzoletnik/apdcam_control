@@ -22,6 +22,9 @@
 
 namespace apdcam10g
 {
+    // Return true if the mask (vector of booleans) of a given ADC board has at least one true element
+    bool has_enabled_channel(const std::vector<bool> &mask);
+
     class daq_settings
     {
     protected:

@@ -32,7 +32,7 @@ namespace apdcam10g
     // Take a vector of T* (first argument). Loop over its members and delete the objects pointed
     // to by the given element.
     // Resize the vector to 'size'. Then loop over the new elements, create a new object (using operator new)
-    // with the constructor arguments args..., and assign its address to the given element
+    // with the conostructor arguments args..., and assign its address to the given element
     template <typename T,typename... ARGS>
     void regenerate(std::vector<T*> &v, size_t size, ARGS... args)
     {

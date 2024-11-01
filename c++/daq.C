@@ -34,6 +34,7 @@ namespace apdcam10g
 {
     using namespace std;
 
+
     void terminate_with_stacktrace() throw()
     {
         try
@@ -199,40 +200,55 @@ namespace apdcam10g
             
             if(mtu_==0) APDCAM_ERROR("MTU has not yet been specified in daq::initialize");
             if(dual_sata_ && nof_adc>2) APDCAM_ERROR("Dual sata is set with more than two ADC boards present");
-            
+
             // Resize the socket vector to have as many elements as there are ADC boards
             sockets_.clear(); // delete any previously open socket, if any
             sockets_.resize(nof_adc);
-            
+
             // Resize the network buffer vector to have as many elements as there are ADC boards. Initialize their buffer size
             cerr<<"[DAQ] Network buffers : "<<network_buffer_size_<<" packets of size "<<max_udp_packet_size_<<endl<<endl;
-            regenerate(network_buffers_,nof_adc,network_buffer_size_,max_udp_packet_size_);
-            
+            //regenerate(network_buffers_,nof_adc,network_buffer_size_,max_udp_packet_size_);
+            regenerate_by_func(network_buffers_,nof_adc,[this](unsigned int i_adc){return has_enabled_channel(channel_masks_[i_adc]) ? new udp_packet_buffer<default_safeness>() : 0; });
+
             // Resize the extractors vector to have as many elements as there are ADC boards
-            regenerate_by_func(extractors_, nof_adc, [this](unsigned int i_adc){return new channel_data_extractor<default_safeness>(this,fw_version_,i_adc);});
-            
-            
+            //regenerate_by_func(extractors_, nof_adc, [this](unsigned int i_adc){return new channel_data_extractor<default_safeness>(this,fw_version_,i_adc);});
+            regenerate_by_func(extractors_, nof_adc, [this](unsigned int i_adc){return has_enabled_channel(channel_masks_[i_adc]) ? new channel_data_extractor<default_safeness>(this,fw_version_,i_adc) : 0; });
+
             // Resize the channels buffers, so that the sub-ranges (per ADC board) can be set up on the fly (i.e.
             // the 'all_enabled_channels_buffers_' vector is not resized anymore, which would invalidate its sub-ranges)
-            regenerate(all_enabled_channels_buffers_,all_enabled_channels_info_.size(),0);
-            
+            // regenerate(all_enabled_channels_buffers_,all_enabled_channels_info_.size(),0); - hey, this is wrong. It would delete the buffers pointed to by these elements, and the stored pointers would not be initialized to 0, but to an object allocated using the constructor argument '0'
+            all_enabled_channels_buffers_.clear();
+            all_enabled_channels_buffers_.resize(all_enabled_channels_info_.size());
+
             // The per-board channels vector (in fact: subrange of the 'all_enabled_channels_buffers_')
             board_enabled_channels_buffers_.clear();
             board_enabled_channels_buffers_.resize(nof_adc);
-            
+
+            board_last_channel_buffers_.clear();
             board_last_channel_buffers_.resize(nof_adc);
 
-            // Resize all_channels_buffers_ to the maximum possible number of channels, and set all elements to
-            // a zero pointer
+            // Resize all_channels_buffers_ to the maximum possible number of channels, and set all elements to a zero pointer
+            // The strategy is that there is a slot for all physically existing channels, but if the channel is not enabled,
+            // this slot has a zero pointer. Enabled channels have an allocated buffer.
             all_channels_buffers_.clear();
             all_channels_buffers_.resize(nof_adc*config::channels_per_board,0);
 
             // Open the input ports
             for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
             {
+                output_lock lck;
+                
                 const int port_index = (dual_sata_ ? i_adc*2 : i_adc);
                 cerr<<"[DAQ] ====== ADC Board #"<<i_adc<<" ======"<<endl;
                 cerr<<"[DAQ] Port            : "<<config::ports[i_adc*2]<<endl;
+
+                // Do not open an input port for those ADC boards which have no channels emabled
+                if(!has_enabled_channel(channel_masks_[i_adc]))
+                {
+                    cerr<<"[DAQ] No channels are enabled for this ADC board, socket is not opened"<<endl;
+                    continue;
+                }
+                
                 sockets_[i_adc].open(config::ports[port_index]);
                 cerr<<"[DAQ] Bytes per shot  : "<<board_bytes_per_shot_[i_adc]<<endl;
                 cerr<<"[DAQ] Enabled channels: ";
@@ -248,7 +264,7 @@ namespace apdcam10g
                 }
                 cerr<<endl;
             }
-        
+
             for(unsigned int i=0; i<all_enabled_channels_info_.size(); ++i)
             {
                 const channel_info *ci = all_enabled_channels_info_[i];
@@ -368,6 +384,28 @@ namespace apdcam10g
     {
         try
         {
+            {
+                output_lock lck;
+                cerr<<"[DAQ] STARTING..."<<endl;
+            }
+
+            // First make sure that there are enabled channels at all. If not, report, and return
+            bool enabled_channels_exist = false;
+            for(auto &m : channel_masks_)
+            {
+                if(has_enabled_channel(m))
+                {
+                    enabled_channels_exist = true;
+                    break;
+                }
+            }
+            if(!enabled_channels_exist)
+            {
+                output_lock lck;
+                cerr<<"[DAQ] No channels are enabled. We do nothing"<<endl;
+                return *this;
+            }
+
             write_settings(configdir() / "daq.cnf");
 
             {
@@ -486,28 +524,31 @@ namespace apdcam10g
                 cerr<<"[DAQ] Starting extractor threads"<<endl;
             }
         
-            for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
+            for(unsigned int i_adc=0; i_adc<channel_masks_.size(); ++i_adc)
             {
-                extractor_threads_.push_back(std::jthread( [this, i_socket](std::stop_token stok)
+                // Do not start a thread for those ADC boards which have no channels enabled
+                if(!has_enabled_channel(channel_masks_[i_adc])) continue;
+
+                extractor_threads_.push_back(std::jthread( [this, i_adc](std::stop_token stok)
                     {
-                        flag_locker flk(extractor_threads_active_[i_socket]);
-                        const std::string prompt = "[DAQ/EXT/" + std::to_string(i_socket) + "] ";
+                        flag_locker flk(extractor_threads_active_[i_adc]);
+                        const std::string prompt = "[DAQ/EXT/" + std::to_string(i_adc) + "] ";
                         {
                             output_lock lck;
-                            cerr<<prompt<<"Thread "<<i_socket<<" started"<<endl;
+                            cerr<<prompt<<"Thread "<<i_adc<<" started"<<endl;
                         }
-                        signal2exception::set("extractor" + std::to_string(i_socket),SIGSEGV,SIGTERM);
+                        signal2exception::set("extractor" + std::to_string(i_adc),SIGSEGV,SIGTERM);
                         try
                         {
-                            extractors_[i_socket]->run(*network_buffers_[i_socket],board_enabled_channels_buffers_[i_socket]);
+                            extractors_[i_adc]->run(*network_buffers_[i_adc],board_enabled_channels_buffers_[i_adc]);
 
                             // Write a summary of what happened
                             {
                                 output_lock lck;
-                                cerr<<prompt<<"Thread "<<i_socket<<" finished"<<endl;
+                                cerr<<prompt<<"Thread "<<i_adc<<" finished"<<endl;
                                 cerr<<prompt<<"---------- Data extraction summary  ------------------"<<endl;
                                 double sum=0, n=0, max=0;
-                                for(auto b : board_enabled_channels_buffers_[i_socket])
+                                for(auto b : board_enabled_channels_buffers_[i_adc])
                                 {
                                     ++n;
                                     sum += b->mean_size();
@@ -523,7 +564,7 @@ namespace apdcam10g
                         }
                         catch(apdcam10g::error &e) 
                         { 
-                            for(auto a : board_enabled_channels_buffers_[i_socket]) a->terminate();
+                            for(auto a : board_enabled_channels_buffers_[i_adc]) a->terminate();
                             cerr<<prompt<<e.full_message()<<endl; 
                         }
                     }));
@@ -538,21 +579,24 @@ namespace apdcam10g
                 cerr<<"[DAQ] Starting network threads"<<endl;
             }
             {
-                for(unsigned int i_socket=0; i_socket<sockets_.size(); ++i_socket)
+                for(unsigned int i_adc=0; i_adc<channel_masks_.size(); ++i_adc)
                 {
+                    // Do not start a thread for those ADC boards which have no channels enabled
+                    if(!has_enabled_channel(channel_masks_[i_adc])) continue;
+
                     // make the corresponding socket blocking. this thread is reading only from one socket, so
                     // we can safely be blocked until data is available 
-                    sockets_[i_socket].blocking(true);
+                    sockets_[i_adc].blocking(true);
 
-                    network_threads_.push_back(std::jthread( [this, i_socket](std::stop_token stok)
+                    network_threads_.push_back(std::jthread( [this, i_adc](std::stop_token stok)
                         {
-                            flag_locker flk(network_threads_active_[i_socket]);
-                            const std::string prompt = "[DAQ/NET/" + std::to_string(i_socket) + "] ";
+                            flag_locker flk(network_threads_active_[i_adc]);
+                            const std::string prompt = "[DAQ/NET/" + std::to_string(i_adc) + "] ";
                             {
                                 output_lock lck;
-                                cerr<<prompt<<"Thread "<<i_socket<<" started"<<endl;
+                                cerr<<prompt<<"Thread "<<i_adc<<" started"<<endl;
                             }
-                            signal2exception::set("net" + std::to_string(i_socket),SIGSEGV,SIGTERM);
+                            signal2exception::set("net" + std::to_string(i_adc),SIGSEGV,SIGTERM);
                             try
                             {
                                 while(!stok.stop_requested())
@@ -560,42 +604,45 @@ namespace apdcam10g
                                     // The 'receive' function of the UDP packet buffer automatically takes care of lost packets
                                     // and inserts them with zero fill. We provide the stop_token 'stok' to this function
                                     // so that it can monitor eventual stop requests within the spin-lock waiting for new packets
-                                    const auto received_packet_size = network_buffers_[i_socket]->receive(sockets_[i_socket],stok);
+                                    const auto received_packet_size = network_buffers_[i_adc]->receive(sockets_[i_adc],stok);
+
+                                    cerr<<"RECEIVED A PACKET"<<endl;
+
 
                                     // Reached the end of the stream. Both a partial packet, and the 'terminated' flag indicate
                                     // that the camera stopped sending more data
-                                    if(received_packet_size != max_udp_packet_size_ || network_buffers_[i_socket]->terminated()) break;
+                                    if(received_packet_size != max_udp_packet_size_ || network_buffers_[i_adc]->terminated()) break;
                                 }
 
                                 // Close the socket, no more data is accepted
                                 {
                                     output_lock lck;
-                                    cerr<<prompt<<"Closing socket on port "<<sockets_[i_socket].port()<<endl;
+                                    cerr<<prompt<<"Closing socket on port "<<sockets_[i_adc].port()<<endl;
                                 }
-                                sockets_[i_socket].close();
+                                sockets_[i_adc].close();
 
                                 // If we have quit the while loop due to stop_requested, we need to set the terminated flag
                                 // to indicate no more data coming down from the network. If not, we set it again at no harm.
-                                network_buffers_[i_socket]->terminate();
+                                network_buffers_[i_adc]->terminate();
 
                                 // Write a summary
                                 {
                                     output_lock lck;
-                                    cerr<<prompt<<"Thread "<<i_socket<<" finished"<<endl;
+                                    cerr<<prompt<<"Thread "<<i_adc<<" finished"<<endl;
                                     cerr<<prompt<<"---------- Network summary ---------------------------"<<endl;
-                                    cerr<<prompt<<"Received packets    : "<<network_buffers_[i_socket]->received_packets()<<endl;
-                                    cerr<<prompt<<"Lost packets        : "<<network_buffers_[i_socket]->lost_packets()<<endl;
-                                    cerr<<prompt<<"Average buffer size : "<<network_buffers_[i_socket]->mean_size()<<endl;
-                                    cerr<<prompt<<"Maximum buffer size : "<<network_buffers_[i_socket]->max_size()<<endl;
+                                    cerr<<prompt<<"Received packets    : "<<network_buffers_[i_adc]->received_packets()<<endl;
+                                    cerr<<prompt<<"Lost packets        : "<<network_buffers_[i_adc]->lost_packets()<<endl;
+                                    cerr<<prompt<<"Average buffer size : "<<network_buffers_[i_adc]->mean_size()<<endl;
+                                    cerr<<prompt<<"Maximum buffer size : "<<network_buffers_[i_adc]->max_size()<<endl;
                                     cerr<<prompt<<"Buffer capacity     : "<<network_buffer_size_<<endl;
-                                    if(network_buffers_[i_socket]->mean_size() > network_buffer_size_/2) cerr<<prompt<<"WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
+                                    if(network_buffers_[i_adc]->mean_size() > network_buffer_size_/2) cerr<<prompt<<"WE RECOMMEND INCREASING THE BUFFER SIZE"<<endl;
                                     cerr<<endl;
                                 }
 
                             }
                             catch(apdcam10g::error &e) 
                             { 
-                                network_buffers_[i_socket]->terminate();
+                                network_buffers_[i_adc]->terminate();
                                 cerr<<prompt<<e.full_message()<<endl; 
                             }
                         }));
@@ -740,36 +787,34 @@ namespace apdcam10g
 
     size_t daq::received_packets(unsigned int i_stream) const
     {
-        if(i_stream>=network_buffers_.size()) return 0;
+        if(i_stream>=network_buffers_.size() || network_buffers_[i_stream]==0) return 0;
         return network_buffers_[i_stream]->push_counter();
     }
     size_t daq::lost_packets(unsigned int i_stream) const
     {
-        if(i_stream>=network_buffers_.size()) return 0;
+        if(i_stream>=network_buffers_.size() || network_buffers_[i_stream]==0) return 0;
         return network_buffers_[i_stream]->lost_packets();
     }
 
     size_t daq::network_buffer_content(unsigned int i_stream) const
     {
-        if(i_stream>=network_buffers_.size()) return 0;
+        if(i_stream>=network_buffers_.size() || network_buffers_[i_stream]==0) return 0;
         return network_buffers_[i_stream]->size();
     }
     size_t daq::max_network_buffer_content(unsigned int i_stream) const
     {
-        if(i_stream>=network_buffers_.size()) return 0;
+        if(i_stream>=network_buffers_.size() || network_buffers_[i_stream]==0) return 0;
         return network_buffers_[i_stream]->max_size();
     }
 
     size_t daq::channel_buffer_content(unsigned int i_channel) const
     {
-        if(i_channel>=all_channels_buffers_.size()) return 0;
-        if(all_channels_buffers_[i_channel] == 0) return 0;
+        if(i_channel>=all_channels_buffers_.size() || all_channels_buffers_[i_channel]==0) return 0;
         return all_channels_buffers_[i_channel]->size();
     }
     size_t daq::max_channel_buffer_content(unsigned int i_channel) const
     {
-        if(i_channel>=all_channels_buffers_.size()) return 0;
-        if(all_channels_buffers_[i_channel] == 0) return 0;
+        if(i_channel>=all_channels_buffers_.size() || all_channels_buffers_[i_channel]==0) return 0;
         return all_channels_buffers_[i_channel]->max_size();
     }
     size_t daq::channel_buffer_content_of_board(unsigned int i_adc) const
@@ -789,18 +834,18 @@ namespace apdcam10g
     }
     size_t daq::max_channel_buffer_content_of_board(unsigned int i_adc) const
     {
-        if(i_adc>=network_buffers_.size()) return 0;
+        if(i_adc>=network_buffers_.size() || board_last_channel_buffers_[i_adc]==0) return 0;
         return board_last_channel_buffers_[i_adc]->max_size();
     }
     
     size_t daq::extracted_shots(unsigned int i_channel) const
     {
-        if(i_channel>=all_channels_buffers_.size()) return 0;
+        if(i_channel>=all_channels_buffers_.size() || all_channels_buffers_[i_channel]==0) return 0;
         return all_channels_buffers_[i_channel]->push_counter();
     }
     size_t daq::extracted_shots_of_board(unsigned int i_adc) const
     {
-        if(i_adc>=board_last_channel_buffers_.size()) return 0;
+        if(i_adc>=board_last_channel_buffers_.size() || board_last_channel_buffers_[i_adc]==0) return 0;
         return board_last_channel_buffers_[i_adc]->push_counter();
     }
 

@@ -16,6 +16,12 @@ using namespace std;
 
 namespace apdcam10g
 {
+    bool has_enabled_channel(const std::vector<bool> &mask)
+    {
+        for(auto f : mask) if(f) return true;
+        return false;
+    }
+
     daq_settings::daq_settings(): channel_masks_(config::max_boards), resolution_bits_(config::max_boards,14)
     {
         // By default enable all channels, with all possible ADC boards present
@@ -153,22 +159,19 @@ namespace apdcam10g
             APDCAM_ERROR("Resolutions (" + std::to_string(resolution_bits_.size()) + ") and channel masks (" + std::to_string(channel_masks_.size()) + ") have different size");
         
         const int nof_adc = channel_masks_.size();
-        board_bytes_per_shot_.resize(nof_adc);
+
+        
+        board_bytes_per_shot_.clear();
+        board_bytes_per_shot_.resize(nof_adc,0);
+
+        chip_bytes_per_shot_.clear();
         chip_bytes_per_shot_.resize(nof_adc);
-        for(auto &v : chip_bytes_per_shot_) v.resize(config::chips_per_board);
+        for(auto &v : chip_bytes_per_shot_) v.resize(config::chips_per_board,0);
+
+        chip_offset_.clear();
         chip_offset_.resize(nof_adc);
-
-        for(auto &v : chip_offset_) v.resize(config::chips_per_board);
+        for(auto &v : chip_offset_) v.resize(config::chips_per_board,0);
     
-        unsigned int enabled_channels = 0;
-        for(int i_adc=0; i_adc<nof_adc; ++i_adc) 
-        {
-            for(int i_channel_of_board=0; i_channel_of_board<config::channels_per_board; ++i_channel_of_board) 
-            {
-                if(channel_masks_[i_adc][i_channel_of_board]) ++enabled_channels;
-            }
-        }
-
         // Delete all channel_info objects, and clear the vector
         for(auto a : all_enabled_channels_info_) delete a;
         all_enabled_channels_info_.clear();
@@ -180,6 +183,10 @@ namespace apdcam10g
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
             board_bytes_per_shot_[i_adc] = 0;
+
+            // Skip those ADC boards which have no channels enabled. All info has been already initialized before this loop so we
+            // do not need to do anything else
+            if(!has_enabled_channel(channel_masks_[i_adc])) continue;
 
             for(unsigned int i_chip=0; i_chip<config::chips_per_board; ++i_chip)
             {

@@ -207,7 +207,7 @@ namespace apdcam10g
         void debug(bool d) 
             {
                 debug_ = d;
-                for(auto e : extractors_) e->debug(d);
+                for(auto e : extractors_) if(e) e->debug(d);
             }
 
         // Pause all diskdump processors (they will process the data but will not write it to disk)
