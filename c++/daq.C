@@ -208,7 +208,7 @@ namespace apdcam10g
             // Resize the network buffer vector to have as many elements as there are ADC boards. Initialize their buffer size
             cerr<<"[DAQ] Network buffers : "<<network_buffer_size_<<" packets of size "<<max_udp_packet_size_<<endl<<endl;
             //regenerate(network_buffers_,nof_adc,network_buffer_size_,max_udp_packet_size_);
-            regenerate_by_func(network_buffers_,nof_adc,[this](unsigned int i_adc){return has_enabled_channel(channel_masks_[i_adc]) ? new udp_packet_buffer<default_safeness>() : 0; });
+            regenerate_by_func(network_buffers_,nof_adc,[this](unsigned int i_adc){return has_enabled_channel(channel_masks_[i_adc]) ? new udp_packet_buffer<default_safeness>(network_buffer_size_,max_udp_packet_size_) : 0; });
 
             // Resize the extractors vector to have as many elements as there are ADC boards
             //regenerate_by_func(extractors_, nof_adc, [this](unsigned int i_adc){return new channel_data_extractor<default_safeness>(this,fw_version_,i_adc);});
