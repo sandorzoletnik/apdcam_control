@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <string>
-#include <concepts>
+//#include <concepts>
 #include <mutex>
 #include <filesystem>
 
@@ -41,7 +41,8 @@ namespace apdcam10g
         for(auto &p : v) p = new T(args...);
     }
 
-    template<typename T, std::invocable<unsigned int> F>
+    //template<typename T, std::invocable<unsigned int> F>
+    template<typename T, typename F>
     void regenerate_by_func(std::vector<T*> &v, size_t size, F func)
     {
         for(auto p : v) delete p;

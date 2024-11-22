@@ -37,6 +37,7 @@ namespace apdcam10g
 
     void terminate_with_stacktrace() throw()
     {
+#ifdef STACKTRACE
         try
         {
             cerr<<std::stacktrace::current()<<endl;
@@ -45,6 +46,7 @@ namespace apdcam10g
         {
             cerr<<"Unexpected exception caught in 'terminate_with_stacktrace()'"<<endl;
         }
+#endif
         abort();
     }
 

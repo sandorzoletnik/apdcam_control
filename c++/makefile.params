@@ -1,3 +1,7 @@
-CXXFLAGS := -Wno-interference-size -std=c++23 -pthread -DSTACKTRACE -DFOR_PYTHON
-LDFLAGS := -lstdc++_libbacktrace
+CXXFLAGS := -Wno-interference-size -std=c++2a -pthread  -DFOR_PYTHON
+LDFLAGS := 
+
+#CXXFLAGS := -Wno-interference-size -std=c++23 -pthread -DSTACKTRACE -DFOR_PYTHON
+#LDFLAGS := -lstdc++_libbacktrace
+
 
