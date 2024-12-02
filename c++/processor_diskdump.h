@@ -17,6 +17,8 @@ namespace apdcam10g
   class processor_diskdump : public processor
   {
   private:
+      const std::string prompt_ = "[DISKDUMP] ";
+
       // The output files, one per channel
       std::vector<std::ofstream> files_;
 

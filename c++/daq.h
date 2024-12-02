@@ -237,6 +237,14 @@ namespace apdcam10g
         daq &network_buffer_size(unsigned int b) { network_buffer_size_ = b; return *this; }
         unsigned int network_buffer_size() const { return network_buffer_size_; }
 
+        // Return a formatted help text describing the available commands (to be sent to the running DAQ process
+        // via the command apdcam-daq -c
+        static std::string cmd_help_text();
+
+        // Print the formatted help text to the standard error
+        static void cmd_help() { cout<<cmd_help_text()<<endl; }
+
+        // Start/stop the command interpreter thread, via which one can interact with the running DAQ process
         void start_cmd_thread();
         void stop_cmd_thread();
 
@@ -252,7 +260,8 @@ namespace apdcam10g
         // the network buffers, the data extractor threads will thereby be notified and stop, but they will also raise the
         // 'terminated' flags in the channel data buffers, causing finally the processor thread to also terminate. So a soft
         // stop in the network reader threads will propagate through all threads, and stop them.
-        // If the timeout argument is larger than zero, this function will block until all threads are finihsed, but latest
+        // If the timeout argument is zero, the function returns immediately and does not check if and when the threads finish.
+        // If the timeout argument is larger than zero, this function will block until all threads are finished, but latest
         // the given time in seconds, and then gracelessly terminate all worker threads
         template <safeness S=default_safeness>
         daq &stop(unsigned int timeout_sec=0);

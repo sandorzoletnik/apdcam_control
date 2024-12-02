@@ -18,7 +18,8 @@ namespace apdcam10g
     // Return the home directory of the current user
     std::filesystem::path homedir();
 
-    // Return the directory where configuration and working files (such as the command FIFO) are stored
+    // Return the directory where configuration and working files (such as the command FIFO) are stored.
+    // Create it if it doesn't exist
     std::filesystem::path configdir();
 
     // Take the square of anything

@@ -9,25 +9,29 @@ OBJS = $(SRCS:.C=.o)
 
 all : libapdcam10g.so tools
 
+proba : proba.C
+	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
+
 .PHONY: tools clean
 tools:
 	cd tools; $(MAKE)
 
 clean :
-	rm -f *.o *.so *.d *~
+	rm -f *.o *.so *.d *~ *.dat
 	cd tools; $(MAKE) clean
 
 # uncomment this
 include $(DEPS)
 
+# -fPIC is required. It is specified in CXXFLAGS
 %.o : %.C
-	g++ $(CXXFLAGS) -fPIC -O2 -c -o $@ $<
+	$(CXX) -fPIC $(CXXFLAGS) -O2 -c -o $@ $<
 
 %.d : %.C
-	g++ $(CXXFLAGS) -M -MF $@ $^
+	$(CXX) $(CXXFLAGS) -M -MF $@ $^
 
 libapdcam10g.so : $(OBJS)
 	echo $(OBJS)
-	g++ -fPIC -shared -o $@ $^ $(LDFLAGS)
+	$(CXX) -shared -o $@ $^  $(LDFLAGS)
 
 

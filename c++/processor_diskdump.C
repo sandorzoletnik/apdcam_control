@@ -22,7 +22,8 @@ namespace apdcam10g
           previous_pause_ = false;
 
           // Open the files for each channel
-          cerr<<"Opening diskdump output files: "<<filename_pattern_<<endl;
+          cerr<<prompt_<<"Output directory: "<<std::filesystem::absolute(output_dir_)<<endl;
+          cerr<<prompt_<<"Opening diskdump output files: "<<filename_pattern_<<endl;
           auto p = filename_pattern_.find('%');
           if(p==string::npos) APDCAM_ERROR("The filename pattern does not contain the character %");
           for(unsigned int i=0; i<daq_->all_enabled_channels_buffers_.size(); ++i)

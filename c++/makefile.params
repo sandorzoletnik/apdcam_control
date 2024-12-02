@@ -1,7 +1,7 @@
-CXXFLAGS := -Wno-interference-size -std=c++2a -pthread  -DFOR_PYTHON
-LDFLAGS := 
+CXX = g++ #/home/barna/progs/obggcc/obggcc/bin/x86_64-unknown-linux-gnu-g++
+LD = g++ #/home/barna/progs/obggcc/obggcc/bin/x86_64-unknown-linux-gnu-g++
 
-#CXXFLAGS := -Wno-interference-size -std=c++23 -pthread -DSTACKTRACE -DFOR_PYTHON
-#LDFLAGS := -lstdc++_libbacktrace
+CXXFLAGS := -Wno-interference-size -std=c++23 -pthread -DFOR_PYTHON  
+LDFLAGS := -static-libgcc -static-libstdc++  -lstdc++_libbacktrace
 
 

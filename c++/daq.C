@@ -1,5 +1,7 @@
 #include <exception>
+#ifdef STACKTRACE
 #include <stacktrace>
+#endif
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -7,7 +9,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <chrono>
 
+#include "tee.h"
 #include "daq.h"
 #include "utils.h"
 #include "error.h"
@@ -123,7 +127,9 @@ namespace apdcam10g
 
     daq::daq()
     {
-        
+        // the class 'daq' is a singleton, so we make global initialization here
+        tee(std::cout,configdir() / "cout");
+        tee(std::cerr,configdir() / "cerr");
     }
 
     bool daq::python_analysis_stop()
@@ -301,6 +307,39 @@ namespace apdcam10g
         command_thread_.join();
     }
 
+    std::string daq::cmd_help_text()
+    {
+        return
+R"(
+One can interact with the running DAQ process via commands that are sent to the process by the following commnad:
+apdcam-daq -c <command>
+It does nothing else but write the command into the named pipe ~/.apdcam10g/cmd, so if you prefer, you can also
+do this low-level stuff directly.
+
+The following commands are accepted and interpreted by the DAQ process:
+
+diskdump_pause
+    Pause dumping the data to disk. The DAQ and all other data processor tasks
+    keep running in the same way as before.
+
+diskdump_resume
+    Resume writing data to disk.
+
+diskdump_sampling <n>
+    Change the sampling rate of writing the channel data to disk.
+    Every nth sample is written, the others are not. (Is it sunchronized
+    among the different channels? CHECK!
+
+stop [timeout]
+    Stop the DAQ in a soft way (instructing the network reader threads to stop reading and finish
+    their data queue towards the processors). If timeout (in seconds, integer) is provided, the threads
+    are killed gracelessly after these many seconds.
+
+)";
+            
+            
+    }
+
     void daq::start_cmd_thread()
     {
         if(command_thread_active_.test()) return;
@@ -331,7 +370,9 @@ namespace apdcam10g
                         ifstream fifo(cmd_fifo_name_);
                         while(!stok.stop_requested() && getline(fifo,line))
                         {
-                            cerr<<prompt<<line<<endl;
+                            auto now = std::chrono::system_clock::now();
+                            std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+                            cerr<<prompt<<std::ctime(&now_time)<<" "<<line<<endl;
                             istringstream inputstr(line);
                             string cmd;
                             inputstr>>cmd;

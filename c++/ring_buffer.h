@@ -1,11 +1,12 @@
 /*
 
+  Author: Daniel Barna <daniel.barna@fusioninstruments.com>
+
   ring_buffer is a fixed-size buffer offering a cyclic push-pop operation. It is only thread-safe in a
   single-producer/single-consumer scheme. 
 
-  Pop operation (i.e. removing objects from the buffer) do not call
-  the destructor of the removed objects. This is ok for built-in types
-  but may make surprises for class objects.
+  Pop operation (i.e. removing objects from the buffer) does not call the destructor of the
+  removed objects. This is ok for built-in types but may make surprises for class objects.
 
   Instead of cyclically reset the push/pop indices to zero whenever they reach the end of the buffer
   (this should be checked by an if statement every time these indices are updated, i.e. an element is
@@ -24,10 +25,12 @@
       this feature
 
   ring_buffer is a template class with two template types:
-  1 - The first type is of course the data type that this buffer can store
+  1 - The first type is of course the data type that this buffer can store. Its destructor is not
+      called when an object is popped from the queue
   2 - An optional class from which ring_buffer will derive. It will inherit all public members
       of this base class type. This is an elegant way to easily augment the functionality
-      of ring_buffer with further services. In the current context, this feature will be used
+      of ring_buffer with further services implemented in other classes.
+      In the current context, this feature will be used
       for the buffers storing the subsequent values of the individual channels. The ring_buffer
       storing these values will derive from channel_info so that channel number, board number
       and further info can directly be queried from the corresponding ring_buffer

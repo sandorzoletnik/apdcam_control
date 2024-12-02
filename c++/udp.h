@@ -6,6 +6,7 @@
 #include "typedefs.h"
 #include <cstddef>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <iostream>
 
@@ -77,7 +78,7 @@ namespace apdcam10g
         {
             if(timeout_in_seconds>0)
             {
-                struct timeval tv;
+                timeval tv;
                 tv.tv_sec = timeout_in_seconds;
                 tv.tv_usec = 0;
                 setsockopt(fd_, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);

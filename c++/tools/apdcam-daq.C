@@ -20,11 +20,12 @@ void help()
     cout<<"  -c <command ...>                 Send a command to a running APDCAM DAQ process. The rest of the command"<<endl;
     cout<<"                                   line arguments is interpreted as the command and is simply written"<<endl;
     cout<<"                                   into the named pipe ~/.apdcam10g/cmd"<<endl;
+    cout<<"                                   For a list of available commands run apdcam-daq --help-commands"<<endl;
     cout<<"  -k|--kill                        kill the running apdcam DAQ process (if there is any), the PID of which is in ~/.apdcam10g/pid"<<endl;
     cout<<"  -d directory                     Specify the output directory for diskdump (i.e. where the per-channel data is written)"<<endl;
     cout<<"  -s|--sample-buffer <interface>   Set the sample buffer size. Must be power of 2. Defaults to "<<daq::instance().channel_buffer_size()<<endl;
     cout<<"  -n|--network-buffer <interface>  Set the network ring buffer size in terms of UDP packets. Must be power of 2. Defaults to "<<daq::instance().network_buffer_size()<<endl;
-    cout<<"  -d                               Set debug mode"<<endl;
+    cout<<"  -D|--debug                       Set debug mode"<<endl;
     cout<<endl;
     cout<<"Upon starting it will create a file 'settings.json' that can be read by the fake camera using the -s command line argument"<<endl;
     exit(0);
@@ -43,19 +44,20 @@ void flush_output(int sig)
     raise (sig);
 }
 
+
 int main(int argc, char *argv[])
 try
 {
-
-    string ld_library_path = getenv("LD_LIBRARY_PATH");
-    ld_library_path += ":..";
-    setenv("LD_LIBRARY_PATH",ld_library_path.c_str(),1);
+//    string ld_library_path = getenv("LD_LIBRARY_PATH");
+//    ld_library_path += ":..";
+//    setenv("LD_LIBRARY_PATH",ld_library_path.c_str(),1);
 
     signal(SIGINT,flush_output);
 
     for(unsigned int opt=1; opt<argc; ++opt)
     {
         if(!strcmp(argv[opt],"-h") || !strcmp(argv[opt],"--help")) help();
+        else if(!strcmp(argv[opt],"--help-commands")) daq::cmd_help();
         else if(!strcmp(argv[opt],"-c"))
         {
             auto fifo_name = configdir() / "cmd";
@@ -102,7 +104,7 @@ try
             if(opt+1>=argc) APDCAM_ERROR(std::string("Missing argument (buffer size) after ") + argv[opt]);
             daq::instance().network_buffer_size(atoi(argv[++opt]));
         }
-        else if(!strcmp(argv[opt],"-d")) daq::instance().debug(true);
+        else if(!strcmp(argv[opt],"-D") || !strcmp(argv[opt],"--debug")) daq::instance().debug(true);
         else APDCAM_ERROR(std::string("Bad argument: ") + argv[opt]);
     }
 
