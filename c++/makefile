@@ -1,5 +1,3 @@
-#a.out : proba.C ring_buffer.h
-#	g++ -std=c++20 -Wno-interference-size proba.C
 
 include makefile.params
 
@@ -8,9 +6,6 @@ DEPS = $(SRCS:.C=.d)
 OBJS = $(SRCS:.C=.o)
 
 all : libapdcam10g.so tools
-
-proba : proba.C
-	g++ -o $@ $^ $(CXXFLAGS) $(LDFLAGS)
 
 .PHONY: tools clean
 tools:

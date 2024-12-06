@@ -1,7 +1,9 @@
-CXX = g++ #/home/barna/progs/obggcc/obggcc/bin/x86_64-unknown-linux-gnu-g++
-LD = g++ #/home/barna/progs/obggcc/obggcc/bin/x86_64-unknown-linux-gnu-g++
+CXX = g++ #/opt/gcc-14.2.0/bin/g++-14.2.0
+LD = g++ #/opt/gcc-14.2.0/bin/g++-14.2.0
+
 
 CXXFLAGS := -Wno-interference-size -std=c++23 -pthread -DFOR_PYTHON  
-LDFLAGS := -static-libgcc -static-libstdc++  -lstdc++_libbacktrace
+LDFLAGS := -static-libgcc -static-libstdc++
+#-lstdc++_libbacktrace
 
 

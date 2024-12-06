@@ -1,15 +1,15 @@
 include ../makefile.params
 
-ALL=apdcam-daq apdcam-fake-camera
+ALL=apdcam-daq.exe apdcam-fake-camera.exe
 all : $(ALL)
 
 HEADERS = $(wildcard ../*.h)
 
 LDFLAGS += -L.. -lapdcam10g 
 
-apdcam-daq : apdcam-daq.C ../libapdcam10g.so $(HEADERS)
+apdcam-daq.exe : apdcam-daq.C ../libapdcam10g.so $(HEADERS)
 	$(CXX) $(CXXFLAGS)  -I.. -o $@ $< $(LDFLAGS)
-apdcam-fake-camera : apdcam-fake-camera.C ../libapdcam10g.so $(HEADERS)
+apdcam-fake-camera.exe : apdcam-fake-camera.C ../libapdcam10g.so $(HEADERS)
 	$(CXX) $(CXXFLAGS)  -I.. -o $@ $< $(LDFLAGS)
 
 # earlier test programs for UDP communication

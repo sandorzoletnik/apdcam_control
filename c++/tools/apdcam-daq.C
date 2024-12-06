@@ -16,7 +16,7 @@ using namespace std;
 void help()
 {
     cout<<"Usage: apdcam-data-recorder [options]"<<endl<<endl;
-    cout<<"  -i <interface>                   Set the network interface. Defaults to 'lo'"<<endl;
+    cout<<"  -i|--interface <interface>       Set the network interface. Defaults to 'lo'"<<endl;
     cout<<"  -c <command ...>                 Send a command to a running APDCAM DAQ process. The rest of the command"<<endl;
     cout<<"                                   line arguments is interpreted as the command and is simply written"<<endl;
     cout<<"                                   into the named pipe ~/.apdcam10g/cmd"<<endl;
@@ -54,10 +54,19 @@ try
 
     signal(SIGINT,flush_output);
 
+
     for(unsigned int opt=1; opt<argc; ++opt)
     {
-        if(!strcmp(argv[opt],"-h") || !strcmp(argv[opt],"--help")) help();
-        else if(!strcmp(argv[opt],"--help-commands")) daq::cmd_help();
+        if(!strcmp(argv[opt],"-h") || !strcmp(argv[opt],"--help"))
+        {
+            help();
+            exit(0);
+        }
+        else if(!strcmp(argv[opt],"--help-commands")) 
+        {
+            daq::cmd_help();
+            exit(0);
+        }
         else if(!strcmp(argv[opt],"-c"))
         {
             auto fifo_name = configdir() / "cmd";
@@ -73,6 +82,7 @@ try
                 fifo<<argv[i];
             }
             fifo<<endl;
+            exit(0);
         }
         else if(!strcmp(argv[opt],"-k") || !strcmp(argv[opt],"--kill"))
         {
@@ -82,14 +92,14 @@ try
             pid_t pid;
             pid_file>>pid;
             kill(pid,SIGKILL);
-            
+            exit(0);
         }
         else if(!strcmp(argv[opt],"-d"))
         {
             if(opt+1>=argc) APDCAM_ERROR("Directory name expected after -d");
             processor_diskdump::default_output_dir(argv[++opt]);
         }
-        else if(!strcmp(argv[opt],"-i"))
+        else if(!strcmp(argv[opt],"-i") || ~strcmp(argv[opt],"--interface"))
         {
             if(opt+1>=argc) APDCAM_ERROR("Missing argument (interface) after -i");
             daq::instance().interface(argv[++opt]);
@@ -122,6 +132,8 @@ try
         });
 
     daq::instance().init();
+
+    daq::instance().start_cmd_thread();
 
 //    daq::instance().write_settings("apdcam-daq.cnf");
 

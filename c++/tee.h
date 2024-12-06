@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include <fstream>
-#include <stacktrace>
 #include <filesystem>
 
 using namespace std;
