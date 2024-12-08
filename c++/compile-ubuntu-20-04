@@ -1,0 +1,14 @@
+#!/bin/bash
+
+cwd=`pwd`
+d=`basename $cwd`
+if [ "$d" != "c++" ] ; then
+  echo This script must be called in the c++ directory
+  exit 1
+fi
+
+make clean
+cd ..
+docker cp c++ ubuntu_20_04:/home/developer/apdcam
+docker exec ubuntu_20_04 sh -c "cd /home/developer/apdcam/c++; make clean; make"
+

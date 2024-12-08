@@ -1,6 +1,10 @@
 CXX = g++ #/opt/gcc-14.2.0/bin/g++-14.2.0
 LD = g++ #/opt/gcc-14.2.0/bin/g++-14.2.0
 
+ifneq (,$(wildcard /opt/gcc-14.2.0/bin/g++-14.2.0))
+  CXX = /opt/gcc-14.2.0/bin/g++-14.2.0
+  LD = /opt/gcc-14.2.0/bin/g++-14.2.0
+endif
 
 CXXFLAGS := -Wno-interference-size -std=c++23 -pthread -DFOR_PYTHON  
 LDFLAGS := -static-libgcc -static-libstdc++
