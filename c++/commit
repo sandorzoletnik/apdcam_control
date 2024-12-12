@@ -3,10 +3,16 @@
 cd ..
 git rm --cached c++/ubuntu-20.04/libapdcam10g.so
 git reset c++/ubuntu-20.04/libapdcam10g.so
+git add -f c++/ubuntu-20.04/libapdcam10g.so
+
 git rm --cached c++/ubuntu-20.04/apdcam-daq.exe
 git reset c++/ubuntu-20.04/apdcam-daq.exe
+git add -f c++/ubuntu-20.04/apdcam-daq.exe
+
 git rm --cached c++/ubuntu-20.04/apdcam-fake-camera.exe
 git reset c++/ubuntu-20.04/apdcam-fake-camera.exe
+git add -f c++/ubuntu-20.04/apdcam-fake-camera.exe
+
 git add .
 git commit -m 'commit'
 git push origin dev_barna
