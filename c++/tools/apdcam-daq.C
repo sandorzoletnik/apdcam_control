@@ -48,10 +48,6 @@ void flush_output(int sig)
 int main(int argc, char *argv[])
 try
 {
-    unsigned int vvv = 123;
-    cerr<<vvv<<endl;
-    return 0;
-
 
 //    string ld_library_path = getenv("LD_LIBRARY_PATH");
 //    ld_library_path += ":..";
