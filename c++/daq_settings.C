@@ -148,6 +148,7 @@ namespace apdcam10g
         */
 
 
+        cerr<<"lak jdlfja dlfja ldfj alkdj flakd hflajh dflka hfdlka hfajdfadf kadjfhka djfkadjfhakdhfkadh fkaj dfkjah dkfj akjdsf akjd fhkjah fdkja fdkja hsdkfadsfffffffffffffffffffffffffffffffffadsfda dfkahd kfahd kjfa hdkfj hakdf akj fhdkjahd fkjahd fjka jkfdh akjdf hajk fha"<<endl;
         cerr<<"Interface: "<<interface_<<endl;
         cerr<<"Ehnye, most jon a kritikus sor..."<<endl;
 //        cerr<<"MTU      : "<<mtu_<<endl;
