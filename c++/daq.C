@@ -368,6 +368,9 @@ stop [timeout]
                         // Reopen the file repeatedly because if we send commands into the FIFO file by echo, it closes the
                         // file, and fifo.clear() (i.e. clearing all error bits on the ifstream) does not help. 
                         ifstream fifo(cmd_fifo_name_);
+
+                        cerr<<prompt<<"Waiting for command in fifo..."<<endl;
+
                         while(!stok.stop_requested() && getline(fifo,line))
                         {
                             auto now = std::chrono::system_clock::now();
