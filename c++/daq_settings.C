@@ -61,6 +61,7 @@ namespace apdcam10g
 
     daq_settings &daq_settings::mtu(unsigned int m)
     {
+        cerr<<"SETTING MTU TO: "<<m<<endl;
         mtu_ = m; 
         const int max_adc_data_length = mtu_ - (packet::ipv4_header+packet::udp_header+packet::cc_streamheader);
         octet_ = max_adc_data_length/8; // INTEGER DIVISION!
