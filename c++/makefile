@@ -10,7 +10,8 @@ all : libapdcam10g.so tools
 .PHONY: ubuntu-20.04
 
 ubuntu-20.04:
-	docker cp . ubuntu_20_04:/home/developer/apdcam/
+	docker exec ubuntu_20_04 sh -c "rm -rf /home/developer/apdcam/c++"
+	cd ..; docker cp c++ ubuntu_20_04:/home/developer/apdcam/; cd c++
 	docker exec ubuntu_20_04 sh -c "cd /home/developer/apdcam/c++; make clean; make"
 	docker cp ubuntu_20_04:/home/developer/apdcam/c++/libapdcam10g.so ubuntu-20.04/
 	docker cp ubuntu_20_04:/home/developer/apdcam/c++/tools/apdcam-daq.exe ubuntu-20.04/

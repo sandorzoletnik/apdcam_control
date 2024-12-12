@@ -14,6 +14,15 @@
 
 using namespace std;
 
+extern "C"
+{
+    void kibaszottpicsa()
+    {
+        cerr<<"te genya alatt"<<endl;
+    }
+
+}
+
 namespace apdcam10g
 {
     bool has_enabled_channel(const std::vector<bool> &mask)
@@ -157,7 +166,8 @@ namespace apdcam10g
 
         return *this;
     }
-    
+
+
     void daq_settings::calculate_channel_info()
     {
         if(resolution_bits_.size() != channel_masks_.size()) 
