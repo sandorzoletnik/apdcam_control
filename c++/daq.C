@@ -61,7 +61,7 @@ namespace apdcam10g
         return true;
     }
 
-    bool dummy = setup_terminate();
+//    bool dummy = setup_terminate();
 
     class flag_locker
     {
