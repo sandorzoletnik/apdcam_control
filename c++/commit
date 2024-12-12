@@ -1,0 +1,13 @@
+#!/bin/bash
+
+cd ubuntu-20.04
+git rm --cached libapdcam10g.so
+git rm --cached apdcam-daq.exe
+git rm --cached apdcam-fake-camera.exe
+git add libapdcam10g.so
+git add apdcam-daq.exe
+git add apdcam-fake-camera.exe
+cd ../..
+git add .
+git commit -m 'commit'
+git push origin dev_barna
