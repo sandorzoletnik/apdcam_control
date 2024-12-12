@@ -31,8 +31,8 @@ namespace apdcam10g
         std::string interface_ = "lo";
         const static int ipv4_header_ = 20;
         const static int udp_header_ = 8;
-        uint32_t mtu_ = 0;
-        uint32_t octet_ = 0;
+        int mtu_ = 0;
+        int octet_ = 0;
 
         // The maximum UDP packet size, which is 22 bytes (streamheader) + 8*octet. At the end of a burst or a sequence
         // of transmitted shots, there may be a smaller UDP packet if the shots do not fill an entire one, but
