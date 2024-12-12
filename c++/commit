@@ -1,16 +1,12 @@
 #!/bin/bash
 
-cd ubuntu-20.04
-git update-index --no-assume-unchanged libapdcam10g.so
-git update-index --no-assume-unchanged apdcam-daq.exe
-git update-index --no-assume-unchanged apdcam-fake-camera.exe
-git rm --cached libapdcam10g.so
-git rm --cached apdcam-daq.exe
-git rm --cached apdcam-fake-camera.exe
-git add libapdcam10g.so
-git add apdcam-daq.exe
-git add apdcam-fake-camera.exe
-cd ../..
+cd ..
+git rm --cached c++/ubuntu-20.04/libapdcam10g.so
+git reset c++/ubuntu-20.04/libapdcam10g.so
+git rm --cached c++/ubuntu-20.04/apdcam-daq.exe
+git reset c++/ubuntu-20.04/apdcam-daq.exe
+git rm --cached c++/ubuntu-20.04/apdcam-fake-camera.exe
+git reset c++/ubuntu-20.04/apdcam-fake-camera.exe
 git add .
 git commit -m 'commit'
 git push origin dev_barna
