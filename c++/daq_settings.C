@@ -70,6 +70,8 @@ namespace apdcam10g
 
     daq_settings &daq_settings::get_net_parameters()
     {
+        cerr<<"Running daq_settings::get_net_parameters()"<<endl;
+
         bool mtu_ok=false, mac_ok=false, ip_ok=false;
 
         {
@@ -146,9 +148,12 @@ namespace apdcam10g
 
 
         cerr<<"Interface: "<<interface_<<endl;
+        cerr<<"MI a fene van most jon a kritikus sor..."<<endl;
         cerr<<"MTU      : "<<mtu_<<endl;
         cerr<<"OCTET    : "<<octet_<<endl;
         cerr<<endl;
+
+        cerr<<"Finishing daq_settings::get_net_parameters()"<<endl;
 
         return *this;
     }

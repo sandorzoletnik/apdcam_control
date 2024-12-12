@@ -1036,7 +1036,9 @@ extern "C"
     {
         try
         {
+            cerr<<"Calling daq::instance().get_net_parameters()"<<endl;
             daq::instance().get_net_parameters();
+            cerr<<"Finished daq::instance().get_net_parameters()"<<endl;
         }
         catch(apdcam10g::error &e) {e.print();}
         catch(...) { cerr<<"Exception was thrown"<<endl; }
