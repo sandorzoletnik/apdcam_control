@@ -22,6 +22,7 @@ tools:
 
 clean :
 	rm -f *.o *.so *.d *~ *.dat
+	rm -f ubuntu-20.04/*
 	cd tools; $(MAKE) clean
 
 # uncomment this
