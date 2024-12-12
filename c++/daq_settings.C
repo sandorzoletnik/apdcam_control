@@ -82,10 +82,13 @@ namespace apdcam10g
             string s;
             while(cmd>>s)
             {
+                cerr<<"CMD = "<<s<<endl;
                 if(s == "mtu")
                 {
-                    unsigned int m;
+                    unsigned int m=0;
+                    cerr<<"DEB1: "<<m<<endl;
                     cmd>>m;
+                    cerr<<"DEB2: "<<m<<endl;
                     mtu(m); // Set MTU and calculate 'octet_'
                     mtu_ok = true;
                 }
