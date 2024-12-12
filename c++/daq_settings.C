@@ -14,14 +14,6 @@
 
 using namespace std;
 
-extern "C"
-{
-    void kibaszottpicsa()
-    {
-        cerr<<"te genya alatt"<<endl;
-    }
-
-}
 
 namespace apdcam10g
 {
@@ -157,8 +149,8 @@ namespace apdcam10g
 
 
         cerr<<"Interface: "<<interface_<<endl;
-        cerr<<"MI a fene van most jon a kritikus sor..."<<endl;
-        cerr<<"MTU      : "<<mtu_<<endl;
+        cerr<<"Ehnye, most jon a kritikus sor..."<<endl;
+//        cerr<<"MTU      : "<<mtu_<<endl;
         cerr<<"OCTET    : "<<octet_<<endl;
         cerr<<endl;
 
