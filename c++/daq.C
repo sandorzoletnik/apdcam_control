@@ -1,7 +1,7 @@
 #include <exception>
-#ifdef STACKTRACE
-#include <stacktrace>
-#endif
+//#ifdef STACKTRACE
+//#include <stacktrace>
+//#endif
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <chrono>
 
+#include "backtrace.h"
 #include "tee.h"
 #include "daq.h"
 #include "utils.h"
@@ -44,7 +45,8 @@ namespace apdcam10g
 #ifdef STACKTRACE
         try
         {
-            cerr<<std::stacktrace::current()<<endl;
+            print_backtrace();
+//            cerr<<std::stacktrace::current()<<endl;
         }
         catch(...)
         {
@@ -53,15 +55,6 @@ namespace apdcam10g
 #endif
         abort();
     }
-
-    bool setup_terminate()
-    {
-        cerr<<"Setting up terminate function"<<endl;
-        std::set_terminate(terminate_with_stacktrace);
-        return true;
-    }
-
-//    bool dummy = setup_terminate();
 
     class flag_locker
     {
@@ -128,8 +121,21 @@ namespace apdcam10g
     daq::daq()
     {
         // the class 'daq' is a singleton, so we make global initialization here
-//        tee(std::cout,configdir() / "cout");
-//        tee(std::cerr,configdir() / "cerr");
+
+        tee(std::cout,configdir() / "cout");
+        tee(std::cerr,configdir() / "cerr");
+
+        std::set_terminate(terminate_with_stacktrace);
+        
+        // Convert segmentation violation and termination signals to exceptions
+        signal2exception::set("command",SIGSEGV,SIGTERM);
+
+        print_backtrace();
+        exit(0);
+      
+//        int *ptr = reinterpret_cast<int*>(0x1422349);
+//        *ptr = 123;
+
     }
 
     bool daq::python_analysis_stop()
@@ -303,6 +309,8 @@ namespace apdcam10g
     {
         if(!command_thread_active_.test()) return;
         pthread_kill(command_thread_.native_handle(), SIGTERM);
+
+        // Necessary? file_deleter created upon thread startup should do the job...
         unlink(cmd_fifo_name_.c_str());
         command_thread_.join();
     }
@@ -353,8 +361,11 @@ stop [timeout]
                 {
                     
                     // Create the fifo in configdir
-                    unlink(cmd_fifo_name_.c_str());
+                    unlink(cmd_fifo_name_.c_str()); // Remove fifo if it exists accidentally
                     if(mkfifo(cmd_fifo_name_.c_str(),0666) != 0) APDCAM_ERROR("Failed to create command fifo '" + cmd_fifo_name_.string() + "'");
+
+                    // A bookkeeping object to ensure that the fifo is removed when this thread exits in whatever way,
+                    // and this object is destroyed (automatically)
                     file_deleter auto_delete_fifo(cmd_fifo_name_);
                     
                     {

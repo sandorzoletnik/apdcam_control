@@ -1,13 +1,16 @@
 CXX = g++ #/opt/gcc-14.2.0/bin/g++-14.2.0
 LD = g++ #/opt/gcc-14.2.0/bin/g++-14.2.0
 
+
+CXXFLAGS := -Wno-interference-size -std=c++23 -pthread -DFOR_PYTHON  -DSTACKTRACE
+LDFLAGS := -static-libgcc -static-libstdc++ -lstdc++_libbacktrace
+
+# Check if we are in docker ubuntu-20.04 where the g++ compiler has been installed into this location
 ifneq (,$(wildcard /opt/gcc-14.2.0/bin/g++-14.2.0))
   CXX = /opt/gcc-14.2.0/bin/g++-14.2.0
   LD = /opt/gcc-14.2.0/bin/g++-14.2.0
+  LDFLAGS := -static-libgcc -static-libstdc++ -L/home/developer/gcc-14.2.0/build/x86_64-linux-gnu/libstdc++-v3/src/libbacktrace/.libs -lstdc++_libbacktrace
 endif
 
-CXXFLAGS := -Wno-interference-size -std=c++23 -pthread -DFOR_PYTHON  
-LDFLAGS := -static-libgcc -static-libstdc++
-#-lstdc++_libbacktrace
 
 
