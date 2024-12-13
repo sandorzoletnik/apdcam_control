@@ -6,9 +6,6 @@
 #include <string.h>
 #include <errno.h>
 #include "backtrace.h"
-//#ifdef STACKTRACE
-//#include <stacktrace>
-//#endif
 
 namespace apdcam10g
 {
@@ -59,12 +56,6 @@ namespace apdcam10g
     }
 }
 
-//#ifdef STACKTRACE
-//#define show_backtrace std::cerr<<std::stacktrace::current()<<std::endl<<std::endl
-//#else
-//#define show_backtrace
-//#endif
-#define show_backtrace apdcam10g::print_backtrace()
 
 #define APDCAM_ERROR(msg) \
     {\
@@ -72,7 +63,7 @@ namespace apdcam10g
     std::cerr<<"File: "<<__FILE__<<", Line: "<<__LINE__<<std::endl; \
     std::cerr<<"Throwing exception \""<<msg<<"\""<<std::endl; \
     std::cerr<<std::endl;\
-    show_backtrace;                                \
+    apdcam10g::print_backtrace(); \
     throw apdcam10g::error(msg,__FILE__,__LINE__); \
     }
 

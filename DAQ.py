@@ -31,6 +31,8 @@ DAQ().wait_finish()
 def convertToCArray(l,ctype):
     # for non-lists, or empty lists, we return None
     if type(l) is not list or len(l)==0:
+        print("convertToCArray expects a python list as first argument, and a ctype type as a second one")
+        sys.exit(0);
         return None;
     
     # a 1-dimensional list

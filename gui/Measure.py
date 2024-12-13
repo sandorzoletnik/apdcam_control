@@ -67,8 +67,6 @@ class Measure(QtWidgets.QWidget):
         self.dataDirectoryDialogButton.clicked.connect(lambda: self.dataDirectory.setText(str(QtWidgets.QFileDialog.getExistingDirectory(self, "Select Directory"))))
 
 
-        DAQ().start_cmd_thread()
-
         daqGroup = QVGroupBox("DAQ settings and monitoring")
         layout.addWidget(daqGroup)
         h = QtWidgets.QHBoxLayout()

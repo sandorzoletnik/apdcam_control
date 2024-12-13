@@ -48,13 +48,7 @@ void flush_output(int sig)
 int main(int argc, char *argv[])
 try
 {
-
-//    string ld_library_path = getenv("LD_LIBRARY_PATH");
-//    ld_library_path += ":..";
-//    setenv("LD_LIBRARY_PATH",ld_library_path.c_str(),1);
-
     signal(SIGINT,flush_output);
-
 
     for(unsigned int opt=1; opt<argc; ++opt)
     {
@@ -133,10 +127,7 @@ try
         });
 
     daq::instance().init();
-
     daq::instance().start_cmd_thread();
-
-//    daq::instance().write_settings("apdcam-daq.cnf");
 
 //    daq::instance().print_channel_map();
 

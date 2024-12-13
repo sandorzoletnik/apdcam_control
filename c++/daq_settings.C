@@ -59,10 +59,8 @@ namespace apdcam10g
         }
     }
 
-    daq_settings &daq_settings::mtu(int m)
+    daq_settings &daq_settings::mtu(unsigned int m)
     {
-        
-        cerr<<"SETTING MTU TO: "<<m<<endl;
         mtu_ = m; 
         const int max_adc_data_length = mtu_ - (packet::ipv4_header+packet::udp_header+packet::cc_streamheader);
         octet_ = max_adc_data_length/8; // INTEGER DIVISION!
@@ -73,21 +71,17 @@ namespace apdcam10g
 
     daq_settings &daq_settings::get_net_parameters()
     {
-        cerr<<"Running daq_settings::get_net_parameters()"<<endl;
-
         bool mtu_ok=false, mac_ok=false, ip_ok=false;
 
         {
             string cmd_string = "ip link show " + interface_;
-            cerr<<"Command: "<<cmd_string<<endl;
             ipstream cmd(cmd_string);
             string s;
             while(cmd>>s)
             {
-                cerr<<"CMD = "<<s<<endl;
                 if(s == "mtu")
                 {
-                    int m=0;
+                    unsigned int m=0;
                     cmd>>m;
                     mtu(m); // Set MTU and calculate 'octet_'
                     mtu_ok = true;
@@ -151,15 +145,10 @@ namespace apdcam10g
         if(!mtu_ok || !mac_ok || !ip_ok) APDCAM_ERROR("Could not determine MTU, MAC or IP");
         */
 
-
         cerr<<"Interface: "<<interface_<<endl;
-        cerr<<"Ehnye, most jon a kritikus sor..."<<endl;
-//        cerr<<"MTU      : "<<mtu_<<endl;
-//        cerr<<"OCTET    : "<<octet_<<endl;
-        cerr<<"(nem jott)"<<endl;
+        cerr<<"MTU      : "<<mtu_<<endl;
+        cerr<<"OCTET    : "<<octet_<<endl;
         cerr<<endl;
-
-        cerr<<"Finishing daq_settings::get_net_parameters()"<<endl;
 
         return *this;
     }

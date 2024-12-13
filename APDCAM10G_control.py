@@ -3965,8 +3965,9 @@ class APDCAM10G_control:
         DAQ().resolution_bits(resolutionBits)
         DAQ().init(True)
 
-        print("STarting DAQ")
+        print("Starting DAQ")
 
+        DAQ().start_cmd_thread()
         DAQ().start(False)
         
         if (waitForResult <=0):
