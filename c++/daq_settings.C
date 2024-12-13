@@ -78,6 +78,7 @@ namespace apdcam10g
 
         {
             string cmd_string = "ip link show " + interface_;
+            cerr<<"Command: "<<cmd_string<<endl;
             ipstream cmd(cmd_string);
             string s;
             while(cmd>>s)
@@ -85,7 +86,7 @@ namespace apdcam10g
                 cerr<<"CMD = "<<s<<endl;
                 if(s == "mtu")
                 {
-                    unsigned int m=0;
+                     int m=0;
                     cerr<<"DEB1: "<<m<<endl;
                     cmd>>m;
                     cerr<<"DEB2: "<<m<<endl;
