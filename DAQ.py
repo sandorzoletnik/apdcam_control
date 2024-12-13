@@ -2,6 +2,7 @@ import ctypes
 import os
 import threading
 import Config
+import subprocess
 from RingBuffer import *
 
 '''
@@ -60,7 +61,10 @@ def convertToCArray(l,ctype):
 def DAQ():
     if DAQ.instance_ is None:
         dir = os.path.dirname(__file__)
-        dllpath = os.path.join(dir,"c++/libapdcam10g.so")
+        getos=os.path.join(dir,"c++/getos")
+        os_label=subprocess.check_output([getos]).decode('utf-8').strip()
+        dllpath = os.path.join(dir,"c++","binaries",os_label,"libapdcam10g.so")
+        print("Loading shared library: " + dllpath)
         DAQ.instance_ = ctypes.CDLL(dllpath)
 
         if DAQ.instance_ is None:
