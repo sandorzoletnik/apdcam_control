@@ -88,9 +88,9 @@ namespace apdcam10g
                 if(s == "mtu")
                 {
                     int m=0;
-//                    cerr<<"DEB1: "<<m<<endl;
+                    cerr<<"DEB1: "<<m<<endl;
                     cmd>>m;
-//                    cerr<<"DEB2: "<<m<<endl;
+                    cerr<<"DEB2: "<<m<<endl;
                     mtu(m); // Set MTU and calculate 'octet_'
                     mtu_ok = true;
                 }
