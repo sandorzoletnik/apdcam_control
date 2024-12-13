@@ -1,30 +1,41 @@
 
 include makefile.params
 
+HEDAERS = $(wildcard *.h)
 SRCS = $(wildcard *.C)
 DEPS = $(SRCS:.C=.d)
 OBJS = $(SRCS:.C=.o)
 
-all : libapdcam10g.so tools
+OS = $(shell ./getos)
 
-.PHONY: ubuntu-20.04
+all : binaries/$(OS)/libapdcam10g.so binaries/$(OS)/apdcam-daq.exe binaries/$(OS)/apdcam-fake-camera.exe
 
-ubuntu-20.04:
-	docker exec ubuntu_20_04 sh -c "rm -rf /home/developer/apdcam/c++"
-	cd ..; docker cp c++ ubuntu_20_04:/home/developer/apdcam/; cd c++
-	docker exec ubuntu_20_04 sh -c "cd /home/developer/apdcam/c++; make clean; make"
-	docker cp ubuntu_20_04:/home/developer/apdcam/c++/libapdcam10g.so ubuntu-20.04/
-	docker cp ubuntu_20_04:/home/developer/apdcam/c++/tools/apdcam-daq.exe ubuntu-20.04/
-	docker cp ubuntu_20_04:/home/developer/apdcam/c++/tools/apdcam-fake-camera.exe ubuntu-20.04/
+.PHONY: Ubuntu-20.04
+.PHONY:  clean
 
-.PHONY: tools clean
-tools:
-	cd tools; $(MAKE)
+Ubuntu-20.04:
+	rm -rf binaries/$@ # remove it, it will be re-created on the docker VM
+	docker exec ubuntu_20_04 sh -c "rm -rf /home/developer/apdcam/c++" # remove entire c++ directory from docker
+	cd ..; docker cp c++ ubuntu_20_04:/home/developer/apdcam/; cd c++  # copy entire c++ directory to docker
+	docker exec ubuntu_20_04 sh -c "cd /home/developer/apdcam/c++; make clean; make"  # make clean on the VM 
+	docker cp ubuntu_20_04:/home/developer/apdcam/c++/binaries/Ubuntu-20.04 binaries/ # copy back
+
+binaries/$(OS)/libapdcam10g.so : $(OBJS)
+	if [ ! -d binaries/$(OS) ] ; then mkdir binaries/$(OS); fi
+	$(CXX) -shared -o $@ $(OBJS)  $(LDFLAGS)
+
+binaries/$(OS)/apdcam-daq.exe:  tools/apdcam-daq.C  binaries/$(OS)/libapdcam10g.so $(HEADERS)
+	if [ ! -d binaries/$(OS) ] ; then mkdir binaries/$(OS); fi
+	$(CXX) $(CXXFLAGS) -I. -o $@ $< $(LDFLAGS) -Lbinaries/$(OS) -lapdcam10g
+binaries/$(OS)/apdcam-fake-camera.exe:  tools/apdcam-fake-camera.C binaries/$(OS)/libapdcam10g.so $(HEADERS)
+	if [ ! -d binaries/$(OS) ] ; then mkdir binaries/$(OS); fi
+	$(CXX) $(CXXFLAGS) -I. -o $@ $< $(LDFLAGS) -Lbinaries/$(OS) -lapdcam10g
+
+binaries/$(OS):
+	mkdir $@
 
 clean :
-	rm -f *.o *.so *.d *~ *.dat
-	rm -f ubuntu-20.04/*
-	cd tools; $(MAKE) clean
+	rm -f *.o binaries/$(OS)/* *.d *~ *.dat
 
 # uncomment this
 include $(DEPS)
@@ -36,8 +47,5 @@ include $(DEPS)
 %.d : %.C
 	$(CXX) $(CXXFLAGS) -M -MF $@ $^
 
-libapdcam10g.so : $(OBJS)
-	echo $(OBJS)
-	$(CXX) -shared -o $@ $^  $(LDFLAGS)
 
 
