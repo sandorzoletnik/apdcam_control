@@ -122,8 +122,8 @@ namespace apdcam10g
     {
         // the class 'daq' is a singleton, so we make global initialization here
 
-        tee(std::cout,configdir() / "cout");
-        tee(std::cerr,configdir() / "cerr");
+//        tee(std::cout,configdir() / "cout");
+//        tee(std::cerr,configdir() / "cerr");
 
         std::set_terminate(terminate_with_stacktrace);
         
