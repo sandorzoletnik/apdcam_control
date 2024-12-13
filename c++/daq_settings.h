@@ -31,8 +31,8 @@ namespace apdcam10g
         std::string interface_ = "lo";
         const static int ipv4_header_ = 20;
         const static int udp_header_ = 8;
-        unsigned int mtu_ = 0;
-        unsigned int octet_ = 0;
+        int mtu_ = 0;
+        int octet_ = 0;
 
         // The maximum UDP packet size, which is 22 bytes (streamheader) + 8*octet. At the end of a burst or a sequence
         // of transmitted shots, there may be a smaller UDP packet if the shots do not fill an entire one, but
@@ -54,7 +54,7 @@ namespace apdcam10g
         std::vector<std::vector<channel_info*>> board_enabled_channels_info_; // First index is ADC board number, second index is the enabled channel index
 
         // Set MTU
-        daq_settings &mtu(unsigned int m);
+        daq_settings &mtu(int m);
         
 
     public:
@@ -124,9 +124,9 @@ namespace apdcam10g
 
         // get the MTU value (Maximum Transmission Unit, the biggest size of packet that can be sent
         // without fragmentation) used for all sockets
-        unsigned int mtu() const { return mtu_; }
+        int mtu() const { return mtu_; }
 
-        unsigned int octet() const { return octet_; }
+        int octet() const { return octet_; }
 
         daq_settings &interface(const std::string &i) { interface_ = i; return *this; }
         const std::string &interface() const { return interface_; }

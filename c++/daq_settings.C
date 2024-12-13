@@ -59,8 +59,9 @@ namespace apdcam10g
         }
     }
 
-    daq_settings &daq_settings::mtu(unsigned int m)
+    daq_settings &daq_settings::mtu(int m)
     {
+        
         cerr<<"SETTING MTU TO: "<<m<<endl;
         mtu_ = m; 
         const int max_adc_data_length = mtu_ - (packet::ipv4_header+packet::udp_header+packet::cc_streamheader);
@@ -86,7 +87,7 @@ namespace apdcam10g
                 cerr<<"CMD = "<<s<<endl;
                 if(s == "mtu")
                 {
-                    unsigned int m=0;
+                    int m=0;
 //                    cerr<<"DEB1: "<<m<<endl;
                     cmd>>m;
 //                    cerr<<"DEB2: "<<m<<endl;
