@@ -129,14 +129,6 @@ namespace apdcam10g
         
         // Convert segmentation violation and termination signals to exceptions
         signal2exception::set("command",SIGSEGV,SIGTERM);
-
-        cerr<<"Ez a backtrace: "<<endl;
-        print_backtrace();
-        exit(0);
-      
-//        int *ptr = reinterpret_cast<int*>(0x1422349);
-//        *ptr = 123;
-
     }
 
     bool daq::python_analysis_stop()
