@@ -3933,6 +3933,9 @@ class APDCAM10G_control:
 
         # Set up the processor tasks in the DAQ
         print("Setting up DAQ")
+
+        DAQ().get_net_parameters()
+
         DAQ().clear_processors()
         for task in processorTasks:
             # if the given task is a tuple, its first element must be a string which indicates a member function of the DAQ
@@ -3958,7 +3961,6 @@ class APDCAM10G_control:
             else:
                 DAQ().add_processor_python(task)
 
-        DAQ().get_net_parameters()
         DAQ().channel_masks(channelMasks)
         DAQ().resolution_bits(resolutionBits)
         DAQ().init(True)
