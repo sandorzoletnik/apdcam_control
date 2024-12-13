@@ -1,8 +1,14 @@
 #!/bin/bash
 
+hostname=`hostname`
 DIR=`dirname "$(realpath $0)"`
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${DIR}/..:${DIR}"
-${DIR}/apdcam-daq.exe "$@"
+if [ "$hostname" = "SPI-GAP2" ] ; then
+    ${DIR}/../ubuntu-20.04/apdcam-daq.exe "$@"
+else    
+    ${DIR}/apdcam-daq.exe "$@"
+fi
+
 
 
 
