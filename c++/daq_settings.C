@@ -86,10 +86,10 @@ namespace apdcam10g
                 cerr<<"CMD = "<<s<<endl;
                 if(s == "mtu")
                 {
-                     int m=0;
-                    cerr<<"DEB1: "<<m<<endl;
+                    unsigned int m=0;
+//                    cerr<<"DEB1: "<<m<<endl;
                     cmd>>m;
-                    cerr<<"DEB2: "<<m<<endl;
+//                    cerr<<"DEB2: "<<m<<endl;
                     mtu(m); // Set MTU and calculate 'octet_'
                     mtu_ok = true;
                 }
@@ -156,7 +156,8 @@ namespace apdcam10g
         cerr<<"Interface: "<<interface_<<endl;
         cerr<<"Ehnye, most jon a kritikus sor..."<<endl;
 //        cerr<<"MTU      : "<<mtu_<<endl;
-        cerr<<"OCTET    : "<<octet_<<endl;
+//        cerr<<"OCTET    : "<<octet_<<endl;
+        cerr<<"(nem jott)"<<endl;
         cerr<<endl;
 
         cerr<<"Finishing daq_settings::get_net_parameters()"<<endl;
