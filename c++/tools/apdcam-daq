@@ -2,10 +2,12 @@
 
 hostname=`hostname`
 DIR=`dirname "$(realpath $0)"`
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${DIR}/..:${DIR}"
 if [ "$hostname" = "SPI-GAP2" ] ; then
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${DIR}/../ubuntu-20.04"
+    chmod +x ${DIR}/../ubuntu-20.04/apdcam-daq.exe
     ${DIR}/../ubuntu-20.04/apdcam-daq.exe "$@"
 else    
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${DIR}/..:${DIR}"
     ${DIR}/apdcam-daq.exe "$@"
 fi
 
