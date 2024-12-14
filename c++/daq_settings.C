@@ -145,6 +145,7 @@ namespace apdcam10g
         if(!mtu_ok || !mac_ok || !ip_ok) APDCAM_ERROR("Could not determine MTU, MAC or IP");
         */
 
+        output_lock lck;
         cerr<<"Interface: "<<interface_<<endl;
         cerr<<"MTU      : "<<mtu_<<endl;
         cerr<<"OCTET    : "<<octet_<<endl;

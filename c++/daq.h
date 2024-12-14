@@ -318,7 +318,7 @@ namespace apdcam10g
 extern "C"
 {
     using namespace apdcam10g;
-    void get_net_parameters();
+//    void get_net_parameters();
 
     unsigned int n_adc();
     unsigned int n_channels();

@@ -16,7 +16,7 @@ which returns the single instance of the C++ backend.
 Usage:
 
 from DAQ import *
-DAQ().get_net_parameters()  # no need to load a priori the DLL, DAQ.instance() takes care of that
+# DAQ().get_net_parameters()  # no need to load a priori the DLL, DAQ.instance() takes care of that
 DAQ().add_processor_diskdump()
 DAQ().init(True)
 DAQ().start(False)
@@ -72,8 +72,8 @@ def DAQ():
         if DAQ.instance_ is None:
             return None
 
-        DAQ.instance_.get_net_parameters.restype = None
-        DAQ.instance_.get_net_parameters.argtypes = []
+#        DAQ.instance_.get_net_parameters.restype = None
+#        DAQ.instance_.get_net_parameters.argtypes = []
 
         DAQ.instance_.write_settings.restype = None
         DAQ.instance_.write_settings.argtypes = [ctypes.c_char_p]

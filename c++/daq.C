@@ -128,6 +128,8 @@ namespace apdcam10g
         
         // Convert segmentation violation and termination signals to exceptions
         signal2exception::set("command",SIGSEGV,SIGTERM);
+
+        get_net_parameters();
     }
 
     bool daq::python_analysis_stop()
@@ -212,7 +214,10 @@ namespace apdcam10g
             sockets_.resize(nof_adc);
 
             // Resize the network buffer vector to have as many elements as there are ADC boards. Initialize their buffer size
-            cerr<<"[DAQ] Network buffers : "<<network_buffer_size_<<" packets of size "<<max_udp_packet_size_<<endl<<endl;
+            {
+                output_lock lck;
+                cerr<<"[DAQ] Network buffers : "<<network_buffer_size_<<" packets of size "<<max_udp_packet_size_<<endl<<endl;
+            }
             //regenerate(network_buffers_,nof_adc,network_buffer_size_,max_udp_packet_size_);
             regenerate_by_func(network_buffers_,nof_adc,[this](unsigned int i_adc){return has_enabled_channel(channel_masks_[i_adc]) ? new udp_packet_buffer<default_safeness>(network_buffer_size_,max_udp_packet_size_) : 0; });
 
@@ -240,37 +245,40 @@ namespace apdcam10g
             all_channels_buffers_.resize(nof_adc*config::channels_per_board,0);
 
             // Open the input ports
-            for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
             {
                 output_lock lck;
+                for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
+                {
+                    output_lock lck;
                 
-                const int port_index = (dual_sata_ ? i_adc*2 : i_adc);
-                cerr<<"[DAQ] ====== ADC Board #"<<i_adc<<" ======"<<endl;
-                cerr<<"[DAQ] Port            : "<<config::ports[i_adc*2]<<endl;
+                    const int port_index = (dual_sata_ ? i_adc*2 : i_adc);
+                    cerr<<"[DAQ] ====== ADC Board #"<<i_adc<<" ======"<<endl;
+                    cerr<<"[DAQ] Port            : "<<config::ports[i_adc*2]<<endl;
 
-                // Do not open an input port for those ADC boards which have no channels emabled
-                if(!has_enabled_channel(channel_masks_[i_adc]))
-                {
-                    cerr<<"[DAQ] No channels are enabled for this ADC board, socket is not opened"<<endl;
-                    continue;
-                }
+                    // Do not open an input port for those ADC boards which have no channels emabled
+                    if(!has_enabled_channel(channel_masks_[i_adc]))
+                    {
+                        cerr<<"[DAQ] No channels are enabled for this ADC board, socket is not opened"<<endl;
+                        continue;
+                    }
                 
-                sockets_[i_adc].open(config::ports[port_index]);
-                cerr<<"[DAQ] Bytes per shot  : "<<board_bytes_per_shot_[i_adc]<<endl;
-                cerr<<"[DAQ] Enabled channels: ";
-                for(auto c : board_enabled_channels_info_[i_adc]) cerr<<c->channel_number<<" ";
-                cerr<<endl;
-                if(debug_)
-                {
-                    shot_data_layout layout(board_bytes_per_shot_[i_adc], resolution_bits_[i_adc], board_enabled_channels_info_[i_adc]);
-                    layout.prompt("[DAQ]");
-                    cerr<<"[DAQ] ---- SHOT DATA LAYOUT ----"<<endl;
-                    layout.show();
-                    cerr<<"[DAQ] --------------------------"<<endl;
+                    sockets_[i_adc].open(config::ports[port_index]);
+                    cerr<<"[DAQ] Bytes per shot  : "<<board_bytes_per_shot_[i_adc]<<endl;
+                    cerr<<"[DAQ] Enabled channels: ";
+                    for(auto c : board_enabled_channels_info_[i_adc]) cerr<<c->channel_number<<" ";
+                    cerr<<endl;
+                    if(debug_)
+                    {
+                        shot_data_layout layout(board_bytes_per_shot_[i_adc], resolution_bits_[i_adc], board_enabled_channels_info_[i_adc]);
+                        layout.prompt("[DAQ]");
+                        cerr<<"[DAQ] ---- SHOT DATA LAYOUT ----"<<endl;
+                        layout.show();
+                        cerr<<"[DAQ] --------------------------"<<endl;
+                    }
+                    cerr<<endl;
                 }
-                cerr<<endl;
             }
-
+        
             for(unsigned int i=0; i<all_enabled_channels_info_.size(); ++i)
             {
                 const channel_info *ci = all_enabled_channels_info_[i];
@@ -1035,17 +1043,17 @@ extern "C"
     }
     void         dual_sata(bool d) { daq::instance().dual_sata(d); }
 
+    /*
     void get_net_parameters()
     {
         try
         {
-            cerr<<"Calling daq::instance().get_net_parameters()"<<endl;
             daq::instance().get_net_parameters();
-            cerr<<"Finished daq::instance().get_net_parameters()"<<endl;
         }
         catch(apdcam10g::error &e) {e.print();}
         catch(...) { cerr<<"Exception was thrown"<<endl; }
     }
+    */
 
     void channel_masks(bool **m, int n_adc_boards)
     {

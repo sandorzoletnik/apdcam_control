@@ -3934,7 +3934,7 @@ class APDCAM10G_control:
         # Set up the processor tasks in the DAQ
         print("Setting up DAQ")
 
-        DAQ().get_net_parameters()
+#        DAQ().get_net_parameters()
 
         DAQ().clear_processors()
         for task in processorTasks:

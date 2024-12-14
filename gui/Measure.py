@@ -206,9 +206,7 @@ class Measure(QtWidgets.QWidget):
             channelMasks.append(tmp)
             resolutionBits.append(int(adc.bits.currentText()))
 
-        print("Calling get_net_parameters from .so")
-        DAQ().get_net_parameters()
-        print("Finished get_net_parameters from .so")
+#        DAQ().get_net_parameters()
         self.MTU_label.setText(str(DAQ().get_mtu()))
         self.OCTET_label.setText(str(DAQ().get_octet()))
 
