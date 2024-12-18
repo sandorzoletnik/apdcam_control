@@ -70,7 +70,7 @@ namespace apdcam10g
                   for(unsigned int i_enabled_channel=0; i_enabled_channel<daq_->all_enabled_channels_buffers_.size(); ++i_enabled_channel)
                   {
                       daq::channel_data_buffer_t *c = daq_->all_enabled_channels_buffers_[i_enabled_channel];
-                      files_[i_enabled_channel] << (*c)(i)<<endl;
+                      files_[i_enabled_channel]<<hex<< (*c)(i)<<endl;
                   }
               }
           }

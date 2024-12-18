@@ -93,7 +93,6 @@ namespace apdcam10g
                 //raise (signum);
             }
 
-
     public:
 
         // The below vararg 'set' functions can be used to set the signal handler for the given signals.
@@ -131,6 +130,37 @@ namespace apdcam10g
 
         get_net_parameters();
     }
+
+    std::string daq::section_start(std::string text)
+    {
+        text = " START: " + text + " ";
+        const int L = 120;
+        const int l = text.size();
+        const int L1 = std::max((L-l)/2,2);
+        const int L2 = std::max(L-L1-l,2);
+        string result;
+        for(unsigned int i=0; i<L1; ++i) result += '=';
+        result += text;
+        for(unsigned int i=0; i<L2; ++i) result += '=';
+        return result;
+    }
+
+    std::string daq::section_end(std::string text)
+    {
+        text = " END: " + text + " ";
+        const int L = 120;
+        const int l = text.size();
+        const int L1 = std::max((L-l)/2,2);
+        const int L2 = std::max(L-L1-l,2);
+        string result;
+        for(unsigned int i=0; i<L1; ++i) result += '=';
+        result += text;
+        for(unsigned int i=0; i<L2; ++i) result += '=';
+        return result;
+    }
+
+    
+    
 
     bool daq::python_analysis_stop()
     {
@@ -179,6 +209,7 @@ namespace apdcam10g
 
     void daq::finish()
     {
+        cerr<<"daq::finish"<<endl;
         for(auto p : processors_) p->finish();
     }
 
@@ -731,14 +762,34 @@ stop [timeout]
 
     daq &daq::wait_finish()
     {
-        if(command_thread_.joinable()) command_thread_.join();
         if(processor_thread_.joinable()) processor_thread_.join();
+        {        
+            output_lock lck;
+            cerr<<"[DAQ] Processor thread joined"<<endl;
+        }
         for(auto &t : extractor_threads_) if(t.joinable()) t.join();
+        {
+            output_lock lck;
+            cerr<<"[DAQ] Extractor threads joined"<<endl;
+        }
         for(auto &t : network_threads_) if(t.joinable()) t.join();
         {
             output_lock lck;
-            cerr<<"[DAQ] All threads have been joined"<<endl;
+            cerr<<"[DAQ] Network threads joined"<<endl;
         }
+
+        finish();
+
+        /*
+        stop_cmd_thread();
+        if(command_thread_.joinable())
+        {
+            command_thread_.request_stop();
+            command_thread_.join();
+        }
+        cerr<<"cmd thread joined"<<endl;
+        */
+
         return *this;
     }
 

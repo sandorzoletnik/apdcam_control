@@ -32,6 +32,8 @@ def pseudo_test_pattern_fast(adc_bits=14):
     # so we will need an even number of bits, for sure
     bits = 1022
     bitseq = bytearray(bits)
+    # Heyy, here we initialize the first 9 (NINE!) elements with 8 (EIGHT!) numbers
+    # Also, ITU T O.150 chapter 5.1 claims the first 9 (NINE) bits are all 1s (and not 11111011)
     bitseq[0:8] = [1,1,1,1,1,0,1,1]  # first 8 bits
     for i in range(bits-8):
         c = (bitseq[4]+bitseq[8])%2

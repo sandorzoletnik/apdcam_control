@@ -12,6 +12,7 @@ endif
 
 HEDAERS = $(wildcard *.h)
 SRCS = $(wildcard *.C)
+CINCS = $(wildcard *.Cinc)
 DEPS = $(SRCS:.C=.d)
 OBJS = $(SRCS:.C=.o)
 
@@ -28,7 +29,7 @@ Ubuntu-% : binaries/Ubuntu-%
 # it needs to be explicitly written
 Ubuntu-20.04 : binaries/Ubuntu-20.04
 
-binaries/Ubuntu-%: $(SRCS) $(HEADERS)
+binaries/Ubuntu-%: $(SRCS) $(HEADERS) $(CINCS)
 	$(eval CONT=$(shell basename $@))
 	rm -rf binaries/$@ # remove it, it will be re-created in the docker container and copied back here
 	docker start $(CONT)
@@ -41,10 +42,10 @@ binaries/$(OS)/libapdcam10g.so : $(OBJS)
 	if [ ! -d binaries/$(OS) ] ; then mkdir binaries/$(OS); fi
 	$(CXX) -shared -o $@ $(OBJS)  $(LDFLAGS)
 
-binaries/$(OS)/apdcam-daq.exe:  tools/apdcam-daq.C  binaries/$(OS)/libapdcam10g.so $(HEADERS)
+binaries/$(OS)/apdcam-daq.exe:  tools/apdcam-daq.C  binaries/$(OS)/libapdcam10g.so $(HEADERS) $(CINCS)
 	if [ ! -d binaries/$(OS) ] ; then mkdir binaries/$(OS); fi
 	$(CXX) $(CXXFLAGS) -I. -o $@ $< $(LDFLAGS) -Lbinaries/$(OS) -lapdcam10g
-binaries/$(OS)/apdcam-fake-camera.exe:  tools/apdcam-fake-camera.C binaries/$(OS)/libapdcam10g.so $(HEADERS)
+binaries/$(OS)/apdcam-fake-camera.exe:  tools/apdcam-fake-camera.C binaries/$(OS)/libapdcam10g.so $(HEADERS) $(CINCS)
 	if [ ! -d binaries/$(OS) ] ; then mkdir binaries/$(OS); fi
 	$(CXX) $(CXXFLAGS) -I. -o $@ $< $(LDFLAGS) -Lbinaries/$(OS) -lapdcam10g
 
@@ -58,7 +59,7 @@ clean :
 include $(DEPS)
 
 # -fPIC is required. It is specified in CXXFLAGS
-%.o : %.C
+%.o : %.C $(HEADERS)
 	$(CXX) -fPIC $(CXXFLAGS) -O2 -c -o $@ $<
 
 %.d : %.C

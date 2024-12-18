@@ -31,9 +31,11 @@ namespace apdcam10g
     // defined by the user. And finally, it starts a command interpreter thread which reads input from
     // the FIFO ~/.apdcam10g/cmd in order to provide a very simple control interface for external programs.
 
-    class daq : public daq_settings
+    class daq : public daq_settings<channel_info>
     {
+        // ufff, bad design, should remove these friends....
         friend class processor_diskdump;
+        friend class processor_test_pattern_match; 
 
     private:
 
@@ -129,6 +131,9 @@ namespace apdcam10g
         daq();
 
     public:
+
+        static std::string section_start(std::string text);
+        static std::string section_end(std::string text);
 
         unsigned int n_adc() const { return network_buffers_.size(); }
         unsigned int n_channels() const { return all_channels_buffers_.size(); }

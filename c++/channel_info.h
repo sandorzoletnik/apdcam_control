@@ -90,7 +90,7 @@ namespace apdcam10g
                 // We iterate from right to left, i.e. from the least significant byte to the most significant one
                 for(int i_byte = nbytes-1; i_byte >= 0; --i_byte)
                 {
-                    // The number of bits that woudl fit into the current byte
+                    // The number of bits that would fit into the current byte
                     const int actual_bits = std::min(8-actual_shift,remaining_bits);
                     const auto mask = make_mask<apdcam10g::byte>(actual_bits,actual_shift);
                     shot_buffer[byte_offset+i_byte] = ( shot_buffer[byte_offset+i_byte] & ~mask ) | ( (apdcam10g::byte)val & mask );

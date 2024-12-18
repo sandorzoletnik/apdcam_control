@@ -113,7 +113,7 @@ namespace apdcam10g
       }
 
       // Initialize the task. Called by the DAQ framework.
-      void init();
+      void init() override;
       
       // Pause dumping data to disk. Note that the DAQ system will keep running in order to keep
       // track of data block boundary layouts, data splitting among UDP packets

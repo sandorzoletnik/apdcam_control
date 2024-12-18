@@ -9,8 +9,57 @@ using namespace std;
 
 namespace apdcam10g
 {
+    void fake_camera::test_pattern(uint8_t tp)
+    {
+        if(tp == 0)
+        {
+            delete test_pattern_sequence_;
+            test_pattern_sequence_ = 0;
+        }
+        else if(tp == 6)
+        {
+            delete test_pattern_sequence_;
+            test_pattern_sequence_ = new pseudo_random_short;
+        }
+        else APDCAM_ERROR("Currently only 0 and 6 can be specified as a test pattern");
+
+        set_generators_();
+    }
+
+    void fake_camera::calculate_channel_info()
+    {
+        daq_settings<channel_info_with_generator>::calculate_channel_info();
+        set_generators_();
+    }
+
+    void fake_camera::set_generators_()
+    {
+        for(auto c: all_enabled_channels_info_)
+        {
+            delete c->generator;
+            // If we have a test pattern sequence, set a generator for all channels
+            if(test_pattern_sequence_) c->generator = new test_pattern_generator(test_pattern_sequence_);
+            // otherwise set it to zero. The sender function in this case will automatically
+            // use the shot number as the generated value
+            else c->generator = 0;
+        }
+    }
+
+    fake_camera::~fake_camera()
+    {
+        delete test_pattern_sequence_;
+        for(auto c: all_enabled_channels_info_) delete c->generator;
+    }
+
+    fake_camera::fake_camera()
+    {
+        get_net_parameters();
+    }
+
     void fake_camera::send(int nshots, bool wait)
     {
+        if(octet_ == 0) APDCAM_ERROR("octet is not set");
+
         const int n_adc = board_bytes_per_shot_.size();
 
         // Allocate buffers for all ADC boards and set proper size. First index is ADC board number.
@@ -55,63 +104,26 @@ namespace apdcam10g
                 // packet::cc_streamheader so that we have sufficient room before the first data to write the packet header.
                 // For the non-first packet, the previos packet's data region will be overwritten
                 const unsigned int shot_start =  i_shot*board_bytes_per_shot_[i_adc];
-
+                
                 int count = 0;
                 for(auto c : board_enabled_channels_info_[i_adc])
                 {
-
                     if( (shot_start+c->byte_offset)%(8*octet_)==0   ||  // If the channel's value starts exactly at a multiple of 8*octet
                         (shot_start+c->byte_offset)/(8*octet_) != (shot_start+c->byte_offset+c->nbytes)/(8*octet_) ) // or if the value covers a 8*octet boundary
                     {
                         shot_numbers[i_adc].push_back(i_shot);
                     }
 
-                    c->set_in_shot(&buffer[i_adc][packet::cc_streamheader + shot_start], i_shot);
-                }
-                
-
-                /*
-                for(unsigned int i_chip=0; i_chip<config::chips_per_board; ++i_chip)
-                {
-                    // Start of the chip's data w.r.t. the shot's first byte
-                    const unsigned int chip_start = chip_offset_[i_adc][i_chip];
-
-                    unsigned int target_byte = 0; // relative to chip start
-                    int target_bit = 7; // signed so that we can check when it is -1. We start from the MSB
-                    for(unsigned int i_channel=0; i_channel<config::channels_per_chip; ++i_channel)
+                    const unsigned int skip = skip_shots_(i_shot);
+                    data_type value = i_shot + skip; // this is not good actually, because it only locally increases. We should accumulate these skips....
+                    if(c->generator)
                     {
-                        const int i_board_channel = i_chip*config::channels_per_chip+i_channel;
-                        if(!channel_masks_[i_adc][i_board_channel]) continue;
-
-                        // We set the value of the shot number into each channel
-                        const int channel_value = i_shot;
-                        
-                        // We copy the value bit-by-bit to the buffer, to have a different algo than the
-                        // value extraction, so that we decrease the risk of having a bug undiscovered due to the
-                        // same algo generating and reading the data
-                        
-                        // Loop over the bits of the value, starting from MSB
-                        for(int bit=resolution_bits_[i_adc]-1; bit>=0; --bit)
-                        {
-                            if(target_byte >= chip_bytes_per_shot_[i_adc][i_chip]) APDCAM_ERROR("This is a bug! We write outside of the chip's memory space");
-
-                            // Shift and mask this bit from the value, and write it to the subsequent bit of the buffer's byte
-                            buffer[i_adc][shot_start+chip_start+target_byte] |= apdcam10g::byte(((channel_value>>bit)&1)<<target_bit);
-                            
-                            // When writing the first bit of the first byte of a packet (8*octet_ bytes), register the first shot numbers
-                            if(packet_byte_index==0 && target_bit==7) shot_numbers[i_adc].push_back(i_shot);
-                            
-                            // Increment the bit/byte indices
-                            if(--target_bit<0)
-                            {
-                                target_bit=7;
-                                ++target_byte;
-                                if(++packet_byte_index > octet_*8) packet_byte_index = 0;
-                            }
-                        }
+                        // this is ok....
+                        for(unsigned int i=0; i<skip; ++i) c->generator->get();
+                        value = c->generator->get();
                     }
+                    c->set_in_shot(&buffer[i_adc][packet::cc_streamheader + shot_start], value);
                 }
-                */
             }
         }
 
@@ -181,7 +193,6 @@ namespace apdcam10g
                     }
                 }));
         }
-
 
         if(wait)
         {

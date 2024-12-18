@@ -1,0 +1,65 @@
+#include "test_pattern.h"
+#include <algorithm>
+#include <numeric>
+#include <random>
+
+using namespace std;
+
+namespace apdcam10g
+{
+    void pseudo_random_short::generate_()
+    {
+        const unsigned int N = std::lcm(bits_,(unsigned int)1022);
+        vector<unsigned char> bitseq(N);
+
+        // Check the manual of AD9252, for the short pseudo random sequence it uses the ITU-T 0.150 (05/96)
+        // standard, section 5.1, with one difference: the initial 9 bits are not all ones, but like this.
+        // The manual claims the initial bits are 0x0df, which is difficult to understand. 
+        // My explanation:
+        // - take 0x0df
+        // - take its leaast significant 9 digits 0 1101 1111
+        // - put it into the bit stream starting with the highest one. In the bitstream we will pop bits from
+        //   the end (i.e. highest index, back of the vector), so the back of the vector would look like this
+        //   1111 1011 0
+        //        *    *
+        // - Now calculate the next one, according to the rule: sum of the starred ones modulo 2, which is 1:
+        //   The end of the vector is now 1111110110
+        // - Shift out the last value, so the last 9 bits at end of the vector become 111111011
+        // - and now apply the rule, that every preceding element i (i running down to zero) is (element[i+5]+element[i+9])%2
+        // This was deduced from the old .pro code, and trying to get the first 3 values of the sequence
+        // reported in Table 10. of the AD9252 manual...
+        bitseq[N-1] = 1;
+        bitseq[N-2] = 1;
+        bitseq[N-3] = 0;
+        bitseq[N-4] = 1;
+        bitseq[N-5] = 1;
+        bitseq[N-6] = 1;
+        bitseq[N-7] = 1;
+        bitseq[N-8] = 1;
+        bitseq[N-9] = (bitseq[N-4]+0)%2;
+        
+        for(int i=N-10; i>=0; --i) bitseq[i] = (bitseq[i+5]+bitseq[i+9])%2;
+
+        const unsigned int S = N/bits_;
+        resize(S);
+        for(unsigned int i_sample=0; i_sample<S; ++i_sample)
+        {
+            (*this)[i_sample] = 0;
+            for(unsigned int bit=0; bit<bits_; ++bit)
+            {
+                if(bitseq[N-(i_sample+1)*bits_+bit]) (*this)[i_sample] |= 1<<bit;
+            }
+        }
+    }
+
+    void test_pattern_generator::random_index()
+    {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<> distr(0,sequence_->size()-1);
+        index_ = distr(gen);
+    }
+
+    
+
+}

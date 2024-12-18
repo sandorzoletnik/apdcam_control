@@ -17,25 +17,87 @@ using namespace std;
 
 namespace apdcam10g
 {
-    bool has_enabled_channel(const std::vector<bool> &mask)
+    inline bool has_enabled_channel(const std::vector<bool> &mask)
     {
         for(auto f : mask) if(f) return true;
         return false;
     }
 
-    daq_settings::daq_settings(): channel_masks_(config::max_boards), resolution_bits_(config::max_boards,14)
+    template <typename CHINFO>
+    void daq_settings<CHINFO>::dump()     
+    {
+        using namespace std;
+        output_lock lck;
+        cerr<<"Interface: "<<interface_<<endl;
+        cerr<<"MTU      : "<<mtu_<<endl;
+        cerr<<"Octet    : "<<octet_<<endl;
+        cerr<<"Max packet size: "<<max_udp_packet_size_<<endl;
+
+        cerr<<"Channel masks: "<<endl;
+        for(int i=0; i<channel_masks_.size(); ++i)
+        {
+            for(int j=0; j<channel_masks_[i].size(); ++j) 
+            {
+                if(channel_masks_[i][j]) cerr<<terminal::green_bg<<terminal::black_fg;
+                cerr<<j;
+                if(channel_masks_[i][j]) cerr<<terminal::reset;
+                cerr<<"  ";
+            }
+            cerr<<endl;
+        }
+        cerr<<"Resolutions: [ ";
+        for(auto r : resolution_bits_) cerr<<r<<" ";
+        cerr<<" ]"<<endl;
+        cerr<<"Bytes per shot: ";
+        for(auto b : board_bytes_per_shot_) cerr<<b<<" ";
+        cerr<<endl;
+        cerr<<"Chip bytes per shot: ";
+        for(auto &a: chip_bytes_per_shot_)
+        {
+            cerr<<"[ ";
+            for(auto &b: a) cerr<<b<<" ";
+            cerr<<"] ";
+        }
+        cerr<<endl;
+
+        cerr<<"Chip offsets: ";
+        for(auto &a: chip_offset_)
+        {
+            cerr<<"[ ";
+            for(auto &b: a) cerr<<b<<" ";
+            cerr<<"] ";
+        }
+        cerr<<endl;
+
+        cerr<<"All enabled channels: "<<endl;
+        for(auto a: all_enabled_channels_info_) a->dump();
+
+        cerr<<endl;
+        cerr<<"Board enabled channels: "<<endl;
+        for(int i=0; i<board_enabled_channels_info_.size(); ++i)
+        {
+            cerr<<"Board "<<i<<endl;
+            for(auto a: board_enabled_channels_info_[i]) a->dump();
+        }
+
+    }
+
+
+    template <typename CHINFO>
+    daq_settings<CHINFO>::daq_settings(): channel_masks_(config::max_boards), resolution_bits_(config::max_boards,14)
     {
         // By default enable all channels, with all possible ADC boards present
         for(auto &a : channel_masks_) a.resize(config::channels_per_board,true);
     }
 
-    daq_settings::~daq_settings()
+    template <typename CHINFO>
+    daq_settings<CHINFO>::~daq_settings()
     {
         for(auto c : all_enabled_channels_info_) delete c;
     }
 
-
-    void daq_settings::print_channel_map(std::ostream &out)
+    template <typename CHINFO>
+    void daq_settings<CHINFO>::print_channel_map(std::ostream &out)
     {
 
         for(int i_adc=0; i_adc<board_enabled_channels_info_.size(); ++i_adc)
@@ -59,8 +121,10 @@ namespace apdcam10g
         }
     }
 
-    daq_settings &daq_settings::mtu(unsigned int m)
+    template <typename CHINFO>
+    daq_settings<CHINFO> &daq_settings<CHINFO>::mtu(unsigned int m)
     {
+        cerr<<"daq_settings::mtu("<<m<<")"<<endl;
         mtu_ = m; 
         const int max_adc_data_length = mtu_ - (packet::ipv4_header+packet::udp_header+packet::cc_streamheader);
         octet_ = max_adc_data_length/8; // INTEGER DIVISION!
@@ -69,7 +133,8 @@ namespace apdcam10g
         return *this; 
     }    
 
-    daq_settings &daq_settings::get_net_parameters()
+    template <typename CHINFO>
+    daq_settings<CHINFO> &daq_settings<CHINFO>::get_net_parameters()
     {
         bool mtu_ok=false, mac_ok=false, ip_ok=false;
 
@@ -154,8 +219,8 @@ namespace apdcam10g
         return *this;
     }
 
-
-    void daq_settings::calculate_channel_info()
+    template <typename CHINFO>
+    void daq_settings<CHINFO>::calculate_channel_info()
     {
         if(resolution_bits_.size() != channel_masks_.size()) 
             APDCAM_ERROR("Resolutions (" + std::to_string(resolution_bits_.size()) + ") and channel masks (" + std::to_string(channel_masks_.size()) + ") have different size");
@@ -209,7 +274,7 @@ namespace apdcam10g
                     // skip disabled channels
                     if(!channel_masks_[i_adc][i_channel_of_board]) continue;
 
-                    channel_info *chinfo = new channel_info;
+                    CHINFO *chinfo = new CHINFO;
                     chinfo->board_number = i_adc;
                     chinfo->chip_number = i_chip;
                     chinfo->channel_number = i_channel_of_board;
@@ -251,7 +316,8 @@ namespace apdcam10g
         }
     }
 
-    void daq_settings::write_settings(const std::filesystem::path &filename)
+    template <typename CHINFO>
+    void daq_settings<CHINFO>::write_settings(const std::filesystem::path &filename)
     {
         //Json::Value settings_root;
         settings the_settings;
@@ -274,8 +340,9 @@ namespace apdcam10g
         //file<<settings_root<<endl;
         file<<the_settings;
     }
-
-    bool daq_settings::read_settings(const std::filesystem::path &filename)
+    
+    template <typename CHINFO>
+    bool daq_settings<CHINFO>::read_settings(const std::filesystem::path &filename)
     {
         ifstream file(filename);
         if(!file) return false;

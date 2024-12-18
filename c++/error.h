@@ -57,13 +57,13 @@ namespace apdcam10g
 }
 
 
-#define APDCAM_ERROR(msg) \
+#define APDCAM_ERROR(msg)\
     {\
     std::cerr<<std::endl; \
     std::cerr<<"File: "<<__FILE__<<", Line: "<<__LINE__<<std::endl; \
-    std::cerr<<"Throwing exception \""<<msg<<"\""<<std::endl; \
+    std::cerr<<">>> "<<msg<<std::endl;                              \
     std::cerr<<std::endl;\
-    apdcam10g::print_backtrace(); \
+    apdcam10g::print_backtrace();     \
     throw apdcam10g::error(msg,__FILE__,__LINE__); \
     }
 

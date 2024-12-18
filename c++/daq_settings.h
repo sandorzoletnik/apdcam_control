@@ -25,6 +25,7 @@ namespace apdcam10g
     // Return true if the mask (vector of booleans) of a given ADC board has at least one true element
     bool has_enabled_channel(const std::vector<bool> &mask);
 
+    template <typename CHINFO>
     class daq_settings
     {
     protected:
@@ -50,71 +51,15 @@ namespace apdcam10g
         std::vector<std::vector<unsigned int>>      chip_bytes_per_shot_;     // indices are ADC number (0..3max) and chip nummber (0..3)
         std::vector<std::vector<unsigned int>>      chip_offset_;             // Offset of the first data byte of the chip w.r.t. the board's first data byte, indices are ADC number and chip number
 
-        std::vector<channel_info*>              all_enabled_channels_info_;
-        std::vector<std::vector<channel_info*>> board_enabled_channels_info_; // First index is ADC board number, second index is the enabled channel index
+        std::vector<CHINFO*>               all_enabled_channels_info_;
+        std::vector<std::vector<CHINFO*>>  board_enabled_channels_info_; // First index is ADC board number, second index is the enabled channel index
 
         // Set MTU
         daq_settings &mtu(unsigned int m);
-        
 
     public:
-        void dump()
-            {
-                using namespace std;
-                output_lock lck;
-                cerr<<"Interface: "<<interface_<<endl;
-                cerr<<"MTU      : "<<mtu_<<endl;
-                cerr<<"Octet    : "<<octet_<<endl;
-                cerr<<"Max packet size: "<<max_udp_packet_size_<<endl;
 
-                cerr<<"Channel masks: "<<endl;
-                for(int i=0; i<channel_masks_.size(); ++i)
-                {
-                    for(int j=0; j<channel_masks_[i].size(); ++j) 
-                    {
-                        if(channel_masks_[i][j]) cerr<<terminal::green_bg<<terminal::black_fg;
-                        cerr<<j;
-                        if(channel_masks_[i][j]) cerr<<terminal::reset;
-                        cerr<<"  ";
-                    }
-                    cerr<<endl;
-                }
-                cerr<<"Resolutions: [ ";
-                for(auto r : resolution_bits_) cerr<<r<<" ";
-                cerr<<" ]"<<endl;
-                cerr<<"Bytes per shot: ";
-                for(auto b : board_bytes_per_shot_) cerr<<b<<" ";
-                cerr<<endl;
-                cerr<<"Chip bytes per shot: ";
-                for(auto &a: chip_bytes_per_shot_)
-                {
-                    cerr<<"[ ";
-                    for(auto &b: a) cerr<<b<<" ";
-                    cerr<<"] ";
-                }
-                cerr<<endl;
-
-                cerr<<"Chip offsets: ";
-                for(auto &a: chip_offset_)
-                {
-                    cerr<<"[ ";
-                    for(auto &b: a) cerr<<b<<" ";
-                    cerr<<"] ";
-                }
-                cerr<<endl;
-
-                cerr<<"All enabled channels: "<<endl;
-                for(auto a: all_enabled_channels_info_) a->dump();
-
-                cerr<<endl;
-                cerr<<"Board enabled channels: "<<endl;
-                for(int i=0; i<board_enabled_channels_info_.size(); ++i)
-                {
-                    cerr<<"Board "<<i<<endl;
-                    for(auto a: board_enabled_channels_info_[i]) a->dump();
-                }
-
-            }
+        void dump();
 
         // Initialize with all possible ADC boards being present, with all of their channels being
         // enabled, and all ADC boards' resolution being set to 14 bits
@@ -169,7 +114,7 @@ namespace apdcam10g
         // and the masks/shifts to extract the values
         // calculates the bytes_per_sample_[...] values as well for each ADC
         // The resolution_bits_[i_adc] array and channel_masks_ must be set before calling this function !!!
-        void calculate_channel_info();
+        virtual void calculate_channel_info();
 
         void print_channel_map(std::ostream &out = std::cout);
 
@@ -177,6 +122,8 @@ namespace apdcam10g
 
 }
 
+// include the template implementations
+#include "daq_settings.Cinc"
 
 #endif
 

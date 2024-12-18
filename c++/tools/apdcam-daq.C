@@ -1,5 +1,7 @@
 #include "daq.h"
+#include "arg.h"
 #include "processor_diskdump.h"
+#include "processor_test_pattern_match.h"
 #include "shot_data_layout.h"
 #include <iostream>
 #include <string>
@@ -16,6 +18,7 @@ using namespace std;
 void help()
 {
     cout<<"Usage: apdcam-data-recorder [options]"<<endl<<endl;
+    cout<<"  --help-commands                  Print a help about the possible commands (given after the -c switch)"<<endl;
     cout<<"  -i|--interface <interface>       Set the network interface. Defaults to 'lo'"<<endl;
     cout<<"  -c <command ...>                 Send a command to a running APDCAM DAQ process. The rest of the command"<<endl;
     cout<<"                                   line arguments is interpreted as the command and is simply written"<<endl;
@@ -26,6 +29,8 @@ void help()
     cout<<"  -s|--sample-buffer <interface>   Set the sample buffer size. Must be power of 2. Defaults to "<<daq::instance().channel_buffer_size()<<endl;
     cout<<"  -n|--network-buffer <interface>  Set the network ring buffer size in terms of UDP packets. Must be power of 2. Defaults to "<<daq::instance().network_buffer_size()<<endl;
     cout<<"  -D|--debug                       Set debug mode"<<endl;
+    cout<<"  -t|--test-pattern <number>       Set a test pattern matcher. Possible values are those which are selectable on the APDCAM10G device: "<<endl;
+    cout<<"                                   6 - Short pseudo-number sequence"<<endl;
     cout<<endl;
     cout<<"Upon starting it will create a file 'settings.json' that can be read by the fake camera using the -s command line argument"<<endl;
     exit(0);
@@ -50,36 +55,22 @@ try
 {
     signal(SIGINT,flush_output);
 
-    for(unsigned int opt=1; opt<argc; ++opt)
+    int test_pattern = -1;
+
+    for(args a(argc,argv); a; ++a)
     {
-        if(!strcmp(argv[opt],"-h") || !strcmp(argv[opt],"--help"))
-        {
-            help();
-            exit(0);
-        }
-        else if(!strcmp(argv[opt],"--help-commands")) 
-        {
-            daq::cmd_help();
-            exit(0);
-        }
-        else if(!strcmp(argv[opt],"-c"))
+        if(a()=="-h" || a()=="--help") { help(); exit(0); }
+        else if(a()=="--help-commands") { daq::cmd_help(); exit(0); }
+        else if(a()=="-c")
         {
             auto fifo_name = configdir() / "cmd";
-            if(!std::filesystem::is_fifo(fifo_name)) 
-            {
-                cerr<<"No apdcam data acquisition process seems to be running. The FIFO "<<fifo_name<<" does not exist"<<endl;
-                exit(1);
-            }
+            if(!std::filesystem::is_fifo(fifo_name)) APDCAM_ERROR("No apdcam data acquisition process seems to be running. The FIFO '" + fifo_name + "' does not exist");
             ofstream fifo(fifo_name);
-            for(int i=opt+1; i<argc; ++i)
-            {
-                if(i>opt+1) fifo<<" ";
-                fifo<<argv[i];
-            }
+            for(++a; a; ++a) fifo<<" "<<a();
             fifo<<endl;
             exit(0);
         }
-        else if(!strcmp(argv[opt],"-k") || !strcmp(argv[opt],"--kill"))
+        else if(a()=="-k" || a()=="--kill")
         {
             auto pid_file_name = configdir() / "pid";
             ifstream pid_file(pid_file_name);
@@ -89,32 +80,29 @@ try
             kill(pid,SIGKILL);
             exit(0);
         }
-        else if(!strcmp(argv[opt],"-d"))
-        {
-            if(opt+1>=argc) APDCAM_ERROR("Directory name expected after -d");
-            processor_diskdump::default_output_dir(argv[++opt]);
-        }
-        else if(!strcmp(argv[opt],"-i") || ~strcmp(argv[opt],"--interface"))
-        {
-            if(opt+1>=argc) APDCAM_ERROR("Missing argument (interface) after -i");
-            daq::instance().interface(argv[++opt]);
-        }
-        else if(!strcmp(argv[opt],"-s") || !strcmp(argv[opt],"--sample-buffer"))
-        {
-            if(opt+1>=argc) APDCAM_ERROR(std::string("Missing argument (buffer size) after ") + argv[opt]);
-            daq::instance().channel_buffer_size(atoi(argv[++opt]));
-        }
-        else if(!strcmp(argv[opt],"-n") || !strcmp(argv[opt],"--network-buffer"))
-        {
-            if(opt+1>=argc) APDCAM_ERROR(std::string("Missing argument (buffer size) after ") + argv[opt]);
-            daq::instance().network_buffer_size(atoi(argv[++opt]));
-        }
-        else if(!strcmp(argv[opt],"-D") || !strcmp(argv[opt],"--debug")) daq::instance().debug(true);
-        else APDCAM_ERROR(std::string("Bad argument: ") + argv[opt]);
+        else if(a()=="-d")                           processor_diskdump::default_output_dir(a.get<std::string>(1,"Directory name expected after -d"));
+        else if(a()=="-i" || a()=="--interface")     daq::instance().interface(a.get<std::string>(1,"Interface name"));
+        else if(a()=="-s" || a()=="--sample-buffer") daq::instance().channel_buffer_size(a.get<int>(1,"Buffer size"));
+        else if(a()=="-n" || a()=="--network-buffer") daq::instance().network_buffer_size(a.get<int>(1,"Buffer size"));
+        else if(a()=="-D" || a()=="--debug")          daq::instance().debug(true);
+        else if(a()=="-t" || a()=="--test-pattern")   test_pattern = a.get<int>(1,"Test pattern number");
+        else APDCAM_ERROR(std::string("Bad argument: ") + a());
     }
 
-    daq::instance().get_net_parameters();
-    daq::instance().add_processor(new processor_diskdump);
+    pseudo_random_short prs;
+
+    daq::instance().add_processor(new processor_test_pattern_match(&prs));
+
+    if(test_pattern>0)
+    {
+        switch(test_pattern)
+        {
+            case 6:
+                daq::instance().add_processor(new processor_diskdump); break;
+            default:
+                APDCAM_ERROR("Bad test pattern specified");
+        }
+    }
     daq::instance().resolution_bits({14});
     daq::instance().channel_masks(
         {
@@ -128,10 +116,11 @@ try
 
     daq::instance().init();
     daq::instance().start_cmd_thread();
-
 //    daq::instance().print_channel_map();
-
     daq::instance().start(true);
+
+    cerr<<"Stopping cmd thread"<<endl;
+    daq::instance().stop_cmd_thread();
 
     return 0;
 }
