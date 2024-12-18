@@ -59,6 +59,7 @@ try
 
     for(args a(argc,argv); a; ++a)
     {
+        cerr<<"arg: "<<a()<<endl;
         if(a()=="-h" || a()=="--help") { help(); exit(0); }
         else if(a()=="--help-commands") { daq::cmd_help(); exit(0); }
         else if(a()=="-c")
@@ -85,7 +86,7 @@ try
         else if(a()=="-s" || a()=="--sample-buffer") daq::instance().channel_buffer_size(a.get<int>(1,"Buffer size"));
         else if(a()=="-n" || a()=="--network-buffer") daq::instance().network_buffer_size(a.get<int>(1,"Buffer size"));
         else if(a()=="-D" || a()=="--debug")          daq::instance().debug(true);
-        else if(a()=="-t" || a()=="--test-pattern")   test_pattern = a.get<int>(1,"Test pattern number");
+        else if(a()=="-t" || a()=="--test-pattern") test_pattern = a.get<int>(1,"Test pattern number");
         else APDCAM_ERROR(std::string("Bad argument: ") + a());
     }
 
