@@ -9,6 +9,13 @@
 
 namespace apdcam10g
 {
+    /*
+
+      This class 'error' is functioning as an exception. This class is thrown by fatal errors, which cause program termination,
+      with a message about the cause.
+
+     */
+    
     class error
     {
     private:
@@ -56,6 +63,14 @@ namespace apdcam10g
     }
 }
 
+/*
+
+  This macro prints the actual position in the source file, and prints the backtrace
+  for debuggin purposes, and throws an apdcam10g::error class with the provided
+  message 'msg'
+  This macro is called for serious errors.
+
+ */
 
 #define APDCAM_ERROR(msg)\
     {\
@@ -67,6 +82,25 @@ namespace apdcam10g
     throw apdcam10g::error(msg,__FILE__,__LINE__); \
     }
 
-#define APDCAM_ERROR_ERRNO(msg) throw apdcam10g::error(std::string(msg) + ": " + std::string(strerror(errno)),__FILE__,__LINE__) 
+/*
+
+  This macro prints the actual position in the source file, and prints the backtrace
+  for debugging purposes
+  In addition to printing the message 'msg' it also appends the error message associated
+  with the C ssytem library's "errno", which carries information about the error
+  encountered in the last C system call
+
+ */
+
+#define APDCAM_ERROR_ERRNO(msg)\
+    {\
+    std::cerr<<std::endl; \
+    std::cerr<<"File: "<<__FILE__<<", Line: "<<__LINE__<<std::endl; \
+    std::cerr<<">>> "<<msg<<std::endl;                              \
+    std::cerr<<std::endl;\
+    apdcam10g::print_backtrace();     \
+    throw apdcam10g::error(std::string(msg) + ": " + std::string(strerror(errno)),__FILE__,__LINE__); \
+    }
+
 
 #endif

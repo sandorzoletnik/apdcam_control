@@ -39,6 +39,7 @@ namespace apdcam10g
 {
     using namespace std;
 
+    void throw_int(int signum) {throw signum; }
 
     void terminate_with_stacktrace() throw()
     {
@@ -88,9 +89,10 @@ namespace apdcam10g
                 if(signum==SIGKILL) s = "SIGKILL";
                 if(signum==SIGTERM) s = "SIGTERM";
                 if(signum==SIGSEGV) s = "SIGSEGV";
+                output_lock lck;
                 APDCAM_ERROR("Signal " + s + " is caught in thread \"" + thread_names_[std::this_thread::get_id()] + "\"");
-                //signal (signum, SIG_DFL);
-                //raise (signum);
+                signal (signum, SIG_DFL);
+                raise (signum);
             }
 
     public:
@@ -126,7 +128,7 @@ namespace apdcam10g
         std::set_terminate(terminate_with_stacktrace);
         
         // Convert segmentation violation and termination signals to exceptions
-        signal2exception::set("command",SIGSEGV,SIGTERM);
+        signal2exception::set("DAQ-main",SIGSEGV,SIGTERM);
 
         get_net_parameters();
     }
@@ -209,7 +211,6 @@ namespace apdcam10g
 
     void daq::finish()
     {
-        cerr<<"daq::finish"<<endl;
         for(auto p : processors_) p->finish();
     }
 
@@ -338,12 +339,12 @@ namespace apdcam10g
 
     void daq::stop_cmd_thread()
     {
+
         if(!command_thread_active_.test()) return;
         pthread_kill(command_thread_.native_handle(), SIGTERM);
 
         // Necessary? file_deleter created upon thread startup should do the job...
         unlink(cmd_fifo_name_.c_str());
-        command_thread_.join();
     }
 
     std::string daq::cmd_help_text()
@@ -387,7 +388,9 @@ stop [timeout]
                 flag_locker flk(command_thread_active_);
                 const std::string prompt = "[DAQ/CMD] ";
 
-                signal2exception::set("command",SIGSEGV,SIGTERM);
+//                signal2exception::set("command",SIGSEGV);
+                signal(SIGTERM,throw_int);
+
                 try
                 {
                     
@@ -398,12 +401,12 @@ stop [timeout]
                     // A bookkeeping object to ensure that the fifo is removed when this thread exits in whatever way,
                     // and this object is destroyed (automatically)
                     file_deleter auto_delete_fifo(cmd_fifo_name_);
-                    
+
                     {
                         output_lock lck;
                         cerr<<prompt<<"Thread started, waiting for command in the FIFO "<<cmd_fifo_name_<<endl;
                     }
-                    
+
                     string line;
                     while(!stok.stop_requested())
                     {
@@ -411,7 +414,7 @@ stop [timeout]
                         // file, and fifo.clear() (i.e. clearing all error bits on the ifstream) does not help. 
                         ifstream fifo(cmd_fifo_name_);
 
-                        cerr<<prompt<<"Waiting for command in fifo..."<<endl;
+//                        cerr<<prompt<<"Waiting for command in fifo..."<<endl;
 
                         while(!stok.stop_requested() && getline(fifo,line))
                         {
@@ -463,6 +466,10 @@ stop [timeout]
                     output_lock lck;
                     cerr<<prompt<<" Terminated: "<<d.message()<<endl;
                 }
+                catch(int i)  // upon receiving SIGTERM, an integer is thrown. Catch it and do nothing, just exist
+                {
+                }
+
                 unlink(cmd_fifo_name_.c_str());
             });
     }
@@ -694,9 +701,6 @@ stop [timeout]
                                     // so that it can monitor eventual stop requests within the spin-lock waiting for new packets
                                     const auto received_packet_size = network_buffers_[i_adc]->receive(sockets_[i_adc],stok);
 
-                                    cerr<<"RECEIVED A PACKET"<<endl;
-
-
                                     // Reached the end of the stream. Both a partial packet, and the 'terminated' flag indicate
                                     // that the camera stopped sending more data
                                     if(received_packet_size != max_udp_packet_size_ || network_buffers_[i_adc]->terminated()) break;
@@ -778,17 +782,10 @@ stop [timeout]
             cerr<<"[DAQ] Network threads joined"<<endl;
         }
 
-        finish();
+        // Do not join the command threa. The command thread is terminated by stop_cmd_thread() which sends
+        // it the SIGTERM signal. If trying to join it afterwards, it seems to restart automatically... (?)
 
-        /*
-        stop_cmd_thread();
-        if(command_thread_.joinable())
-        {
-            command_thread_.request_stop();
-            command_thread_.join();
-        }
-        cerr<<"cmd thread joined"<<endl;
-        */
+        finish();
 
         return *this;
     }
@@ -1034,7 +1031,7 @@ extern "C"
             daq::instance().start_cmd_thread();
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }
+        catch(...) { cerr<<"Unhandled exception"<<endl; }
     }
     void stop_cmd_thread()
     {
@@ -1043,7 +1040,7 @@ extern "C"
             daq::instance().stop_cmd_thread();
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }
+        catch(...) { cerr<<"Unhandled exception"<<endl; }
             
     }
 
@@ -1063,7 +1060,7 @@ extern "C"
             daq::instance().start(wait); 
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }
+        catch(...) { cerr<<"Unhandled exception"<<endl; }
     }
     void         stop(bool wait) 
     { 
@@ -1072,7 +1069,7 @@ extern "C"
             daq::instance().stop(wait); 
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }
+        catch(...) { cerr<<"Unhandled expection"<<endl; }
     }
     void         kill_all() 
     { 
@@ -1081,7 +1078,7 @@ extern "C"
             daq::instance().kill(); 
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }
+        catch(...) { cerr<<"Unhandled expection"<<endl; }
     }
     void         version(apdcam10g::version v) 
     { 
@@ -1090,7 +1087,7 @@ extern "C"
             daq::instance().fw_version(apdcam10g::version(v)); 
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }
+        catch(...) { cerr<<"Unhandled expection"<<endl; }
     }
     void         dual_sata(bool d) { daq::instance().dual_sata(d); }
 
@@ -1102,7 +1099,7 @@ extern "C"
             daq::instance().get_net_parameters();
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }
+        catch(...) { cerr<<"Unhandled expection"<<endl; }
     }
     */
 
@@ -1121,7 +1118,7 @@ extern "C"
             daq::instance().channel_masks(chmasks);
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }
+        catch(...) { cerr<<"Unhandled expection"<<endl; }
     }
 
     void resolution_bits(unsigned int *r, int n_adc_boards)
@@ -1136,7 +1133,7 @@ extern "C"
             daq::instance().resolution_bits(res);
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }
+        catch(...) { cerr<<"Unhandled expection"<<endl; }
     }
 
     void init(bool is_safe)
@@ -1147,7 +1144,7 @@ extern "C"
             else        daq::instance().init<unsafe>();
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }
+        catch(...) { cerr<<"Unhandled expection"<<endl; }
     }
 
     void network_buffer_size(unsigned int bufsize)
@@ -1156,14 +1153,14 @@ extern "C"
             daq::instance().network_buffer_size(bufsize);
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }
+        catch(...) { cerr<<"Unhandled expection"<<endl; }
     void channel_buffer_size(unsigned int bufsize)
         try
         {
             daq::instance().channel_buffer_size(bufsize);
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }
+        catch(...) { cerr<<"Unhandled expection"<<endl; }
 
     unsigned int get_network_buffer_size()
     {
@@ -1199,7 +1196,7 @@ extern "C"
             daq::instance().add_processor(d);
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }            
+        catch(...) { cerr<<"Unhandled expection"<<endl; }            
     }
 
     void add_processor_python()
@@ -1209,7 +1206,7 @@ extern "C"
             daq::instance().add_processor(new processor_python);
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }            
+        catch(...) { cerr<<"Unhandled expection"<<endl; }            
     }
 
     void write_settings(const char *filename)
@@ -1219,7 +1216,7 @@ extern "C"
             daq::instance().write_settings(filename);
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }            
+        catch(...) { cerr<<"Unhandled expection"<<endl; }            
     }
 
     void wait_finish()
@@ -1228,7 +1225,7 @@ extern "C"
             daq::instance().wait_finish();
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }            
+        catch(...) { cerr<<"Unhandled expection"<<endl; }            
 
     void dump()
     {
@@ -1237,7 +1234,7 @@ extern "C"
             daq::instance().dump();
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }            
+        catch(...) { cerr<<"Unhandled expection"<<endl; }            
     }
 
     void get_buffer(unsigned int absolute_channel_number, unsigned int *buffersize, apdcam10g::data_type **buffer)
@@ -1255,7 +1252,7 @@ extern "C"
             *buffer = 0;
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+        catch(...) { cerr<<"Unhandled expection"<<endl; }    
     }
 
     void python_analysis_wait_for_data(size_t *from_counter, size_t *to_counter)
@@ -1265,7 +1262,7 @@ extern "C"
             daq::instance().python_analysis_wait_for_data(from_counter, to_counter);
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+        catch(...) { cerr<<"Unhandled expection"<<endl; }    
     }
 
     void python_analysis_done(size_t from_counter)
@@ -1275,7 +1272,7 @@ extern "C"
             daq::instance().python_analysis_done(from_counter);
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+        catch(...) { cerr<<"Unhandled expection"<<endl; }    
     }
 
     void test()
@@ -1358,7 +1355,7 @@ extern "C"
             *n_shots   = ns;
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+        catch(...) { cerr<<"Unhandled expection"<<endl; }    
     
 
     void status(unsigned int *n_active_network_threads, unsigned int *n_active_extractor_threads, unsigned int *n_active_processor_thread)
@@ -1370,7 +1367,7 @@ extern "C"
             *n_active_processor_thread = proc;
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+        catch(...) { cerr<<"Unhandled expection"<<endl; }    
 */  
 
     void clear_processors()
@@ -1379,7 +1376,7 @@ extern "C"
             daq::instance().clear_processors();
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+        catch(...) { cerr<<"Unhandled expection"<<endl; }    
     
 
     void diskdump_sampling(unsigned int s)
@@ -1388,7 +1385,7 @@ extern "C"
             daq::instance().diskdump_sampling(s);
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+        catch(...) { cerr<<"Unhandled expection"<<endl; }    
     
 
     bool python_analysis_stop()
@@ -1398,7 +1395,7 @@ extern "C"
             return daq::instance().python_analysis_stop();
         }
         catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Exception was thrown"<<endl; }    
+        catch(...) { cerr<<"Unhandled expection"<<endl; }    
         return false;
     }
 

@@ -117,10 +117,11 @@ try
 
     daq::instance().init();
     daq::instance().start_cmd_thread();
+    sleep(1);
+
 //    daq::instance().print_channel_map();
     daq::instance().start(true);
 
-    cerr<<"Stopping cmd thread"<<endl;
     daq::instance().stop_cmd_thread();
 
     return 0;
