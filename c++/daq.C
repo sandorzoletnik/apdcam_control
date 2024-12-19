@@ -389,6 +389,7 @@ stop [timeout]
                 const std::string prompt = "[DAQ/CMD] ";
 
 //                signal2exception::set("command",SIGSEGV);
+                
                 signal(SIGTERM,throw_int);
 
                 try
