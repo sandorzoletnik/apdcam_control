@@ -5,6 +5,7 @@
 #include "bytes.h"
 #include "utils.h"
 #include <iostream>
+#include <atomic>
 
 namespace apdcam10g
 {
@@ -31,35 +32,35 @@ namespace apdcam10g
 
 
         // The number (0..3) of the ADC board of this channel
-        unsigned int board_number;
+        std::atomic<unsigned int> board_number;
 
         // The number (0..3) of the chip within the ADC board
-        unsigned int chip_number;
+        std::atomic<unsigned int> chip_number;
 
         // The channel number (0..31 inclusive) within the ADC board
-        unsigned int channel_number;
+        std::atomic<unsigned int> channel_number;
 
         // The absolute channel number (0..127 inclusive)
-        unsigned int absolute_channel_number;
+        std::atomic<unsigned int> absolute_channel_number;
 
         // An index running from 0 over the enabled channels. 
-        unsigned int enabled_channel_number;
+        std::atomic<unsigned int> enabled_channel_number;
 
         // The offset of the first byte (full or partial) of this channel w.r.t. the ADC board's data, 
         // i.e. the first byte of the first (enabled) channel of the first chip of a given shot.
-        unsigned int byte_offset;
+        std::atomic<unsigned int> byte_offset;
         
         // The number of bytes that this value is extending over. Possible values are
         // 1 - if resolution is 8-bit
         // 2
         // 3 - if resolution is 12-bit
-        unsigned int nbytes;
+        std::atomic<unsigned int> nbytes;
 
         // The number of bits
-        unsigned int nbits;
+        std::atomic<unsigned int> nbits;
 
         // The amount of bitwise right-shift (i.e. towards least significant bit)
-        unsigned int shift;
+        std::atomic<unsigned int> shift;
 
         data_type get_from_shot(const apdcam10g::byte *shot_buffer)
             {

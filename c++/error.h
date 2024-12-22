@@ -102,5 +102,10 @@ namespace apdcam10g
     throw apdcam10g::error(std::string(msg) + ": " + std::string(strerror(errno)),__FILE__,__LINE__); \
     }
 
+#define CATCH_ALL() \
+        catch(apdcam10g::error &e) {e.print();} \
+        catch(std::exception &e) { cerr<<"std::exception: "<<e.what()<<endl; } \
+        catch(...) { cerr<<"Unhandled exception caught"<<endl; }
+    
 
 #endif

@@ -8,25 +8,25 @@ namespace apdcam10g
     {
         next_data_ = 0;
         summaries_.clear();
-        summaries_.resize(daq_->all_enabled_channels_buffers_.size());
+        summaries_.resize(daq_->all_enabled_channels_.size());
         offsets_.clear();
-        offsets_.resize(daq_->all_enabled_channels_buffers_.size(),0);
+        offsets_.resize(daq_->all_enabled_channels_.size(),0);
         offset_set_.clear();
-        offset_set_.resize(daq_->all_enabled_channels_buffers_.size(),false);
+        offset_set_.resize(daq_->all_enabled_channels_.size(),false);
         n_received_shots_.clear();
-        n_received_shots_.resize(daq_->all_enabled_channels_buffers_.size(),0);
+        n_received_shots_.resize(daq_->all_enabled_channels_.size(),0);
         n_missing_shots_.clear();
-        n_missing_shots_.resize(daq_->all_enabled_channels_buffers_.size(),0);
+        n_missing_shots_.resize(daq_->all_enabled_channels_.size(),0);
     }
 
     size_t processor_test_pattern_match::run_unique_(size_t from, size_t to)
     {
         for(size_t i_shot=from; i_shot<to; ++i_shot)
         {
-            for(unsigned int i_enabled_channel=0; i_enabled_channel<daq_->all_enabled_channels_buffers_.size(); ++i_enabled_channel)
+            for(unsigned int i_enabled_channel=0; i_enabled_channel<daq_->all_enabled_channels_.size(); ++i_enabled_channel)
             {
                 ++n_received_shots_[i_enabled_channel];
-                auto *c = daq_->all_enabled_channels_buffers_[i_enabled_channel];
+                auto *c = daq_->all_enabled_channels_[i_enabled_channel];
                 if(!offset_set_[i_enabled_channel])
                 {
                     for(int offs = 0; offs<sequence_->size(); ++offs)
@@ -87,11 +87,11 @@ namespace apdcam10g
         output_lock lck;
         cerr<<daq::section_start("TEST PATTERN MATCH")<<endl;
         unsigned int problems = 0;
-        for(unsigned int i_enabled_channel=0; i_enabled_channel<daq_->all_enabled_channels_buffers_.size(); ++i_enabled_channel)
+        for(unsigned int i_enabled_channel=0; i_enabled_channel<daq_->all_enabled_channels_.size(); ++i_enabled_channel)
         {
             if(summaries_[i_enabled_channel] != "")
             {
-                auto *c = daq_->all_enabled_channels_buffers_[i_enabled_channel];
+                auto *c = daq_->all_enabled_channels_[i_enabled_channel];
                 cerr<<"Channel "<<c->board_number<<"/"<<c->channel_number<<endl;
                 cerr<<summaries_[i_enabled_channel];
                 cerr<<"Received shots: "<<n_received_shots_[i_enabled_channel]<<endl;

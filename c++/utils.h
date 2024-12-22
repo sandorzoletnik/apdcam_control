@@ -2,6 +2,7 @@
 #define __APDCAM10G_UTILS_H__
 
 #include <vector>
+#include <map>
 #include <string>
 //#include <concepts>
 #include <mutex>
@@ -58,6 +59,16 @@ namespace apdcam10g
         output_lock() { output_mutex().lock(); }
         ~output_lock() { output_mutex().unlock(); }
     };
+
+    class exclusive_lock
+    {
+    private:
+        
+    };
+    
+
+
+    
 }
 
 

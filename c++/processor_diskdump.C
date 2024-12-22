@@ -15,7 +15,8 @@ namespace apdcam10g
           files_.clear();
 
           // Create a file for each enabled channel
-          files_.resize(daq_->all_enabled_channels_buffers_.size());
+//          files_.resize(daq_->all_enabled_channels_.size());
+          files_.resize(daq_->all_enabled_channels_.size());
 
           // Reset the pause flag to false.
           pause_.clear();
@@ -26,12 +27,12 @@ namespace apdcam10g
           cerr<<prompt_<<"Opening diskdump output files: "<<filename_pattern_<<endl;
           auto p = filename_pattern_.find('%');
           if(p==string::npos) APDCAM_ERROR("The filename pattern does not contain the character %");
-          for(unsigned int i=0; i<daq_->all_enabled_channels_buffers_.size(); ++i)
+          for(unsigned int i=0; i<daq_->all_enabled_channels_.size(); ++i)
           {
               const std::filesystem::path filename =
                   output_dir_ / 
                   filename_pattern_.substr(0,p) + 
-                  std::to_string(daq_->all_enabled_channels_buffers_[i]->absolute_channel_number) +
+                  std::to_string(daq_->all_enabled_channels_[i]->absolute_channel_number) +
                   filename_pattern_.substr(p+1);
               files_[i].open(filename);
               if(!files_[i].good())
@@ -67,9 +68,9 @@ namespace apdcam10g
                   const unsigned int s = sampling_.load(std::memory_order_seq_cst);
                   if(i%s != 0) continue;
                   
-                  for(unsigned int i_enabled_channel=0; i_enabled_channel<daq_->all_enabled_channels_buffers_.size(); ++i_enabled_channel)
+                  for(unsigned int i_enabled_channel=0; i_enabled_channel<daq_->all_enabled_channels_.size(); ++i_enabled_channel)
                   {
-                      daq::channel_data_buffer_t *c = daq_->all_enabled_channels_buffers_[i_enabled_channel];
+                      daq::channel_data_buffer_t *c = daq_->all_enabled_channels_[i_enabled_channel];
                       files_[i_enabled_channel]<<hex<< (*c)(i)<<endl;
                   }
               }

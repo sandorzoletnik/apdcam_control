@@ -16,9 +16,11 @@
 #include "channel_info.h"
 #include "terminal.h"
 #include "utils.h"
+#include "lockable.h"
 #include <vector>
 #include <string>
 #include <iostream>
+#include <atomic>
 
 namespace apdcam10g
 {
@@ -29,33 +31,41 @@ namespace apdcam10g
     class daq_settings
     {
     protected:
-        std::string interface_ = "lo";
+        lockable<std::string> interface_;
         const static int ipv4_header_ = 20;
         const static int udp_header_ = 8;
-        unsigned int mtu_ = 0;
-        unsigned int octet_ = 0;
+        std::atomic<unsigned int> mtu_ = 0;
+        std::atomic<unsigned int> octet_ = 0;
 
         // The maximum UDP packet size, which is 22 bytes (streamheader) + 8*octet. At the end of a burst or a sequence
         // of transmitted shots, there may be a smaller UDP packet if the shots do not fill an entire one, but
         // all preceding packets will have this maximum size
-        unsigned int max_udp_packet_size_ = 0;
+        std::atomic<unsigned int> max_udp_packet_size_ = 0;
 
         // A lot of (redundant) information to be able to access and manipulate the memory storage
         // in different ways efficiently
-        std::vector<std::vector<bool>>              channel_masks_;           // Indices: ADC number, channel number within board. It is initialized for all channels being enabled
-        std::vector<unsigned int>                   resolution_bits_;         // Index: ADC number. Initialized as 14 for all boards
+        lockable<std::vector<std::vector<bool>>>              channel_masks_;           // Indices: ADC number, channel number within board. It is initialized for all channels being enabled
+        lockable<std::vector<unsigned int>>                   resolution_bits_;         // Index: ADC number. Initialized as 14 for all boards
 
         // These data members below are not initialized by default. They are calculated by the 'calculate_channel_info' member function
         // which must be called before the daq is started
-        std::vector<unsigned int>                   board_bytes_per_shot_;    // index is ADC number
-        std::vector<std::vector<unsigned int>>      chip_bytes_per_shot_;     // indices are ADC number (0..3max) and chip nummber (0..3)
-        std::vector<std::vector<unsigned int>>      chip_offset_;             // Offset of the first data byte of the chip w.r.t. the board's first data byte, indices are ADC number and chip number
+        lockable<std::vector<unsigned int>>                   board_bytes_per_shot_;    // index is ADC number
+        lockable<std::vector<std::vector<unsigned int>>>      chip_bytes_per_shot_;     // indices are ADC number (0..3max) and chip nummber (0..3)
+        lockable<std::vector<std::vector<unsigned int>>>      chip_offset_;             // Offset of the first data byte of the chip w.r.t. the board's first data byte, indices are ADC number and chip number
 
-        std::vector<CHINFO*>               all_enabled_channels_info_;
-        std::vector<std::vector<CHINFO*>>  board_enabled_channels_info_; // First index is ADC board number, second index is the enabled channel index
+        lockable<std::vector<CHINFO*>>               all_channels_;           // A vector of all possible channels (all physical channels of all present ADC boards). Zero pointer is stored for disabled ones.
+                                                                              // The vector index is the absolute channel number from 0 to 127
+        lockable<std::vector<CHINFO*>>               all_enabled_channels_;   // A vector of all of the enabled channels. Vector index is a continuously running index, the 'enabled channel index'
+        lockable<std::vector<std::vector<CHINFO*>>>  board_enabled_channels_; // An array of enabled channels grouped by ADC boards. First index is ADC board number, second index is the enabled channel index within
+                                                                              // the board, i.e. from 0 to maximum 31 (depending on how many channels of the given board are enabled)
+        lockable<std::vector<CHINFO*>>               board_last_enabled_channel_;  // The last enabled channel of each board. Vector index is the ADC board number. 
 
         // Set MTU
         daq_settings &mtu(unsigned int m);
+
+        // A virtual function that creates a "channel info" class. It is overridden in the "daq" class to
+        // create a ring buffer for the channels with a given size
+        virtual CHINFO *create_channel_info() { return new CHINFO(); }
 
     public:
 
@@ -67,20 +77,23 @@ namespace apdcam10g
 
         ~daq_settings();
 
+        unsigned int n_adc() const { std::shared_lock lck(board_enabled_channels_); return board_enabled_channels_.size(); }
+        unsigned int n_channels() const { std::shared_lock lck(all_channels_); return all_channels_.size(); }
+
         // get the MTU value (Maximum Transmission Unit, the biggest size of packet that can be sent
         // without fragmentation) used for all sockets
         unsigned int mtu() const { return mtu_; }
 
         unsigned int octet() const { return octet_; }
 
-        daq_settings &interface(const std::string &i) { interface_ = i; return *this; }
-        const std::string &interface() const { return interface_; }
+        daq_settings &interface(const std::string &i) { std::unique_lock lck(interface_); interface_ = i; return *this; }
+        const std::string &interface() const { std::shared_lock lck(interface_); return interface_; }
         daq_settings &get_net_parameters();
 
         // Set the channel masks
-        daq_settings &channel_masks(const std::vector<std::vector<bool>> &m) { channel_masks_ = m; return *this; }
+        daq_settings &channel_masks(const std::vector<std::vector<bool>> &m) { std::unique_lock lck(channel_masks_); channel_masks_ = m; return *this; }
         // Get the enabled/disabled status of a given channel
-        bool channel_mask(unsigned int i_adc, unsigned int i_channel_of_board) { return channel_masks_[i_adc][i_channel_of_board]; }
+        bool channel_mask(unsigned int i_adc, unsigned int i_channel_of_board) { std::shared_lock lck(channel_masks_); return channel_masks_[i_adc][i_channel_of_board]; }
 
         // Set the resolutions for all ADC boards (the vector 'r' must have as many elements as there are ADC boards)
         daq_settings &resolution_bits(const std::vector<unsigned int> &r) { resolution_bits_ = r;  return *this; }
@@ -94,10 +107,10 @@ namespace apdcam10g
         unsigned int chip_offset(int i_adc, int i_chip) { return chip_offset_[i_adc][i_chip]; }
 
         // Return the number of all enabled channels
-        unsigned int enabled_channels() { return all_enabled_channels_info_.size(); }
+        unsigned int enabled_channels() { return all_enabled_channels_.size(); }
 
         // Return the number of enabled channels on board 'board_number' (0-based)
-//        unsigned int enabled_channels(unsigned int board_number) { return board_enabled_channels_info_[board_number].size(); }
+//        unsigned int enabled_channels(unsigned int board_number) { return board_enabled_channels_[board_number].size(); }
 
         // Returns the maximum size of the packets: the CC header + the ADC data 
         // (but not including the UDP header, IPv4 header and Ethernet header)

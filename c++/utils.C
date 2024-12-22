@@ -57,5 +57,5 @@ namespace apdcam10g
         static std::recursive_mutex m;
         return m;
     }
-    
+
 }

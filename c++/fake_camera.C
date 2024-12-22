@@ -34,7 +34,7 @@ namespace apdcam10g
 
     void fake_camera::set_generators_()
     {
-        for(auto c: all_enabled_channels_info_)
+        for(auto c: all_enabled_channels_)
         {
             delete c->generator;
             // If we have a test pattern sequence, set a generator for all channels
@@ -48,7 +48,7 @@ namespace apdcam10g
     fake_camera::~fake_camera()
     {
         delete test_pattern_sequence_;
-        for(auto c: all_enabled_channels_info_) delete c->generator;
+        for(auto c: all_enabled_channels_) delete c->generator;
     }
 
     fake_camera::fake_camera()
@@ -106,7 +106,7 @@ namespace apdcam10g
                 const unsigned int shot_start =  i_shot*board_bytes_per_shot_[i_adc];
                 
                 int count = 0;
-                for(auto c : board_enabled_channels_info_[i_adc])
+                for(auto c : board_enabled_channels_[i_adc])
                 {
                     if( (shot_start+c->byte_offset)%(8*octet_)==0   ||  // If the channel's value starts exactly at a multiple of 8*octet
                         (shot_start+c->byte_offset)/(8*octet_) != (shot_start+c->byte_offset+c->nbytes)/(8*octet_) ) // or if the value covers a 8*octet boundary

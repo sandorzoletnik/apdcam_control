@@ -31,7 +31,7 @@ namespace apdcam10g
     // defined by the user. And finally, it starts a command interpreter thread which reads input from
     // the FIFO ~/.apdcam10g/cmd in order to provide a very simple control interface for external programs.
 
-    class daq : public daq_settings<channel_info>
+    class daq : public daq_settings<ring_buffer<apdcam10g::data_type,channel_info>>
     {
         // ufff, bad design, should remove these friends....
         friend class processor_diskdump;
@@ -54,11 +54,11 @@ namespace apdcam10g
 
         // a variable into which each python processor's earliers data counter is written,
         // which is required to stay in the buffer/memory
-        size_t python_analysis_needs_data_from_ = 0;
+        std::atomic<size_t> python_analysis_needs_data_from_ = 0;
 
         // variables to communicate the available data range to the python processors
-        size_t python_analysis_data_available_from_ = 0;
-        size_t python_analysis_data_available_to_ = 0;
+        std::atomic<size_t> python_analysis_data_available_from_ = 0;
+        std::atomic<size_t> python_analysis_data_available_to_ = 0;
 
         // A flag to control debugging output
         bool debug_ = false;
@@ -72,7 +72,7 @@ namespace apdcam10g
         // The period (number of shots) for calling the processor tasks on the channel data. The default 128 means that once there are
         // 128 new shots in the buffer, all processor tasks are triggered and run.
         // It must be a power of 2
-        unsigned int process_period_ = 128;
+        std::atomic<unsigned int> process_period_ = 128;
 
         // The input network sockets to read data from
         std::vector<udp_server>  sockets_;
@@ -90,19 +90,18 @@ namespace apdcam10g
         // Non-enabled channels will be  associated with a null pointer. Rationale: python analysis tasks
         // do not need to 
         // However, no room is allocated for missing entire ADC boards since these would be 0 pointers
-        std::vector<channel_data_buffer_t*> all_channels_buffers_;
+//        std::vector<channel_data_buffer_t*> all_channels_buffers_;
 
         // Flattened vector of the pointers to buffers for all enabled channels from all boards
-        std::vector<channel_data_buffer_t*> all_enabled_channels_buffers_;
+//        std::vector<channel_data_buffer_t*> all_enabled_channels_buffers_;
 
         // Vector of vector of pointers to enabled channels. First index is adc board, second index is
         // a running index over the enabled channels of that board
-        std::vector<std::vector<channel_data_buffer_t*>> board_enabled_channels_buffers_;
+//        std::vector<std::vector<channel_data_buffer_t*>> board_enabled_channels_buffers_;
 
         // Vector of pointers to the buffers of the last enabled channel of the board. Index is board number
-        std::vector<channel_data_buffer_t*> board_last_channel_buffers_;
+//        std::vector<channel_data_buffer_t*> board_last_enabled_channel_buffers_;
 
-//        std::vector<std::ranges::subrange<std::vector<channel_data_buffer_t>::iterator>> board_enabled_channels_buffers_;
 
         std::vector<std::jthread>  network_threads_;    // read the UDP packets and produce data in the ring buffer
         std::atomic_flag           network_threads_active_[config::max_boards]; // flags which indicate whether the given threads are active
@@ -130,13 +129,13 @@ namespace apdcam10g
         // via the static daq::instance() function
         daq();
 
+        channel_data_buffer_t *create_channel_info() override { return new channel_data_buffer_t(channel_buffer_size_,channel_buffer_extra_size_); }
+
     public:
 
         static std::string section_start(std::string text);
         static std::string section_end(std::string text);
 
-        unsigned int n_adc() const { return network_buffers_.size(); }
-        unsigned int n_channels() const { return all_channels_buffers_.size(); }
 
         // A function to query the status of the python_analysis_stop_ flag. It will be called from the python
         // code within the processor loop to terminate if this is true
@@ -171,14 +170,14 @@ namespace apdcam10g
         ~daq()
         {
             for(auto p : extractors_) delete p;
-            for(auto p : all_enabled_channels_buffers_) delete p;
+//            for(auto p : all_enabled_channels_buffers_) delete p;
             unlink((configdir() / "pid").c_str());
         }
 
         channel_data_buffer_t *channel_buffer(unsigned int absolute_channel_number) 
         {
-            if(absolute_channel_number>=all_channels_buffers_.size()) return 0;
-            return all_channels_buffers_[absolute_channel_number];
+            if(absolute_channel_number>=all_channels_.size()) return 0;
+            return all_channels_[absolute_channel_number];
         }
 
         void show_error(const std::string &msg, const std::string &location="")
@@ -323,7 +322,6 @@ namespace apdcam10g
 extern "C"
 {
     using namespace apdcam10g;
-//    void get_net_parameters();
 
     unsigned int n_adc();
     unsigned int n_channels();

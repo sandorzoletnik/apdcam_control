@@ -28,95 +28,135 @@ namespace apdcam10g
     {
         using namespace std;
         output_lock lck;
-        cerr<<"Interface: "<<interface_<<endl;
+        cerr<<"Interface: "<<interface()<<endl;
         cerr<<"MTU      : "<<mtu_<<endl;
         cerr<<"Octet    : "<<octet_<<endl;
         cerr<<"Max packet size: "<<max_udp_packet_size_<<endl;
 
         cerr<<"Channel masks: "<<endl;
-        for(int i=0; i<channel_masks_.size(); ++i)
         {
-            for(int j=0; j<channel_masks_[i].size(); ++j) 
+            std::shared_lock lck(channel_masks_);
+            for(int i=0; i<channel_masks_.size(); ++i)
             {
-                if(channel_masks_[i][j]) cerr<<terminal::green_bg<<terminal::black_fg;
-                cerr<<j;
-                if(channel_masks_[i][j]) cerr<<terminal::reset;
-                cerr<<"  ";
+                for(int j=0; j<channel_masks_[i].size(); ++j) 
+                {
+                    if(channel_masks_[i][j]) cerr<<terminal::green_bg<<terminal::black_fg;
+                    cerr<<j;
+                    if(channel_masks_[i][j]) cerr<<terminal::reset;
+                    cerr<<"  ";
+                }
+                cerr<<endl;
             }
-            cerr<<endl;
         }
         cerr<<"Resolutions: [ ";
-        for(auto r : resolution_bits_) cerr<<r<<" ";
-        cerr<<" ]"<<endl;
-        cerr<<"Bytes per shot: ";
-        for(auto b : board_bytes_per_shot_) cerr<<b<<" ";
-        cerr<<endl;
-        cerr<<"Chip bytes per shot: ";
-        for(auto &a: chip_bytes_per_shot_)
         {
-            cerr<<"[ ";
-            for(auto &b: a) cerr<<b<<" ";
-            cerr<<"] ";
+            std::shared_lock lck(resolution_bits_);
+            for(auto r : resolution_bits_) cerr<<r<<" ";
+        }
+        cerr<<" ]"<<endl;
+
+        cerr<<"Bytes per shot: ";
+        {
+            std::shared_lock lck(board_bytes_per_shot_);
+            for(auto b : board_bytes_per_shot_) cerr<<b<<" ";
+        }
+        cerr<<endl;
+
+        cerr<<"Chip bytes per shot: ";
+        {
+            std::shared_lock lck(chip_bytes_per_shot_);
+            for(auto &a: chip_bytes_per_shot_)
+            {
+                cerr<<"[ ";
+                for(auto &b: a) cerr<<b<<" ";
+                cerr<<"] ";
+            }
         }
         cerr<<endl;
 
         cerr<<"Chip offsets: ";
-        for(auto &a: chip_offset_)
         {
-            cerr<<"[ ";
-            for(auto &b: a) cerr<<b<<" ";
-            cerr<<"] ";
+            std::shared_lock lck(chip_offset_);
+            for(auto &a: chip_offset_)
+            {
+                cerr<<"[ ";
+                for(auto &b: a) cerr<<b<<" ";
+                cerr<<"] ";
+            }
         }
         cerr<<endl;
 
         cerr<<"All enabled channels: "<<endl;
-        for(auto a: all_enabled_channels_info_) a->dump();
-
-        cerr<<endl;
-        cerr<<"Board enabled channels: "<<endl;
-        for(int i=0; i<board_enabled_channels_info_.size(); ++i)
         {
-            cerr<<"Board "<<i<<endl;
-            for(auto a: board_enabled_channels_info_[i]) a->dump();
+            std::shared_lock lck(all_enabled_channels_);
+            for(auto a: all_enabled_channels_) a->dump();
         }
-
+        cerr<<endl;
+        
+        cerr<<"Board enabled channels: "<<endl;
+        {
+            std::shared_lock lck(board_enabled_channels_);
+            for(int i=0; i<board_enabled_channels_.size(); ++i)
+            {
+                cerr<<"Board "<<i<<endl;
+                for(auto a: board_enabled_channels_[i]) a->dump();
+            }
+        }
     }
 
 
     template <typename CHINFO>
-    daq_settings<CHINFO>::daq_settings(): channel_masks_(config::max_boards), resolution_bits_(config::max_boards,14)
+    daq_settings<CHINFO>::daq_settings()
     {
-        // By default enable all channels, with all possible ADC boards present
-        for(auto &a : channel_masks_) a.resize(config::channels_per_board,true);
+        {
+            std::unique_lock lck(interface_);
+            interface_ = std::string("lo");
+        }
+        {
+            std::unique_lock lck(channel_masks_);
+            channel_masks_.resize(config::max_boards);
+            // By default enable all channels, with all possible ADC boards present
+            for(auto &a : channel_masks_) a.resize(config::channels_per_board,true);
+        }
+        {
+            std::unique_lock lck(resolution_bits_);
+            resolution_bits_.resize(config::max_boards,14);
+        }
     }
 
     template <typename CHINFO>
     daq_settings<CHINFO>::~daq_settings()
     {
-        for(auto c : all_enabled_channels_info_) delete c;
+        std::unique_lock lck(all_enabled_channels_);
+        for(auto c : all_enabled_channels_) delete c;
     }
 
     template <typename CHINFO>
     void daq_settings<CHINFO>::print_channel_map(std::ostream &out)
     {
-
-        for(int i_adc=0; i_adc<board_enabled_channels_info_.size(); ++i_adc)
+        for(int i_adc=0; i_adc<board_enabled_channels_.size(); ++i_adc)
         {
             out<<endl<<"ADC "<<i_adc<<endl;
-            out<<"Resolution: "<<resolution_bits_[i_adc]<<endl;
+            {
+                std::shared_lock lck(resolution_bits_);
+                out<<"Resolution: "<<resolution_bits_[i_adc]<<endl;
+            }
 
             out<<endl;
-            for(auto c : board_enabled_channels_info_[i_adc])
             {
-                out<<"board number    : "<<c->board_number<<endl;
-                out<<"chip number     : "<<c->chip_number<<endl;
-                out<<"channel number  : "<<c->channel_number<<endl;
-                out<<"abs. ch. number : "<<c->absolute_channel_number<<endl;
-                out<<"enabl. ch. numb.: "<<c->enabled_channel_number<<endl;
-                out<<"byte offset     : "<<c->byte_offset<<endl;
-                out<<"nbytes          : "<<c->nbytes<<endl;
-                out<<"shift           : "<<c->shift<<endl;
-                out<<endl;
+                std::shared_lock lck(board_enabled_channels_);
+                for(auto c : board_enabled_channels_[i_adc])
+                {
+                    out<<"board number    : "<<c->board_number<<endl;
+                    out<<"chip number     : "<<c->chip_number<<endl;
+                    out<<"channel number  : "<<c->channel_number<<endl;
+                    out<<"abs. ch. number : "<<c->absolute_channel_number<<endl;
+                    out<<"enabl. ch. numb.: "<<c->enabled_channel_number<<endl;
+                    out<<"byte offset     : "<<c->byte_offset<<endl;
+                    out<<"nbytes          : "<<c->nbytes<<endl;
+                    out<<"shift           : "<<c->shift<<endl;
+                    out<<endl;
+                }
             }
         }
     }
@@ -124,7 +164,6 @@ namespace apdcam10g
     template <typename CHINFO>
     daq_settings<CHINFO> &daq_settings<CHINFO>::mtu(unsigned int m)
     {
-        cerr<<"daq_settings::mtu("<<m<<")"<<endl;
         mtu_ = m; 
         const int max_adc_data_length = mtu_ - (packet::ipv4_header+packet::udp_header+packet::cc_streamheader);
         octet_ = max_adc_data_length/8; // INTEGER DIVISION!
@@ -211,7 +250,10 @@ namespace apdcam10g
         */
 
         output_lock lck;
-        cerr<<"Interface: "<<interface_<<endl;
+        {
+            std::shared_lock lck(interface_);
+            cerr<<"Interface: "<<interface_<<endl;
+        }
         cerr<<"MTU      : "<<mtu_<<endl;
         cerr<<"OCTET    : "<<octet_<<endl;
         cerr<<endl;
@@ -224,10 +266,16 @@ namespace apdcam10g
     {
         if(resolution_bits_.size() != channel_masks_.size()) 
             APDCAM_ERROR("Resolutions (" + std::to_string(resolution_bits_.size()) + ") and channel masks (" + std::to_string(channel_masks_.size()) + ") have different size");
-        
-        const int nof_adc = channel_masks_.size();
 
-        
+        std::shared_lock lck1(channel_masks_);
+        std::unique_lock lck2(board_bytes_per_shot_);
+        std::unique_lock lck3(chip_bytes_per_shot_);
+        std::unique_lock lck4(chip_offset_);
+        std::unique_lock lck5(all_enabled_channels_);
+        std::unique_lock lck6(board_enabled_channels_);
+
+        const unsigned int nof_adc = channel_masks_.size();
+
         board_bytes_per_shot_.clear();
         board_bytes_per_shot_.resize(nof_adc,0);
 
@@ -238,14 +286,26 @@ namespace apdcam10g
         chip_offset_.clear();
         chip_offset_.resize(nof_adc);
         for(auto &v : chip_offset_) v.resize(config::chips_per_board,0);
-    
+
         // Delete all channel_info objects, and clear the vector
-        for(auto a : all_enabled_channels_info_) delete a;
-        all_enabled_channels_info_.clear();
+        for(auto a : all_enabled_channels_) delete a;
+        all_enabled_channels_.clear();
 
         // Resize the per-board vector, and clear all of its elements
-        board_enabled_channels_info_.resize(nof_adc);
-        for(auto &a : board_enabled_channels_info_) a.clear();
+        board_enabled_channels_.resize(nof_adc);
+        for(auto &a : board_enabled_channels_) a.clear();
+
+        // Create a slot for all possible channels (even for those not enabled), containing initially
+        // zero pointers. This array is indexed by the absolute channel number
+        all_channels_.clear();
+        all_channels_.resize(nof_adc*config::channels_per_board,0);
+
+        // For each adc board there is a last channel (this is made use of in DAQ)
+        // This array is indexed by the ADC board number
+        board_last_enabled_channel_.clear();
+        board_last_enabled_channel_.resize(nof_adc);
+
+        cerr<<"CHECK THE LOCKS FROM HERE DOWNWARDS IN daq_settings.Cinc"<<endl;
 
         for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
         {
@@ -274,12 +334,14 @@ namespace apdcam10g
                     // skip disabled channels
                     if(!channel_masks_[i_adc][i_channel_of_board]) continue;
 
-                    CHINFO *chinfo = new CHINFO;
+                    //CHINFO *chinfo = new CHINFO;
+                    CHINFO *chinfo = create_channel_info();
+                    
                     chinfo->board_number = i_adc;
                     chinfo->chip_number = i_chip;
                     chinfo->channel_number = i_channel_of_board;
                     chinfo->absolute_channel_number = i_adc*config::chips_per_board*config::channels_per_chip + i_channel_of_board;
-                    chinfo->enabled_channel_number = all_enabled_channels_info_.size();
+                    chinfo->enabled_channel_number = all_enabled_channels_.size();
                     chinfo->byte_offset    = chip_offset_[i_adc][i_chip] + channel_bit_offset/8;
 
                     // The first bit of this channel's value within the byte, STARTING FROM LEFT, FROM THE MOST SIGNIFICANT BIT
@@ -298,8 +360,10 @@ namespace apdcam10g
 
                     channel_bit_offset += resolution_bits_[i_adc];
 
-                    all_enabled_channels_info_.push_back(chinfo);
-                    board_enabled_channels_info_[i_adc].push_back(chinfo);
+                    all_enabled_channels_.push_back(chinfo);
+                    board_enabled_channels_[i_adc].push_back(chinfo);
+                    all_channels_[chinfo->absolute_channel_number] = chinfo;
+                    board_last_enabled_channel_[i_adc] = chinfo;
                 }
 
                 // channel_bit_offset here is the number of bits used for this chip. Calculate the number of full bytes

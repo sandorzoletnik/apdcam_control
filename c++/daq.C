@@ -233,11 +233,16 @@ namespace apdcam10g
             // Calculate the all_enabled_channels_info / board_enabled_channels_info vectors (ranges), and the
             // number of all enabled channels
             calculate_channel_info();
-            
+
             if(mtu_ == 0) APDCAM_ERROR("MTU has not been set");
             
-            const unsigned int nof_adc = channel_masks_.size();
-            
+            // Calculate and store the number of ADC boards from the channel mask's size.
+            unsigned int nof_adc = 0;
+            {
+                std::shared_lock lck(channel_masks_);
+                nof_adc = channel_masks_.size();
+            }
+
             if(mtu_==0) APDCAM_ERROR("MTU has not yet been specified in daq::initialize");
             if(dual_sata_ && nof_adc>2) APDCAM_ERROR("Dual sata is set with more than two ADC boards present");
 
@@ -256,25 +261,6 @@ namespace apdcam10g
             // Resize the extractors vector to have as many elements as there are ADC boards
             //regenerate_by_func(extractors_, nof_adc, [this](unsigned int i_adc){return new channel_data_extractor<default_safeness>(this,fw_version_,i_adc);});
             regenerate_by_func(extractors_, nof_adc, [this](unsigned int i_adc){return has_enabled_channel(channel_masks_[i_adc]) ? new channel_data_extractor<default_safeness>(this,fw_version_,i_adc) : 0; });
-
-            // Resize the channels buffers, so that the sub-ranges (per ADC board) can be set up on the fly (i.e.
-            // the 'all_enabled_channels_buffers_' vector is not resized anymore, which would invalidate its sub-ranges)
-            // regenerate(all_enabled_channels_buffers_,all_enabled_channels_info_.size(),0); - hey, this is wrong. It would delete the buffers pointed to by these elements, and the stored pointers would not be initialized to 0, but to an object allocated using the constructor argument '0'
-            all_enabled_channels_buffers_.clear();
-            all_enabled_channels_buffers_.resize(all_enabled_channels_info_.size());
-
-            // The per-board channels vector (in fact: subrange of the 'all_enabled_channels_buffers_')
-            board_enabled_channels_buffers_.clear();
-            board_enabled_channels_buffers_.resize(nof_adc);
-
-            board_last_channel_buffers_.clear();
-            board_last_channel_buffers_.resize(nof_adc);
-
-            // Resize all_channels_buffers_ to the maximum possible number of channels, and set all elements to a zero pointer
-            // The strategy is that there is a slot for all physically existing channels, but if the channel is not enabled,
-            // this slot has a zero pointer. Enabled channels have an allocated buffer.
-            all_channels_buffers_.clear();
-            all_channels_buffers_.resize(nof_adc*config::channels_per_board,0);
 
             // Open the input ports
             {
@@ -297,11 +283,11 @@ namespace apdcam10g
                     sockets_[i_adc].open(config::ports[port_index]);
                     cerr<<"[DAQ] Bytes per shot  : "<<board_bytes_per_shot_[i_adc]<<endl;
                     cerr<<"[DAQ] Enabled channels: ";
-                    for(auto c : board_enabled_channels_info_[i_adc]) cerr<<c->channel_number<<" ";
+                    for(auto c : board_enabled_channels_[i_adc]) cerr<<c->channel_number<<" ";
                     cerr<<endl;
                     if(debug_)
                     {
-                        shot_data_layout layout(board_bytes_per_shot_[i_adc], resolution_bits_[i_adc], board_enabled_channels_info_[i_adc]);
+                        shot_data_layout layout(board_bytes_per_shot_[i_adc], resolution_bits_[i_adc], board_enabled_channels_[i_adc]);
                         layout.prompt("[DAQ]");
                         cerr<<"[DAQ] ---- SHOT DATA LAYOUT ----"<<endl;
                         layout.show();
@@ -309,17 +295,6 @@ namespace apdcam10g
                     }
                     cerr<<endl;
                 }
-            }
-        
-            for(unsigned int i=0; i<all_enabled_channels_info_.size(); ++i)
-            {
-                const channel_info *ci = all_enabled_channels_info_[i];
-                channel_data_buffer_t *b = new channel_data_buffer_t(channel_buffer_size_,channel_buffer_extra_size_);
-                b->copy_values(*ci);
-                all_enabled_channels_buffers_[i] = b;
-                board_enabled_channels_buffers_[ci->board_number].push_back(b);
-                board_last_channel_buffers_[ci->board_number] = b;
-                all_channels_buffers_[ci->absolute_channel_number] = b;
             }
 
             for(auto p : processors_) p->init();
@@ -332,8 +307,7 @@ namespace apdcam10g
             python_analysis_run_.clear();
             python_analysis_stop_.clear();
         }
-        catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Unhandled exception caught in daq::init"<<endl; }
+        CATCH_ALL();
         return *this;
     }
 
@@ -548,9 +522,9 @@ stop [timeout]
                             // of entries, or are terminated
                             bool non_terminated_exists = false;
 
-                            for(int i=0; i<board_last_channel_buffers_.size(); ++i)
+                            for(int i=0; i<board_last_enabled_channel_.size(); ++i)
                             {
-                                const channel_data_buffer_t *b = board_last_channel_buffers_[i];
+                                const channel_data_buffer_t *b = board_last_enabled_channel_[i];
                                 bool terminated;
                                 size_t push_counter;
                                 while( (push_counter=b->push_counter())<to_counter && (terminated=b->terminated())==false );
@@ -583,7 +557,7 @@ stop [timeout]
                         
                                 // after all tasks have run, and reported what the earliest element in the buffers that they
                                 // need for further processing, clear the buffers up to this
-                                for(auto a: all_enabled_channels_buffers_)
+                                for(auto a: all_enabled_channels_)
                                 {
                                     a->pop_to(needed);
                                     if(!a->empty()) data_in_buffer = true;
@@ -608,7 +582,7 @@ stop [timeout]
                     }
                     catch(apdcam10g::error &e) 
                     { 
-                        for(auto a: all_enabled_channels_buffers_) a->terminate();
+                        for(auto a: all_enabled_channels_) a->terminate();
                         cerr<<prompt<<e.full_message()<<endl; 
                     }
                 });
@@ -636,7 +610,7 @@ stop [timeout]
                         signal2exception::set("extractor" + std::to_string(i_adc),SIGSEGV,SIGTERM);
                         try
                         {
-                            extractors_[i_adc]->run(*network_buffers_[i_adc],board_enabled_channels_buffers_[i_adc]);
+                            extractors_[i_adc]->run(*network_buffers_[i_adc],board_enabled_channels_[i_adc]);
 
                             // Write a summary of what happened
                             {
@@ -644,7 +618,7 @@ stop [timeout]
                                 cerr<<prompt<<"Thread "<<i_adc<<" finished"<<endl;
                                 cerr<<prompt<<"---------- Data extraction summary  ------------------"<<endl;
                                 double sum=0, n=0, max=0;
-                                for(auto b : board_enabled_channels_buffers_[i_adc])
+                                for(auto b : board_enabled_channels_[i_adc])
                                 {
                                     ++n;
                                     sum += b->mean_size();
@@ -660,7 +634,7 @@ stop [timeout]
                         }
                         catch(apdcam10g::error &e) 
                         { 
-                            for(auto a : board_enabled_channels_buffers_[i_adc]) a->terminate();
+                            for(auto a : board_enabled_channels_[i_adc]) a->terminate();
                             cerr<<prompt<<e.full_message()<<endl; 
                         }
                     }));
@@ -915,44 +889,44 @@ stop [timeout]
 
     size_t daq::channel_buffer_content(unsigned int i_channel) const
     {
-        if(i_channel>=all_channels_buffers_.size() || all_channels_buffers_[i_channel]==0) return 0;
-        return all_channels_buffers_[i_channel]->size();
+        if(i_channel>=all_channels_.size() || all_channels_[i_channel]==0) return 0;
+        return all_channels_[i_channel]->size();
     }
     size_t daq::max_channel_buffer_content(unsigned int i_channel) const
     {
-        if(i_channel>=all_channels_buffers_.size() || all_channels_buffers_[i_channel]==0) return 0;
-        return all_channels_buffers_[i_channel]->max_size();
+        if(i_channel>=all_channels_.size() || all_channels_[i_channel]==0) return 0;
+        return all_channels_[i_channel]->max_size();
     }
     size_t daq::channel_buffer_content_of_board(unsigned int i_adc) const
     {
         if(i_adc>=network_buffers_.size()) return 0;
-        if(i_adc > board_last_channel_buffers_.size())
+        if(i_adc > board_last_enabled_channel_.size())
         {
             cerr<<"It seems that no channels are enabled for this board"<<endl;
             return 0;
         }
-        if(board_last_channel_buffers_[i_adc] == 0)
+        if(board_last_enabled_channel_[i_adc] == 0)
         {
             cerr<<"It seems that no channels are enabled for this board"<<endl;
             return 0;
         }
-        return board_last_channel_buffers_[i_adc]->size();
+        return board_last_enabled_channel_[i_adc]->size();
     }
     size_t daq::max_channel_buffer_content_of_board(unsigned int i_adc) const
     {
-        if(i_adc>=network_buffers_.size() || board_last_channel_buffers_[i_adc]==0) return 0;
-        return board_last_channel_buffers_[i_adc]->max_size();
+        if(i_adc>=network_buffers_.size() || board_last_enabled_channel_[i_adc]==0) return 0;
+        return board_last_enabled_channel_[i_adc]->max_size();
     }
     
     size_t daq::extracted_shots(unsigned int i_channel) const
     {
-        if(i_channel>=all_channels_buffers_.size() || all_channels_buffers_[i_channel]==0) return 0;
-        return all_channels_buffers_[i_channel]->push_counter();
+        if(i_channel>=all_channels_.size() || all_channels_[i_channel]==0) return 0;
+        return all_channels_[i_channel]->push_counter();
     }
     size_t daq::extracted_shots_of_board(unsigned int i_adc) const
     {
-        if(i_adc>=board_last_channel_buffers_.size() || board_last_channel_buffers_[i_adc]==0) return 0;
-        return board_last_channel_buffers_[i_adc]->push_counter();
+        if(i_adc>=board_last_enabled_channel_.size() || board_last_enabled_channel_[i_adc]==0) return 0;
+        return board_last_enabled_channel_[i_adc]->push_counter();
     }
 
 

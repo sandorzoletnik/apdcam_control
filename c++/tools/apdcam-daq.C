@@ -59,7 +59,6 @@ try
 
     for(args a(argc,argv); a; ++a)
     {
-        cerr<<"arg: "<<a()<<endl;
         if(a()=="-h" || a()=="--help") { help(); exit(0); }
         else if(a()=="--help-commands") { daq::cmd_help(); exit(0); }
         else if(a()=="-c")
