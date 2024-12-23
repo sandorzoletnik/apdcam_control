@@ -29,7 +29,7 @@ namespace apdcam10g
         // which is an integer times 'max_udp_packet_size_' 
         apdcam10g::byte   *raw_buffer_ = 0;
 
-        // Number of packets the buffer can store
+        // Number of packets the buffer can store (capacity)
         unsigned int size_in_packets_ = 0;
 
         // Maximum size of UDP packets (all packets but the last one are of this size)
@@ -41,8 +41,8 @@ namespace apdcam10g
         // Add an empty packet (filled with zeroes) to the buffer, with the specified counter
         void add_empty_packet_(udp_packet_record *, unsigned int counter, unsigned int packet_size);
 
-        unsigned int lost_packets_ = 0;
-        unsigned int received_packets_ = 0;
+        std::atomic<unsigned int> lost_packets_ = 0;
+        std::atomic<unsigned int> received_packets_ = 0;
 
     public:
         udp_packet_buffer() {}

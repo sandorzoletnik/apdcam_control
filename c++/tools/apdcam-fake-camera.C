@@ -4,7 +4,7 @@
 #include <string.h>
 #include "utils.h"
 #include "test_pattern.h"
-#include "arg.h"
+#include "args.h"
 
 using namespace std;
 
@@ -32,21 +32,21 @@ try
 
     for(args a(argc,argv); a; ++a)
     {
-        if(a()=="-h" || a()=="--help") help();
-        else if(a()=="-i") cam.server_ip(a.get<std::string>(1,"Server IP"));
-        else if(a()=="-n") nshots = a.get<int>(1,"Number of shots");
-        else if(a()=="-s") settings_ok = cam.read_settings(a.get<std::string>(1,"Settings filename"));
-        else if(a()=="--drop-packets")
+        if(a("-h","--help"))  help();
+        else if(a("-i")) cam.server_ip(a.get<std::string>(1,"Server IP"));
+        else if(a("-n")) nshots = a.get<int>(1,"Number of shots");
+        else if(a("-s")) settings_ok = cam.read_settings(a.get<std::string>(1,"Settings filename"));
+        else if(a("--drop-packets"))
         {
             const unsigned int drop_packets = a.get<int>(1);
             cam.packet_filter([drop_packets](unsigned int packet_no) { if((packet_no+1)%drop_packets==0) return false; return true; });
         }
-        else if(a()=="--drop-shots")
+        else if(a("--drop-shots"))
         {
             const unsigned int drop_shots = a.get<int>(1);
             cam.skip_shots([drop_shots](unsigned int shot_no) -> unsigned int { if((shot_no+1)%drop_shots==0) return 1; return 0; });
         }
-        else if(a()=="-t" || a()=="--test-pattern") cam.test_pattern(a.get<int>(1,"Test pattern number"));
+        else if(a("-t","--test-pattern")) cam.test_pattern(a.get<int>(1,"Test pattern number"));
         else APDCAM_ERROR("Unknown argument: " + a());
     }
     if(!settings_ok) 

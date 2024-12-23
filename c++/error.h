@@ -78,7 +78,7 @@ namespace apdcam10g
     std::cerr<<"File: "<<__FILE__<<", Line: "<<__LINE__<<std::endl; \
     std::cerr<<">>> "<<msg<<std::endl;                              \
     std::cerr<<std::endl;\
-    apdcam10g::print_backtrace();     \
+    apdcam10g::print_backtrace();                \
     throw apdcam10g::error(msg,__FILE__,__LINE__); \
     }
 
@@ -98,7 +98,7 @@ namespace apdcam10g
     std::cerr<<"File: "<<__FILE__<<", Line: "<<__LINE__<<std::endl; \
     std::cerr<<">>> "<<msg<<std::endl;                              \
     std::cerr<<std::endl;\
-    apdcam10g::print_backtrace();     \
+    apdcam10g::print_backtrace();                                     \
     throw apdcam10g::error(std::string(msg) + ": " + std::string(strerror(errno)),__FILE__,__LINE__); \
     }
 

@@ -119,9 +119,9 @@ namespace apdcam10g
         // analysis task on ALL channels of ALL ADC boards
         std::vector<processor *> processors_;
 
-        unsigned int network_buffer_size_ = 1<<10;    // The size of the network input ring buffer size in terms of UDP packets (real mamory is MTU*this_value measured in bytes)
-        unsigned int channel_buffer_size_ = 1<<18;   // The number of channel signal values stored in memory before dumping to disk
-        unsigned int channel_buffer_extra_size_ = 1<<8; // Extra size at the end of the sample buffers to flatten a flipped-back data range
+        std::atomic<unsigned int> network_buffer_size_ = 1<<10;    // The size of the network input ring buffer size in terms of UDP packets (real mamory is MTU*this_value measured in bytes)
+        std::atomic<unsigned int> channel_buffer_size_ = 1<<18;   // The number of channel signal values stored in memory before dumping to disk
+        std::atomic<unsigned int> channel_buffer_extra_size_ = 1<<8; // Extra size at the end of the sample buffers to flatten a flipped-back data range
 
         std::filesystem::path cmd_fifo_name_ = configdir() / "cmd";
 

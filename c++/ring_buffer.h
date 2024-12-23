@@ -85,10 +85,10 @@ namespace apdcam10g
         std::atomic_flag        terminated_;
 
         // Variables for statistics
-        double sum_size_=0;    // sum of the values of size sampled at every call to push(..) or publish(...)
-        double sum_size2_=0;   // sum of the squared size values
-        double sum_n_=0;       // Number of samplings of the size
-        size_t max_size_=0;    // maximum size (content) of the buffer since it was reset
+        std::atomic<double> sum_size_=0;    // sum of the values of size sampled at every call to push(..) or publish(...)
+        std::atomic<double> sum_size2_=0;   // sum of the squared size values
+        std::atomic<int> sum_n_=0;          // Number of samplings of the size
+        std::atomic<size_t> max_size_=0;    // maximum size (content) of the buffer since it was reset
 
         ring_buffer(ring_buffer const&);
         void operator = (ring_buffer const&);
@@ -108,7 +108,8 @@ namespace apdcam10g
         // fill size, and its sigma
         virtual void reset_statistics()
         {
-            sum_size_ = sum_size2_ = sum_n_ = 0;
+            sum_size_ = sum_size2_ = 0.0;
+            sum_n_ = 0;
             max_size_=0;
         }
 

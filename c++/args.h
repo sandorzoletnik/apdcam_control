@@ -4,6 +4,29 @@
 #include "error.h"
 #include <string>
 
+/*
+
+  This class provides an easy interface to parse command line arguments with automatic error reporting.
+  Usage:
+
+  int main(argc, char **argv)
+  {
+    int value_int;
+    double value_dbl;
+    for(args a(argc,argv; a; ++a)
+    {
+      if(a("-h","--help","--give-me-help"))  // true if the next unparsed argument is any of these values (arbitrary number and type of args!)
+      { 
+        cerr<<"Help"<<endl; 
+        exit(1); 
+      }
+      else if(a("-i")) value_int=a.get<int>(1); // Get the cmd line argument 1 after the current one as an int. Give general error if missing
+      else if(a("-d")) value_dbl=a.get<double>(1,"Some double value"); // Get cmd line arg 1 after the current one as a double. Give it a name in the error report if missing
+    }
+  }
+
+ */
+
 namespace apdcam10g
 {
     // Utility functions to get command line argument values
@@ -33,7 +56,7 @@ namespace apdcam10g
             {
                 if(index_+offset >= argc_)
                 {
-                    string msg = "At least " + std::to_string(offset) + " arguments ";
+                    std::string msg = "At least " + std::to_string(offset) + " arguments ";
                     if(name != "") msg += "(" + name + ") ";
                     msg += std::string("expected after ") + argv_[index_];
                     APDCAM_ERROR(msg);
@@ -49,7 +72,7 @@ namespace apdcam10g
                 {
                     if(verbose_)
                     {
-                        cerr<<"Using default value '"<<def<<"' for missing argument "<<offset<<" ("<<name<<")  after "<<argv_[index_]<<endl;
+                        std::cerr<<"Using default value '"<<def<<"' for missing argument "<<offset<<" ("<<name<<")  after "<<argv_[index_]<<std::endl;
                     }
                     return def;
                 }
@@ -71,7 +94,31 @@ namespace apdcam10g
             {
                 return argv_[index_];
             }
+
+        template <typename VALUE>
+        bool operator()(VALUE value)
+        {
+            return get<VALUE>(0) == value;
+        }
+
+        template <typename VALUE, typename... VALUES>
+        bool operator()(VALUE value, VALUES... values)
+        {
+            if(operator()(value)) return true;
+            return operator()(values...);
+        }
     };
+
+    template <>
+    bool args::operator()<const char *>(const char *value)
+    {
+        return get<std::string>(0) == std::string(value);
+    }
+    template <>
+    bool args::operator()<char *>(char *value)
+    {
+        return get<std::string>(0) == std::string(value);
+    }
 
 }
 

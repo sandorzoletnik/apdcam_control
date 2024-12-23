@@ -1,5 +1,5 @@
 #include "daq.h"
-#include "arg.h"
+#include "args.h"
 #include "processor_diskdump.h"
 #include "processor_test_pattern_match.h"
 #include "shot_data_layout.h"
@@ -59,9 +59,9 @@ try
 
     for(args a(argc,argv); a; ++a)
     {
-        if(a()=="-h" || a()=="--help") { help(); exit(0); }
-        else if(a()=="--help-commands") { daq::cmd_help(); exit(0); }
-        else if(a()=="-c")
+        if(a("-h","--help")) { help(); exit(0); }
+        else if(a("--help-commands")) { daq::cmd_help(); exit(0); }
+        else if(a("-c"))
         {
             auto fifo_name = configdir() / "cmd";
             if(!std::filesystem::is_fifo(fifo_name)) APDCAM_ERROR("No apdcam data acquisition process seems to be running. The FIFO '" + fifo_name + "' does not exist");
@@ -70,7 +70,7 @@ try
             fifo<<endl;
             exit(0);
         }
-        else if(a()=="-k" || a()=="--kill")
+        else if(a("-k","--kill"))
         {
             auto pid_file_name = configdir() / "pid";
             ifstream pid_file(pid_file_name);
@@ -80,12 +80,12 @@ try
             kill(pid,SIGKILL);
             exit(0);
         }
-        else if(a()=="-d")                           processor_diskdump::default_output_dir(a.get<std::string>(1,"Directory name expected after -d"));
-        else if(a()=="-i" || a()=="--interface")     daq::instance().interface(a.get<std::string>(1,"Interface name"));
-        else if(a()=="-s" || a()=="--sample-buffer") daq::instance().channel_buffer_size(a.get<int>(1,"Buffer size"));
-        else if(a()=="-n" || a()=="--network-buffer") daq::instance().network_buffer_size(a.get<int>(1,"Buffer size"));
-        else if(a()=="-D" || a()=="--debug")          daq::instance().debug(true);
-        else if(a()=="-t" || a()=="--test-pattern") test_pattern = a.get<int>(1,"Test pattern number");
+        else if(a("-d"))                       processor_diskdump::default_output_dir(a.get<std::string>(1,"Directory name expected after -d"));
+        else if(a("-i","--interface"))         daq::instance().interface(a.get<std::string>(1,"Interface name"));
+        else if(a("-s","--sample-buffer"))     daq::instance().channel_buffer_size(a.get<int>(1,"Buffer size"));
+        else if(a("-n","--network-buffer"))    daq::instance().network_buffer_size(a.get<int>(1,"Buffer size"));
+        else if(a("-D","--debug"))             daq::instance().debug(true);
+        else if(a("-t","--test-pattern"))      test_pattern = a.get<int>(1,"Test pattern number");
         else APDCAM_ERROR(std::string("Bad argument: ") + a());
     }
 
