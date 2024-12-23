@@ -85,7 +85,7 @@ class Measure(QtWidgets.QWidget):
         self.daqSampleBufferSize.setMinimum(2)
         self.daqSampleBufferSize.setMaximum(1<<20)
         self.daqSampleBufferSize.setValue(DAQ().get_channel_buffer_size())
-        self.daqSampleBufferSize.lineEdit().returnPressed.connect(lambda: DAQ().sample_buffer_size(self.daqSampleBufferSize.value()))
+        self.daqSampleBufferSize.lineEdit().returnPressed.connect(lambda: DAQ().channel_buffer_size(self.daqSampleBufferSize.value()))
         h.addWidget(self.daqSampleBufferSize)
         h.addStretch(5)
 

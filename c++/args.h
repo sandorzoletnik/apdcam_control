@@ -48,9 +48,13 @@ namespace apdcam10g
         bool verbose_ = false;
 
     public:
+        // Initialize from the (argc,argv) arguments of the main function
         args(unsigned int argc, char **argv, bool verbose=true) : argc_(argc), argv_(argv), index_(1), consumed_(1), verbose_(verbose) {}
 
-        // Return
+        // Return the command line argumnet with an offset w.r.t. the current one, converted to the given type.
+        // That is, args.get<int>(1); returns the next command line argument after the current one, as an integer.
+        // It prints an error message about missing arguments (the second version of the get function accepts a
+        // name for this argument for this error report), and throws an error.
         template <typename T=std::string>
         T get(unsigned int offset, const std::string &name="")
             {
@@ -79,11 +83,15 @@ namespace apdcam10g
                 if(index_+offset > consumed_) consumed_ = index_+offset;
                 return s2any<T>(argv_[index_+offset]);
             }
+
+        // Increment the internal index to one beyond the last consumed/processed argument (accessed either by operator() or get<T>(offset)
         void operator++()
             {
                 index_ = std::max(index_+1,consumed_+1);
                 consumed_ = index_;
             }
+
+        // Return true if we have not yet processed all arguments, i.e. if we can evaluate for example operator()
         operator bool() const
             {
                 return index_<argc_;
@@ -95,6 +103,9 @@ namespace apdcam10g
                 return argv_[index_];
             }
 
+        // variadic template implementation of the () operator, with an arbitrary number and type of arguments.
+        // It returns true if the current cmd line argument (the one the internal index points to) agrees with any of the given
+        // arguments, converted to the proper type. 
         template <typename VALUE>
         bool operator()(VALUE value)
         {
@@ -109,6 +120,8 @@ namespace apdcam10g
         }
     };
 
+    // Specializations of the () operator to char* and const char* types, to interpret C-style strings as
+    // real strings, 
     template <>
     bool args::operator()<const char *>(const char *value)
     {

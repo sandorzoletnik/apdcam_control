@@ -35,7 +35,6 @@ from DAQ import *
 
 from ..APDCAM10G_control import APDCAM10G_control
 
-
 def showtrace():
     for line in traceback.format_stack():
         print(line.strip())
@@ -106,8 +105,6 @@ class ApdcamGui(QtWidgets.QMainWindow):
 
     updateCameraStateSignal = QtCore.pyqtSignal()
     updateDaqStateSignal    = QtCore.pyqtSignal()
-    
-
 
     def __init__(self, parent=None):
         super().__init__(parent)
