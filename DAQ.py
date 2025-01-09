@@ -3,6 +3,7 @@ import os
 import threading
 import Config
 import subprocess
+import traceback
 from RingBuffer import *
 
 '''
@@ -61,6 +62,7 @@ def convertToCArray(l,ctype):
 # Load the shared library if it hasnt been loaded yet, and set up the argument and return types
 # of the functions defined therein
 def DAQ():
+    traceback.print_exc()
     if DAQ.instance_ is None:
         dir = os.path.dirname(__file__)
         getos=os.path.join(dir,"c++/getos")
@@ -70,6 +72,7 @@ def DAQ():
         DAQ.instance_ = ctypes.CDLL(dllpath)
 
         if DAQ.instance_ is None:
+            print("Failed to load shared library")
             return None
 
 #        DAQ.instance_.get_net_parameters.restype = None
@@ -77,6 +80,9 @@ def DAQ():
 
         DAQ.instance_.write_settings.restype = None
         DAQ.instance_.write_settings.argtypes = [ctypes.c_char_p]
+
+        DAQ.instance_.default_output_dir.restype = None
+        DAQ.instance_.default_output_dir.argtypes = [ctypes.c_char_p]
         
         DAQ.instance_.start.restype = None
         DAQ.instance_.start.argtypes = [ctypes.c_bool]
@@ -237,7 +243,8 @@ def DAQ():
                 DAQ.python_processor_thread_ = threading.Thread(target=processor_loop)
                 DAQ.python_processor_thread_.start()
             orig_start(wait)
-            
+
+
         DAQ.instance_.start = start
 
         # # Overwrite the 'statistics' function of the C++ library with a wrapper that returns the results in a python list
@@ -259,6 +266,8 @@ def DAQ():
         #     orig_status(ctypes.byref(n_network_threads),ctypes.byref(n_extractor_threads),ctypes.byref(n_processor_thread))
         #     return [n_network_threads.value,n_extractor_threads.value,n_processor_thread.value]
         # DAQ.instance_.status = status
+
+        print("Shared library is loaded")
 
     return DAQ.instance_;
 

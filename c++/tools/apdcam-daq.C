@@ -55,6 +55,9 @@ try
 {
     signal(SIGINT,flush_output);
 
+    // Initialize the DAQ before everything else to avoid mixed output
+    daq::instance();
+
     int test_pattern = -1;
 
     for(args a(argc,argv); a; ++a)

@@ -197,6 +197,8 @@ class Measure(QtWidgets.QWidget):
         
     def startMeasurement(self):
 
+        DAQ().default_output_dir(self.dataDirectory.text().encode('utf-8'))
+
         channelMasks = []
         resolutionBits = []
         for adc in self.gui.adcControl.adc:
@@ -206,7 +208,6 @@ class Measure(QtWidgets.QWidget):
             channelMasks.append(tmp)
             resolutionBits.append(int(adc.bits.currentText()))
 
-#        DAQ().get_net_parameters()
         self.MTU_label.setText(str(DAQ().get_mtu()))
         self.OCTET_label.setText(str(DAQ().get_octet()))
 

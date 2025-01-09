@@ -342,6 +342,7 @@ extern "C"
     void dump();
     void test();
     void clear_processors();
+    void default_output_dir(const char *dirname);
 
     // Set the network buffer and sample buffer sizes (capacities). It does not take immediate effect, only
     // when daq::init is called

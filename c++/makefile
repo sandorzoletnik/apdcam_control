@@ -1,7 +1,7 @@
 CXX = g++ #/opt/gcc-14.2.0/bin/g++-14.2.0
 LD = g++ #/opt/gcc-14.2.0/bin/g++-14.2.0
 
-CXXFLAGS := -Wno-interference-size -std=c++23 -pthread -DFOR_PYTHON 
+CXXFLAGS := -Wno-interference-size -std=c++23 -pthread -DFOR_PYTHON -O0 -ggdb
 LDFLAGS := -static-libgcc -static-libstdc++ 
 
 # Check if we are in docker ubuntu-20.04 where the g++ compiler has been installed into this location
@@ -60,7 +60,7 @@ include $(DEPS)
 
 # -fPIC is required. It is specified in CXXFLAGS
 %.o : %.C $(HEADERS)
-	$(CXX) -fPIC $(CXXFLAGS) -O2 -c -o $@ $<
+	$(CXX) -fPIC $(CXXFLAGS) -c -o $@ $<
 
 %.d : %.C
 	$(CXX) $(CXXFLAGS) -M -MF $@ $^

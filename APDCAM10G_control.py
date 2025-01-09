@@ -3928,13 +3928,16 @@ class APDCAM10G_control:
         # if the user has defined no processor tasks, add the default: diskdump (write everything to disk)
         if processorTasks is None:
             processorTasks = [
-                ("diskdump",{"period":100})  # a tuple, first element is defining the DAQ() member function name add_processor_diskdump, the second is a set of keyword args
+                ("diskdump",{"process_period":100})  # a tuple, first element is defining the DAQ() member function name add_processor_diskdump, the second is a set of keyword args
             ]
 
         # Set up the processor tasks in the DAQ
         print("Setting up DAQ")
 
         DAQ().clear_processors()
+
+        print("Processors cleared")
+
         for task in processorTasks:
             # if the given task is a tuple, its first element must be a string which indicates a member function of the DAQ
             # class like this: "add_processor_"+XXX must be member function of DAQ, where XXX is the first member of the tuple.
@@ -3959,8 +3962,12 @@ class APDCAM10G_control:
             else:
                 DAQ().add_processor_python(task)
 
+        print("Processors set up")
+
         DAQ().channel_masks(channelMasks)
+        print("masks ok")
         DAQ().resolution_bits(resolutionBits)
+        print("resolution ok")
         DAQ().init(True)
 
         print("Starting DAQ")

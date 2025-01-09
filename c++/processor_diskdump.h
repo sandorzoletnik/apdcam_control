@@ -83,6 +83,8 @@ namespace apdcam10g
       // after calling this function will initialize their corresponding value from this value
       static void default_output_dir(const std::filesystem::path &d)
       {
+	output_lock lck;
+	std::cerr<<"Default output directory: "<<d<<std::endl;
           default_output_dir_ = d;
       }
 

@@ -175,6 +175,10 @@ namespace apdcam10g
     template <typename CHINFO>
     daq_settings<CHINFO> &daq_settings<CHINFO>::get_net_parameters()
     {
+      {
+	output_lock lck;
+	cerr<<"Getting network parameters..."<<endl;
+      }
         bool mtu_ok=false, mac_ok=false, ip_ok=false;
 
         {
@@ -250,13 +254,20 @@ namespace apdcam10g
         */
 
         output_lock lck;
-        {
-            std::shared_lock lck(interface_);
-            cerr<<"Interface: "<<interface_<<endl;
-        }
-        cerr<<"MTU      : "<<mtu_<<endl;
-        cerr<<"OCTET    : "<<octet_<<endl;
-        cerr<<endl;
+	if(!mtu_ok)
+	{
+	  APDCAM_ERROR("Could not determine MTU");
+	}
+	else
+	{
+	    {
+	      std::shared_lock lck(interface_);
+	      cerr<<"Interface: "<<interface_<<endl;
+	    }
+	    cerr<<"MTU      : "<<mtu_<<endl;
+	    cerr<<"OCTET    : "<<octet_<<endl;
+	    cerr<<endl;
+	}
 
         return *this;
     }

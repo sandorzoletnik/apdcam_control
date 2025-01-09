@@ -228,20 +228,34 @@ namespace apdcam10g
     template <safeness S>
     daq &daq::init()
     {
+      {
+	output_lock lck;
+	cerr<<"daq::init started"<<endl;
+      }
         try
         {
             // Calculate the all_enabled_channels_info / board_enabled_channels_info vectors (ranges), and the
             // number of all enabled channels
             calculate_channel_info();
 
+	    cerr<<"1 ok"<<endl;
+	    //	    	    	    mtu_ = 111;
+	    cerr<<"fff"<<endl;
+
+
             if(mtu_ == 0) APDCAM_ERROR("MTU has not been set");
-            
+
+
+	    cerr<<"mtu printed"<<endl;
+
             // Calculate and store the number of ADC boards from the channel mask's size.
             unsigned int nof_adc = 0;
             {
                 std::shared_lock lck(channel_masks_);
                 nof_adc = channel_masks_.size();
             }
+
+	    cerr<<"3 ok"<<endl;
 
             if(mtu_==0) APDCAM_ERROR("MTU has not yet been specified in daq::initialize");
             if(dual_sata_ && nof_adc>2) APDCAM_ERROR("Dual sata is set with more than two ADC boards present");
@@ -515,6 +529,7 @@ stop [timeout]
                     {
                         for(unsigned int to_counter=process_period_; !stok.stop_requested(); )
                         {
+			  cerr<<"AAA"<<endl;
                             size_t common_pop_counter=0;
                             size_t common_push_counter=0;
                         
@@ -542,6 +557,8 @@ stop [timeout]
                                 if(pop_counter > common_pop_counter) common_pop_counter = pop_counter;
                             }
 
+			    cerr<<"BBB"<<endl;
+
                             bool data_in_buffer = false;
                             if(common_push_counter > common_pop_counter)
                             {
@@ -565,6 +582,8 @@ stop [timeout]
 
                             }
 
+			    cerr<<"CCC"<<endl;
+
                             if(!non_terminated_exists && !data_in_buffer)
                             {
                                 python_analysis_stop_.test_and_set();  // Setting this will cause the python processor loop to stop
@@ -572,7 +591,9 @@ stop [timeout]
                                 python_analysis_run_.notify_one();     // and it will immediately learn that the stop flag was also set
                                 break;
                             }
-                    
+
+			    cerr<<"DDD"<<endl;
+
                             to_counter = common_push_counter + process_period_;
                         }
                         {
@@ -1111,7 +1132,7 @@ extern "C"
         catch(...) { cerr<<"Unhandled expection"<<endl; }
     }
 
-    void init(bool is_safe)
+    void init(bpytool is_safe)
     {
         try
         {
@@ -1352,7 +1373,15 @@ extern "C"
         }
         catch(apdcam10g::error &e) {e.print();}
         catch(...) { cerr<<"Unhandled expection"<<endl; }    
-    
+
+  void default_output_dir(const char *dirname)
+    try
+    {
+      processor_diskdump::default_output_dir(dirname);
+    }
+    catch(apdcam10g::error &e) {e.print();}
+    catch(...) { cerr<<"Unhandled expection"<<endl; }    
+  
 
     void diskdump_sampling(unsigned int s)
         try
