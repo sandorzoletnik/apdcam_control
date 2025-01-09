@@ -460,7 +460,7 @@ class ApdcamGui(QtWidgets.QMainWindow):
         if ask:
             options = QtWidgets.QFileDialog.Options()
             options |= QtWidgets.QFileDialog.DontUseNativeDialog
-            fileName, _ = QtWidgets.QFileDialog.getOpenFileName(self,"Save settings",fileName,"Text Files (*.txt);;All Files (*)", options=options)
+            fileName, _ = QtWidgets.QFileDialog.getOpenFileName(self,"Load settings",fileName,"Text Files (*.txt);;All Files (*)", options=options)
             if fileName == "":
                 return
 

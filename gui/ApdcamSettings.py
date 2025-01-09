@@ -63,6 +63,7 @@ def loadSettings(widget, fileName):
 
     error = ""
 
+    # Get recursively all children widgets
     controls = widget.findChildren(QtWidgets.QWidget)
     for control in controls:
         # skip those without the settingsName attribute
@@ -70,27 +71,36 @@ def loadSettings(widget, fileName):
             continue
         section = settingsSection(control)
         if section == "":
-            error += "Control '" + control.settingsName + "' is not within a section"
+            error += "Control '" + control.settingsName + "' is not within a section\n"
             continue
 
+        value = ""
+        
         if not section in settings or not control.settingsName in settings[section]:
-            error += "No settings are found for '" + control.settingsName + "'"
+            if not hasattr(control,"settingsDefault"):
+                error += "No settings are found for '" + control.settingsName + "' and it has no default value\n"
+                continue
+            else:
+                error += "No settings are found for '" + control.settingsName + "', using default value: " + str(control.settingsDefault) + "\n"
+                value = control.settingsDefault
+        else:
+            value = settings[section][control.settingsName]
 
         if isinstance(control,QtWidgets.QSpinBox):
-            control.setValue(int(settings[section][control.settingsName]))
+            control.setValue(int(value))
         elif isinstance(control,QtWidgets.QDoubleSpinBox):
-            control.setValue(float(settings[section][control.settingsName]))
+            control.setValue(float(value))
         elif isinstance(control,QtWidgets.QLineEdit):
-            control.setText(settings[section][control.settingsName])
+            control.setText(value)
         elif isinstance(control,QtWidgets.QCheckBox):
-            if settings[section][control.settingsName].lower() == "yes" or settings[section][control.settingsName].lower() == "true" or settings[section][control.settingsName] == "1":
+            if value.lower() == "yes" or value.lower() == "true" or value == "1":
                 control.setChecked(True)
             else:
                 control.setChecked(False)
         elif isinstance(control,QtWidgets.QComboBox):
-            if control.findText(settings[section][control.settingsName]) >= 0:
-                control.setCurrentText(settings[section][control.settingsName])
+            if control.findText(value) >= 0:
+                control.setCurrentText(value)
             else:
-                error += "Bad value (" + settings[section][control.settingsName] + ") for the variable '" + control.settingsName + "' in section [" + section + "] of the settings file '" + fileName + "'\n"
+                error += "Bad value (" + value + ") for the variable '" + control.settingsName + "' in section [" + section + "] of the settings file '" + fileName + "'\n"
     return error
         
