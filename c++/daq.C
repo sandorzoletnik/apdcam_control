@@ -120,17 +120,34 @@ namespace apdcam10g
 
     daq::daq()
     {
+      {
+	output_lock lck;
+	cerr<<"daq::daq() called"<<endl;
+
+      }
+
         // the class 'daq' is a singleton, so we make global initialization here
 
-        tee(std::cout,configdir() / "cout");
-        tee(std::cerr,configdir() / "cerr");
+      //        tee(std::cout,configdir() / "cout");
+      //        tee(std::cerr,configdir() / "cerr");
 
         std::set_terminate(terminate_with_stacktrace);
         
         // Convert segmentation violation and termination signals to exceptions
         signal2exception::set("DAQ-main",SIGSEGV,SIGTERM);
+	/*
+	{
+	  output_lock lck;
+	  cerr<<"'this' within the constructor="<<this<<endl;
+	}
+	*/
 
-        get_net_parameters();
+
+	get_net_parameters();
+	{
+	  output_lock lck;
+	  cerr<<"daq::daq() finished"<<endl;
+	}
     }
 
     std::string daq::section_start(std::string text)
@@ -203,10 +220,20 @@ namespace apdcam10g
         python_analysis_run_.notify_one();
     }
 
+    std::mutex daq::init_mutex_;
+
+    // Creating the daq::instance_ as a static variable. Probably no problem in initialization order
+    // because it is only accessible via the daq::instance() function. The daq::instance() function is
+    // only available after loading the shared library, and during loading the shared library the
+    // static variables are (very probably) initialized
+    daq daq::instance_;
+  
     daq &daq::instance()
     {
-        static daq the_daq;
-        return the_daq;
+	double m = 0;
+	cerr<<"fffff: "<<m<<endl;
+
+      return instance_;
     }
 
     void daq::finish()
@@ -1087,17 +1114,6 @@ extern "C"
     }
     void         dual_sata(bool d) { daq::instance().dual_sata(d); }
 
-    /*
-    void get_net_parameters()
-    {
-        try
-        {
-            daq::instance().get_net_parameters();
-        }
-        catch(apdcam10g::error &e) {e.print();}
-        catch(...) { cerr<<"Unhandled expection"<<endl; }
-    }
-    */
 
     void channel_masks(bool **m, int n_adc_boards)
     {
@@ -1132,7 +1148,7 @@ extern "C"
         catch(...) { cerr<<"Unhandled expection"<<endl; }
     }
 
-    void init(bpytool is_safe)
+    void init(bool is_safe)
     {
         try
         {

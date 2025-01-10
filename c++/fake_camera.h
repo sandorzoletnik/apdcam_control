@@ -2,7 +2,6 @@
 #define __APDCAM10G_FAKE_CAMERA_H__
 
 #include "daq_settings.h"
-#include "test_pattern.h"
 
 #include <string>
 #include <netinet/in.h>
@@ -13,11 +12,6 @@
 namespace apdcam10g
 {
     
-    class channel_info_with_generator : public channel_info
-    {
-    public:
-        test_pattern_generator *generator = 0;
-    };
 
     class fake_camera : public daq_settings<channel_info_with_generator>
     {

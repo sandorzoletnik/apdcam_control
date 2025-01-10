@@ -61,7 +61,7 @@ namespace apdcam10g
         lockable<std::vector<CHINFO*>>               board_last_enabled_channel_;  // The last enabled channel of each board. Vector index is the ADC board number. 
 
         // Set MTU
-        daq_settings &mtu(unsigned int m);
+        void mtu(unsigned int m);
 
         // A virtual function that creates a "channel info" class. It is overridden in the "daq" class to
         // create a ring buffer for the channels with a given size
@@ -135,8 +135,6 @@ namespace apdcam10g
 
 }
 
-// include the template implementations
-#include "daq_settings.Cinc"
 
 #endif
 

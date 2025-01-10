@@ -37,7 +37,16 @@ namespace apdcam10g
         friend class processor_diskdump;
         friend class processor_test_pattern_match; 
 
+        // Being a singleton, the constructor is private and the only instance can be accessed
+        // via the static daq::instance() function
+        daq();
+
+      // The singleton instance. 
+        static daq instance_;
+
     private:
+        // A mutex to avoid concurrenty during initialization in daq::instance()
+        static std::mutex init_mutex_;
 
         // An atomic flag to indicate whether the python task can run (or is running). Logically it should be a
         // static variable in the scope of processor_python, but on the python side, we will load (ctypes.CDLL)
@@ -125,13 +134,11 @@ namespace apdcam10g
 
         std::filesystem::path cmd_fifo_name_ = configdir() / "cmd";
 
-        // Being a singleton, the constructor is private and the only instance can be accessed
-        // via the static daq::instance() function
-        daq();
 
         channel_data_buffer_t *create_channel_info() override { return new channel_data_buffer_t(channel_buffer_size_,channel_buffer_extra_size_); }
 
     public:
+
 
         static std::string section_start(std::string text);
         static std::string section_end(std::string text);

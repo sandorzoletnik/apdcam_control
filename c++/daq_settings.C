@@ -11,6 +11,7 @@
 #include "config.h"
 #include "terminal.h"
 #include "settings.h"
+#include "ring_buffer.h"
 
 using namespace std;
 
@@ -162,14 +163,13 @@ namespace apdcam10g
     }
 
     template <typename CHINFO>
-    daq_settings<CHINFO> &daq_settings<CHINFO>::mtu(unsigned int m)
+    void daq_settings<CHINFO>::mtu(unsigned int m)
     {
-        mtu_ = m; 
+        mtu_ = m;
         const int max_adc_data_length = mtu_ - (packet::ipv4_header+packet::udp_header+packet::cc_streamheader);
         octet_ = max_adc_data_length/8; // INTEGER DIVISION!
         if (octet_ < 1) APDCAM_ERROR("MTU value is too small!" + std::to_string(m));
         max_udp_packet_size_ = 8*octet_ + packet::cc_streamheader;
-        return *this; 
     }    
 
     template <typename CHINFO>
@@ -177,11 +177,13 @@ namespace apdcam10g
     {
       {
 	output_lock lck;
-	cerr<<"Getting network parameters..."<<endl;
+	cerr<<"get_net_parameters()"<<endl;
       }
         bool mtu_ok=false, mac_ok=false, ip_ok=false;
 
         {
+
+
             string cmd_string = "ip link show " + interface_;
             ipstream cmd(cmd_string);
             string s;
@@ -191,6 +193,7 @@ namespace apdcam10g
                 {
                     unsigned int m=0;
                     cmd>>m;
+		    cerr<<"obtained mtu: "<<m<<endl;
                     mtu(m); // Set MTU and calculate 'octet_'
                     mtu_ok = true;
                 }
@@ -264,6 +267,9 @@ namespace apdcam10g
 	      std::shared_lock lck(interface_);
 	      cerr<<"Interface: "<<interface_<<endl;
 	    }
+	    cerr<<"this = "<<this<<endl;
+	    cerr<<"&mtu = "<<&mtu_<<endl;
+	    cerr<<"&octet = "<<&octet_<<endl;
 	    cerr<<"MTU      : "<<mtu_<<endl;
 	    cerr<<"OCTET    : "<<octet_<<endl;
 	    cerr<<endl;
@@ -453,5 +459,8 @@ namespace apdcam10g
         calculate_channel_info();
         return true;
     }
+    template class daq_settings<ring_buffer<apdcam10g::data_type,channel_info>>;
+    template class daq_settings<channel_info_with_generator>;
 
 }
+

@@ -4,6 +4,7 @@
 #include "typedefs.h"
 #include "bytes.h"
 #include "utils.h"
+#include "test_pattern.h"
 #include <iostream>
 #include <atomic>
 
@@ -103,6 +104,13 @@ namespace apdcam10g
             }
 
     };
+
+    class channel_info_with_generator : public channel_info
+    {
+    public:
+        test_pattern_generator *generator = 0;
+    };
+  
 }
 
 #endif

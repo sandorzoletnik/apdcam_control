@@ -60,6 +60,21 @@ namespace apdcam10g
         ~output_lock() { output_mutex().unlock(); }
     };
 
+  class slock
+  {
+  public:
+    std::ostream &ostream_;
+  public:
+    slock(std::ostream &os) : ostream_(os) {}
+    template<typename T>
+    slock &operator<<(const T &val)
+    {
+      ostream_<<val;
+      return *this;
+    }
+
+  };
+
     class exclusive_lock
     {
     private:
