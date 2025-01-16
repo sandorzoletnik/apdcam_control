@@ -5,16 +5,16 @@ import re
 import html
 
 import importlib
-from .QtVersion import QtVersion
+from QtVersion import QtVersion
 QtWidgets = importlib.import_module(QtVersion+".QtWidgets")
 QtGui     = importlib.import_module(QtVersion+".QtGui")
 Qt = importlib.import_module(QtVersion+".QtCore")
 
 #from PyQt6.QtWidgets import QApplication, QWidget,  QFormLayout, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget, QLineEdit, QDateEdit, QPushButton, QTextEdit, QGroupBox, QLabel, QCheckBox, QSpinBox
 #from PyQt6.QtCore import Qt
-from .ApdcamUtils import *
-from .GuiMode import *
-from ..APDCAM10G_control import *
+from ApdcamUtils import *
+from GuiMode import *
+#from ..APDCAM10G_control import *
 
 
 class RegisterInspector(QtWidgets.QWidget):

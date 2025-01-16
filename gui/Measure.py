@@ -3,10 +3,11 @@ import time
 import os
 import ctypes
 from DAQ import *
-from .ApdcamUtils import *
+from ApdcamUtils import *
+import Config
 
 import importlib
-from .QtVersion import QtVersion
+from QtVersion import QtVersion
 QtWidgets = importlib.import_module(QtVersion+".QtWidgets")
 QtGui = importlib.import_module(QtVersion+".QtGui")
 QtCore = importlib.import_module(QtVersion+".QtCore")
@@ -14,12 +15,11 @@ Qt = QtCore.Qt
 
 # from PyQt6.QtWidgets import QApplication, QWidget,  QFormLayout, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget, QLineEdit, QDateEdit, QPushButton, QTextEdit, QGroupBox, QLabel, QSpinBox, QCheckBox
 # from PyQt6.QtCore import Qt
-from .ApdcamUtils import *
-from .RingBuffer import *
-from .GuiMode import *
+from ApdcamUtils import *
+from RingBuffer import *
+from GuiMode import *
 from functools import partial
-from ..Processor import *
-
+#from ..Processor import *
 
 
 class Measure(QtWidgets.QWidget):
@@ -164,7 +164,11 @@ class Measure(QtWidgets.QWidget):
     def updateDaqState(self):
         self.processorThreads.setText(str(DAQ().processor_threads()))
 
+        self.MTU_label.setText(str(DAQ().get_mtu()))
+        self.OCTET_label.setText(str(DAQ().get_octet()))
+
         n_adc = DAQ().n_adc()
+        
         for i_adc in range(Config.max_boards):
             if i_adc<n_adc:
                 for j in range(self.streamDisplayColumns):
@@ -208,10 +212,8 @@ class Measure(QtWidgets.QWidget):
             channelMasks.append(tmp)
             resolutionBits.append(int(adc.bits.currentText()))
 
-        self.MTU_label.setText(str(DAQ().get_mtu()))
-        self.OCTET_label.setText(str(DAQ().get_octet()))
-
-        processors = [ProcessorTest(),"diskdump"]
+        #processors = [ProcessorTest(),"diskdump"]
+        processors = ["diskdump"]
 
         self.gui.cameraPolling(False)
 

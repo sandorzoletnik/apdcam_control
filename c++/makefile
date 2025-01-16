@@ -1,7 +1,7 @@
 CXX = g++ #/opt/gcc-14.2.0/bin/g++-14.2.0
 LD = g++ #/opt/gcc-14.2.0/bin/g++-14.2.0
 
-CXXFLAGS := -Wno-interference-size -std=c++23 -pthread -DFOR_PYTHON -O0 -ggdb
+CXXFLAGS := -Wno-interference-size -std=c++23 -pthread -DFOR_PYTHON -O0
 LDFLAGS := -static-libgcc -static-libstdc++ 
 
 # Check if we are in docker ubuntu-20.04 where the g++ compiler has been installed into this location
@@ -19,6 +19,8 @@ OBJS = $(SRCS:.C=.o)
 OS = $(shell ./getos)
 
 all : binaries/$(OS)/libapdcam10g.so binaries/$(OS)/apdcam-daq.exe binaries/$(OS)/apdcam-fake-camera.exe
+so : binaries/$(OS)/libapdcam10g.so
+test : binaries/$(OS)/libtest.so
 
 .PHONY: Ubuntu-20.04
 .PHONY:  clean
@@ -41,6 +43,10 @@ binaries/Ubuntu-%: $(SRCS) $(HEADERS) $(CINCS)
 binaries/$(OS)/libapdcam10g.so : $(OBJS)
 	if [ ! -d binaries/$(OS) ] ; then mkdir binaries/$(OS); fi
 	$(CXX) -shared -o $@ $(OBJS)  $(LDFLAGS)
+
+binaries/$(OS)/libtest.so : test.o
+	if [ ! -d binaries/$(OS) ] ; then mkdir binaries/$(OS); fi
+	$(CXX) -shared -o $@ test.o  $(LDFLAGS)
 
 binaries/$(OS)/apdcam-daq.exe:  tools/apdcam-daq.C  binaries/$(OS)/libapdcam10g.so $(HEADERS) $(CINCS)
 	if [ ! -d binaries/$(OS) ] ; then mkdir binaries/$(OS); fi

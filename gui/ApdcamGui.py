@@ -9,31 +9,34 @@ import glob
 import traceback
 
 import importlib
-from .QtVersion import QtVersion
+from QtVersion import QtVersion
 QtWidgets = importlib.import_module(QtVersion+".QtWidgets")
 QtGui = importlib.import_module(QtVersion+".QtGui")
 QtCore = importlib.import_module(QtVersion+".QtCore")
 
-from .ApdcamUtils import *
-from .ApdcamSettings import *
-from .MainPage import MainPage
-from .Measure import Measure
-from .Diagnostics import Diagnostics
-from .Infrastructure import Infrastructure
-from .AdcControl import AdcControl
-from .ControlTiming import ControlTiming
-from .CameraTimer import CameraTimer
-from .Factory import Factory
-from .Plot import Plot
-from .SimpleMeasurementControl import SimpleMeasurementControl
-from .GuiMode import *
+from ApdcamUtils import *
+from ApdcamSettings import *
+from MainPage import MainPage
+from Measure import Measure
+from Diagnostics import Diagnostics
+from Infrastructure import Infrastructure
+from AdcControl import AdcControl
+from ControlTiming import ControlTiming
+from CameraTimer import CameraTimer
+from Factory import Factory
+from Plot import Plot
+from SimpleMeasurementControl import SimpleMeasurementControl
+from GuiMode import *
 from DAQ import *
 
 #sys.path.append('/home/apdcam/Python/apdcam_devel/apdcam_control')
 #sys.path.append('/home/barna/fusion-instruments/apdcam/sw/flap_apdcam/apdcam_control')
 #import APDCAM10G
 
-from ..APDCAM10G_control import APDCAM10G_control
+dir = os.path.dirname(__file__)
+sys.path.append(dir + '/..')
+from APDCAM10G_control import APDCAM10G_control
+#from ..APDCAM10G_control import APDCAM10G_control
 
 def showtrace():
     for line in traceback.format_stack():
@@ -66,10 +69,6 @@ def setTabEnabled(self,enabled):
 
 class ApdcamGui(QtWidgets.QMainWindow):
 
-    DETECTOR_TEMP_SENSOR = 5 # 1...
-    BASE_TEMP_SENSOR = 11
-    AMP_TEMP_SENSOR = 6
-    POWER_TEMP_SENSOR = 16
 
     def updateCameraState(self):
         self.infrastructure.updateCameraState()
@@ -272,7 +271,10 @@ class ApdcamGui(QtWidgets.QMainWindow):
 
     def exitAAA(self,rc):
         DAQ().kill_all()
-        QtWidgets.QApplication.exit(rc)
+        print("Exiting...")
+#        QtWidgets.QApplication.exit(rc)
+        raise SystemExit
+        sys.exit(rc)
 
     def cameraPolling(self,flag):
         self.updateCameraStateFlag = flag

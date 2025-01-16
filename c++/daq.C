@@ -123,8 +123,9 @@ namespace apdcam10g
       {
 	output_lock lck;
 	cerr<<"daq::daq() called"<<endl;
-
       }
+
+
 
         // the class 'daq' is a singleton, so we make global initialization here
 
@@ -226,14 +227,14 @@ namespace apdcam10g
     // because it is only accessible via the daq::instance() function. The daq::instance() function is
     // only available after loading the shared library, and during loading the shared library the
     // static variables are (very probably) initialized
-    daq daq::instance_;
-  
+  //    daq daq::instance_;
+
+  daq *daq::instance_ = 0;
+
     daq &daq::instance()
     {
-	double m = 0;
-	cerr<<"fffff: "<<m<<endl;
-
-      return instance_;
+      if(instance_==0) instance_ = new daq;
+      return *instance_;
     }
 
     void daq::finish()
@@ -1046,6 +1047,13 @@ stop [timeout]
 extern "C"
 {
     using namespace apdcam10g;
+
+  void printint()
+  {
+    cerr<<"Trying to print an integer to cerr..... check if we segfault"<<endl;
+    cerr<<1<<endl;
+    cerr<<"Success printing an integer!"<<endl;
+  }
 
     void start_cmd_thread()
     {

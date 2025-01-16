@@ -1,0 +1,9 @@
+#include <iostream>
+
+extern "C"
+{
+  void printint()
+  {
+    std::cerr<<1<<std::endl;
+  }
+}

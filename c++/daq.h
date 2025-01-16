@@ -42,7 +42,7 @@ namespace apdcam10g
         daq();
 
       // The singleton instance. 
-        static daq instance_;
+        static daq *instance_;
 
     private:
         // A mutex to avoid concurrenty during initialization in daq::instance()
@@ -329,6 +329,9 @@ namespace apdcam10g
 extern "C"
 {
     using namespace apdcam10g;
+
+  // Print the integer '1' to cerr, which causes segfault
+  void printint();
 
     unsigned int n_adc();
     unsigned int n_channels();

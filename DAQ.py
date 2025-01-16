@@ -68,9 +68,14 @@ def DAQ():
         getos=os.path.join(dir,"c++/getos")
         os_label=subprocess.check_output([getos]).decode('utf-8').strip()
         dllpath = os.path.join(dir,"c++","binaries",os_label,"libapdcam10g.so")
+#        dllpath = os.path.join(dir,"c++","binaries",os_label,"libtest.so")
         print("Loading shared library: " + dllpath)
         DAQ.instance_ = ctypes.CDLL(dllpath)
 
+        print("Loaded the shared library")
+
+        DAQ.instance_.printint()
+        
         if DAQ.instance_ is None:
             print("Failed to load shared library")
             return None
@@ -267,7 +272,7 @@ def DAQ():
         #     return [n_network_threads.value,n_extractor_threads.value,n_processor_thread.value]
         # DAQ.instance_.status = status
 
-        print("Shared library is loaded")
+        print("Finished setting up the DAQ shared library")
 
     return DAQ.instance_;
 

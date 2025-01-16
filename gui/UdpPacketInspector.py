@@ -3,12 +3,12 @@ import re
 import time
 
 import importlib
-from .QtVersion import QtVersion
+from QtVersion import QtVersion
 QtWidgets = importlib.import_module(QtVersion+".QtWidgets")
 QtGui     = importlib.import_module(QtVersion+".QtGui")
 Qt = importlib.import_module(QtVersion+".QtCore")
 
-from .ApdcamUtils import *
+from ApdcamUtils import *
 sys.path.append('/home/barna/fusion-instruments/apdcam/sw/flap_apdcam/apdcam_control')
 import APDCAM10G_control
 

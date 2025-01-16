@@ -3,7 +3,7 @@ import os
 from functools import partial
 
 import importlib
-from .QtVersion import *
+from QtVersion import *
 QtWidgets = importlib.import_module(QtVersion+".QtWidgets")
 QtGui = importlib.import_module(QtVersion+".QtGui")
 Qt = importlib.import_module(QtVersion+".QtCore")
@@ -11,8 +11,8 @@ Qt = importlib.import_module(QtVersion+".QtCore")
 # from PyQt6.QtWidgets import QApplication, QWidget,  QFormLayout, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget, QLineEdit, QDateEdit, QPushButton, QTextEdit, QGroupBox, QLabel, QCheckBox, QSpinBox, QScrollArea
 # from PyQt6.QtCore import Qt,QLocale
 # from PyQt6.QtGui import QDoubleValidator
-from .ApdcamUtils import *
-from .GuiMode import *
+from ApdcamUtils import *
+from GuiMode import *
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import Config
