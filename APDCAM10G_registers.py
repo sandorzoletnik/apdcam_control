@@ -115,9 +115,10 @@ class APDCAM10G_register_ip(APDCAM10G_register):
             if i>0:
                 result += "."
             if data is not None:
-                result += str(int.from_bytes(data[self.startByte+i:self.startByte+i+1]))
+                # I am not sure 'big' is the correct byteorder, just put it here so that it runs at all 2025-01-24
+                result += str(int.from_bytes(data[self.startByte+i:self.startByte+i+1],byteorder='big'))
             elif hasattr(self,'bytes'):
-                result += str(int.from_bytes(self.bytes[i:i+1]))
+                result += str(int.from_bytes(self.bytes[i:i+1],'big'))
             else:
                 result += "0"
         return result

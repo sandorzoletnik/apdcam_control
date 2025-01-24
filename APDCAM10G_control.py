@@ -2181,7 +2181,9 @@ class APDCAM10G_control:
         
         """
 
-        err,reg =  self.getAdcRegister(adcBoardNo,self.ADC_registers.RESOLUTION)
+        # Changed by D.Barna 2025-01-24
+        #err,reg =  self.getAdcRegister(adcBoardNo,self.ADC_registers.RESOLUTION)
+        err,reg =  self.getAdcRegister(self.ADC_registers.RESOLUTION,adcBoardNo=adcBoardNo)
         if err != "":
             return err,None
 
@@ -2241,7 +2243,9 @@ class APDCAM10G_control:
         """
 
         if hasattr(self.ADC_registers,"RINGBUFSIZE"): # v104 and before
-            err,reg = self.getAdcRegister(adcBoardNo,self.ADC_registers.RINGBUFSIZE)
+            #Changed by D.Barna 2025-01-24
+            #err,reg = self.getAdcRegister(adcBoardNo,self.ADC_registers.RINGBUFSIZE)
+            err,reg = self.getAdcRegister(self.ADC_registers.RINGBUFSIZE,adcBoardNo=adcBoardNo)
             if type(adcBoardNo) == int:
                 return err,reg()
             return err,[r() for r in reg]
@@ -2442,7 +2446,9 @@ class APDCAM10G_control:
         result = []
         for adc in adcBoardNos:
             # Since ADC_registers.TESTMODE is an array, here we get an array of registers in return, the 4 values
-            err,regs = self.getAdcRegister(adc,self.ADC_registers.TESTMODE)
+            # Changed by D.Barna 2025-01-24
+            #err,regs = self.getAdcRegister(adc,self.ADC_registers.TESTMODE)
+            err,regs = self.getAdcRegister(self.ADC_registers.TESTMODE,adc)
             if err != "":
                 return err,None
             # evaluate and store all 4 values
@@ -2624,6 +2630,9 @@ class APDCAM10G_control:
 
         if type(adcBoardNo) is not list:
             adcBoardNo = [adcBoardNo]
+
+        print("Adc boards: ")
+        print(adcBoardNo)
 
         addresses = []
         for adc in adcBoardNo:
@@ -2861,7 +2870,9 @@ class APDCAM10G_control:
             self.lock.acquire()
 
         for adc in adcBoardNos:
-            err,r = self.getAdcRegister(adc,register)
+            # Changed by D.Barna 2025-01-24
+            #err,r = self.getAdcRegister(adc,register)
+            err,r = self.getAdcRegister(register,adcBoardNo=adc)
             if err != "":
                 if len(adcBoardNos) > 1:
                     self.lock.release()
@@ -2918,7 +2929,9 @@ class APDCAM10G_control:
 
         result = []
         for adc in adcBoardNos:
-            err, reg = self.getAdcRegister(adc,register)
+            #Changed by D.Barna 2025-01-24
+            #err, reg = self.getAdcRegister(adc,register)
+            err, reg = self.getAdcRegister(register,adcBoardNo=adc)
             if err != "":
                 return err,None
             # copy the obtained data into the parent of the function argument, for interpretation
@@ -3893,7 +3906,9 @@ class APDCAM10G_control:
             if self.commSocket is not None:
                 for i_adc in range(n_adc):
                     for i_chip in range(Config.chips_per_board):
-                        err,r = self.getAdcRegister(i_adc+1,self.ADC_registers.CHENABLE[i_chip])
+                        # Changed by D.Barna 2025-01-24
+                        #err,r = self.getAdcRegister(i_adc+1,self.ADC_registers.CHENABLE[i_chip])
+                        err,r = self.getAdcRegister(self.ADC_registers.CHENABLE[i_chip],adcBoardNo=i_adc+1)
                         if err != "":
                             error = "Error reading the channel enabled status from the camera: " + err 
                             logger.showError(error)
@@ -4108,7 +4123,8 @@ class APDCAM10G_control:
         return (errors,dvdd33[0],dvdd25[0],avdd33[0],avdd18[0])  # Changed by D. Barna
 
     def getAdcTemperature(self,adcBoardNo):
-        err,r = self.getAdcRegister(adcBoardNo,self.ADC_registers.TEMPERATURE)
+        # Changed by D.Barna 2025-01-24
+        err,r = self.getAdcRegister(self.ADC_registers.TEMPERATURE,adcBoardNo=adcBoardNo)
         return err,r()
         
     def getAdcOverload(self,adcBoardNo):

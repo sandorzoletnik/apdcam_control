@@ -162,10 +162,17 @@ class Measure(QtWidgets.QWidget):
         layout.addStretch(1)
 
     def updateDaqState(self):
+        if not hasattr(self,"updateDaqStateCounter"):
+            self.updateDaqStateCounter = 0
+        self.updateDaqStateCounter += 1
+
+        # update the MTU/OCTET values only once in every 3 calls
+        if self.updateDaqStateCounter%3==1:
+            self.MTU_label.setText(str(DAQ().get_mtu()))
+            self.OCTET_label.setText(str(DAQ().get_octet()))
+        
         self.processorThreads.setText(str(DAQ().processor_threads()))
 
-        self.MTU_label.setText(str(DAQ().get_mtu()))
-        self.OCTET_label.setText(str(DAQ().get_octet()))
 
         n_adc = DAQ().n_adc()
         

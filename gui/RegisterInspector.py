@@ -520,7 +520,7 @@ class RegisterInspector(QtWidgets.QWidget):
 
             # Check if this register name is of the form XXXX[number], indicating that the underlying
             # variable is a list
-            match = re.match(r'([a-zA-Z_]+)\[([0-9]+)\]',registerName)
+            match = re.match(r'([a-zA-Z_0-9]+)\[([0-9]+)\]',registerName)
             if match is not None:
                 listname = match.group(1)
                 index = int(match.group(2))

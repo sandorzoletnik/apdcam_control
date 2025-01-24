@@ -83,8 +83,7 @@ class ApdcamGui(QtWidgets.QMainWindow):
     # camera status (if it is connected, and if this is not prohibited by setting self.updateCameraStateFlag to False
     # to avoid polling the camera while it is sending data), and to query and display the DAQ status
     def updateGuiLoop(self):
-        while True:
-
+        while self.runGuiThread:
             if self.status.connected and self.updateCameraStateFlag:
                 self.camera.readStatus()
                 self.updateCameraStateSignal.emit()
@@ -265,15 +264,27 @@ class ApdcamGui(QtWidgets.QMainWindow):
             self.messages.setText(self.early_messages)
 
         self.adcControl.addAdc(1,1)
+        self.startGuiThread()
+        
+#    def event(self, event):
+#        if event.type() == QtCore.QEvent.InputMethodQuery:
+#            self.startGuiThread()
+#        return super(ApdcamGui, self).event(event)
 
+    def startGuiThread(self):
+        self.runGuiThread = True
         self.updateGuiThread = threading.Thread(target=self.updateGuiLoop)
         self.updateGuiThread.start()
 
+    def stopGuiThread(self):
+        self.runGuiThread = False
+
     def exitAAA(self,rc):
+        self.stopGuiThread()
         DAQ().kill_all()
         print("Exiting...")
 #        QtWidgets.QApplication.exit(rc)
-        raise SystemExit
+#        raise SystemExit
         sys.exit(rc)
 
     def cameraPolling(self,flag):
