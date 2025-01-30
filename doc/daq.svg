@@ -136,7 +136,7 @@
              y="27.7892">udp_packet_buffer</tspan></text>
         <a
            target="udp_packet_buffer.h"
-           xlink:href="udp_packet_buffer.h"
+           xlink:href="udp_packet_buffer.h.html"
            id="a3">
           <text
              xml:space="preserve"
@@ -152,7 +152,7 @@
         </a>
         <a
            target="udp_packet_buffer.C"
-           xlink:href="udp_packet_buffer.C"
+           xlink:href="udp_packet_buffer.C.html"
            id="a4">
           <text
              xml:space="preserve"
@@ -226,7 +226,7 @@
                style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
                x="53.938599"
                y="27.7892">channel_data_extractor</tspan></text>
-          <a target="channel_data_extractor.h" xlink:href="channel_data_extractor.h"><text
+          <a target="channel_data_extractor.h" xlink:href="channel_data_extractor.h.html"><text
              xml:space="preserve"
              style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
              x="85.688629"
@@ -237,7 +237,7 @@
                style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
                x="85.688629"
                y="27.7892">.h</tspan></text></a>
-          <a target="channel_data_extractor.C" xlink:href="channel_data_extractor.C"><text
+          <a target="channel_data_extractor.C" xlink:href="channel_data_extractor.C.html"><text
              xml:space="preserve"
              style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
              x="89.392799"
@@ -302,7 +302,7 @@
              y="27.7892">ring_buffer&lt;data_type,channel_info&gt;</tspan></text>
         <a
            target="ring_buffer.h"
-           xlink:href="ring_buffer.h"
+           xlink:href="ring_buffer.h.html"
            id="a6">
           <text
              xml:space="preserve"
@@ -318,7 +318,7 @@
         </a>
         <a
            target="ring_buffer.C"
-           xlink:href="ring_buffer.C"
+           xlink:href="ring_buffer.C.html"
            id="a7">
           <text
              xml:space="preserve"
@@ -518,7 +518,7 @@
              y="27.7892">udp_server</tspan></text>
         <a
            target="udp.h"
-           xlink:href="udp.h"
+           xlink:href="udp.h.html"
            id="a10">
           <text
              xml:space="preserve"
@@ -534,7 +534,7 @@
         </a>
         <a
            target="udp.C"
-           xlink:href="udp.C"
+           xlink:href="udp.C.html"
            id="a11">
           <text
              xml:space="preserve"
@@ -633,7 +633,7 @@
              y="27.7892">udp_packet_buffer</tspan></text>
         <a
            target="udp_packet_buffer.h"
-           xlink:href="udp_packet_buffer.h"
+           xlink:href="udp_packet_buffer.h.html"
            id="a27">
           <text
              xml:space="preserve"
@@ -649,7 +649,7 @@
         </a>
         <a
            target="udp_packet_buffer.C"
-           xlink:href="udp_packet_buffer.C"
+           xlink:href="udp_packet_buffer.C.html"
            id="a28">
           <text
              xml:space="preserve"
@@ -723,7 +723,7 @@
                style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
                x="53.938599"
                y="27.7892">channel_data_extractor</tspan></text>
-          <a target="channel_data_extractor.h" xlink:href="channel_data_extractor.h"><text
+          <a target="channel_data_extractor.h" xlink:href="channel_data_extractor.h.html"><text
              xml:space="preserve"
              style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
              x="85.688629"
@@ -734,7 +734,7 @@
                style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
                x="85.688629"
                y="27.7892">.h</tspan></text></a>
-          <a target="channel_data_extractor.C" xlink:href="channel_data_extractor.C"><text
+          <a target="channel_data_extractor.C" xlink:href="channel_data_extractor.C.html"><text
              xml:space="preserve"
              style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
              x="89.392799"
@@ -788,7 +788,7 @@
              y="27.7892">udp_server</tspan></text>
         <a
            target="udp.h"
-           xlink:href="udp.h"
+           xlink:href="udp.h.html"
            id="a37">
           <text
              xml:space="preserve"
@@ -804,7 +804,7 @@
         </a>
         <a
            target="udp.C"
-           xlink:href="udp.C"
+           xlink:href="udp.C.html"
            id="a38">
           <text
              xml:space="preserve"

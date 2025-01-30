@@ -1,1 +1,0 @@
-../c++/settings.h

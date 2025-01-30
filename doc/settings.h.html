@@ -1,0 +1,117 @@
+<html><body><pre>
+#include &lt;cctype&gt;
+#include &lt;map&gt;
+#include &lt;iostream&gt;
+#incude "<a target='error.h' href='error.h.html'>error.h</a>"
+
+namespace apdcam10g
+{
+    class settings
+    {
+    private:
+        std::map&lt;std::string,std::string&gt; data_;
+
+    public:
+
+        // An intermediate class to access values by key in the settings class. This class only stores references.
+        // This class can be assigned, and if the given key does not exist in settings, it is created.
+        // Upon reading, however (by the conversion operators to int, bool, string, etc) an exception is thrown
+        // if the key does not exist
+        class value_ref
+        {
+        private:
+            settings *settings_ = 0;
+            std::string key_ = "";
+
+            static std::string tolower(const std::string &amp;s) 
+                {
+                    std::string result = "";
+                    for(auto c : s) result += std::tolower(c);
+                    return result;
+                }
+
+        public:
+            value_ref(settings *s, const std::string &amp;k) : settings_(s), key_(k) {}
+
+            bool exists() const { return settings_-&gt;data_.find(key_) != settings_-&gt;data_.end(); }
+
+            template &lt;typename T&gt;
+            void operator=(const T &amp;val)
+            {
+                settings_-&gt;data_[key_] = std::to_string(val);
+            }
+
+            void operator=(const char *val)
+            {
+                settings_-&gt;data_[key_] = val;
+            }
+
+            operator unsigned int() const
+            {
+                if(!exists()) APDCAM_ERROR("This variable '" + key_ + "' does not exist");
+                return std::stoi(settings_-&gt;data_[key_]);
+            }
+
+            operator int() const 
+            {
+                if(!exists()) APDCAM_ERROR("This variable '" + key_ + "' does not exist");
+                return std::stoi(settings_-&gt;data_[key_]);
+            }
+            operator bool() const 
+            {
+                if(!exists()) APDCAM_ERROR("This variable '" + key_ + "' does not exist");
+                std::string val = settings_-&gt;data_[key_];
+                if(tolower(val) == "true"  || tolower(val) == "yes") return true;
+                if(tolower(val) == "false" || tolower(val) == "no") return false;
+                return std::stoi(settings_-&gt;data_[key_]);
+            }
+            operator double() const 
+            {
+                if(!exists()) APDCAM_ERROR("This variable '" + key_ + "' does not exist");
+                return std::stof(settings_-&gt;data_[key_]);
+            }
+            operator std::string() const 
+            {
+                if(!exists()) APDCAM_ERROR("This variable '" + key_ + "' does not exist");
+                return settings_-&gt;data_[key_];
+            }
+        };
+
+        friend class value_ref;
+
+        value_ref operator[](const std::string &amp;key)
+        {
+            return value_ref(this,key);
+        }
+
+        friend std::ostream &amp;operator&lt;&lt;(std::ostream &amp;, const settings &amp;);
+        friend std::istream &amp;operator&gt;&gt;(std::istream &amp;,  settings &amp;);
+    };
+
+    inline std::ostream &amp;operator&lt;&lt;(std::ostream &amp;out, const settings &amp;s)
+    {
+        for(auto i = s.data_.begin(); i != s.data_.end(); ++i)
+        {
+            out&lt;&lt;(*i).first&lt;&lt;"="&lt;&lt;(*i).second&lt;&lt;std::endl;
+        }
+        return out;
+    }
+
+    inline std::istream &amp;operator&gt;&gt;(std::istream &amp;in, settings &amp;s)
+    {
+        s.data_.clear();
+        std::string line;
+        while(std::getline(in,line))
+        {
+            if(line.size() == 0) continue;
+            auto pos = line.find('=');
+            if(pos == std::string::npos) APDCAM_ERROR("Bad line in the settings file: " + line);
+            std::string key = line.substr(0,pos);
+            std::string val = line.substr(pos+1);
+            s.data_[key] = val;
+        }
+        return in;
+    }
+
+}
+</pre></body></html>

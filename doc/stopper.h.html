@@ -1,0 +1,37 @@
+<html><body><pre>
+#ifndef __APDCAM10G_STOPPER_H__
+#define __APDCAM10G_STOPPER_H__
+
+#include &lt;time.h&gt;
+#include &lt;iostream&gt;
+
+namespace apdcam10g
+{
+    class stopper
+    {
+    private:
+        clock_t start_;
+    public:
+        stopper(bool start_now = true)
+        {
+            if(start_now) start();
+        }
+        void start()
+        {
+            start_ = clock();
+        }
+        double operator()() const
+        {
+            return (clock()-start_)/double(CLOCKS_PER_SEC);
+        }
+    };
+
+    std::ostream &amp;operator&lt;&lt;(std::ostream &amp;out, stopper s)
+    {
+        out&lt;&lt;s();
+        return out;
+    }
+}
+
+#endif
+</pre></body></html>

@@ -1,6 +1,7 @@
+<html><body><pre>
 /*
 
-  Author: Daniel Barna <daniel.barna@fusioninstruments.com>
+  Author: Daniel Barna &lt;daniel.barna@fusioninstruments.com&gt;
 
   ring_buffer is a fixed-size buffer offering a cyclic push-pop operation. It is only thread-safe in a
   single-producer/single-consumer scheme. 
@@ -40,14 +41,14 @@
 #ifndef __APDCAM10G_RING_BUFFER_H__
 #define __APDCAM10G_RING_BUFFER_H__
 
-#include <iostream>
-#include <atomic>
-#include <new>
-#include <sys/mman.h>
-#include <cmath>
+#include &lt;iostream&gt;
+#include &lt;atomic&gt;
+#include &lt;new&gt;
+#include &lt;sys/mman.h&gt;
+#include &lt;cmath&gt;
 
-#include "error.h"
-#include "utils.h"
+#incude "<a target='error.h' href='error.h.html'>error.h</a>"
+#incude "<a target='utils.h' href='utils.h.html'>utils.h</a>"
 
 using namespace std;
 
@@ -56,7 +57,7 @@ namespace apdcam10g
     // An empty class serving as the default base class type. It adds no overhead.
     class EMPTY_RING_BUFFER_BASE {};
 
-    template<typename T, typename BASE=EMPTY_RING_BUFFER_BASE>
+    template&lt;typename T, typename BASE=EMPTY_RING_BUFFER_BASE&gt;
     class ring_buffer : public BASE
     {
     private:
@@ -64,8 +65,8 @@ namespace apdcam10g
         // Both pop_counter_ and push_counter_ are read by both the producer and consumer threads,
         // so ensure these two atomic variables are in the same cache-line to avoid the need to
         // synchronize two cache-lines
-        alignas(std::hardware_destructive_interference_size) std::atomic<size_t> pop_counter_;
-        std::atomic<size_t> push_counter_;
+        alignas(std::hardware_destructive_interference_size) std::atomic&lt;size_t&gt; pop_counter_;
+        std::atomic&lt;size_t&gt; push_counter_;
 
         // mask_=buffersize-1. Buffersize must be power of 2 so mask will be used to
         // enforce cyclic indexing (modulo buffersize of the continuously running counters)
@@ -85,13 +86,13 @@ namespace apdcam10g
         std::atomic_flag        terminated_;
 
         // Variables for statistics
-        std::atomic<double> sum_size_=0;    // sum of the values of size sampled at every call to push(..) or publish(...)
-        std::atomic<double> sum_size2_=0;   // sum of the squared size values
-        std::atomic<int> sum_n_=0;          // Number of samplings of the size
-        std::atomic<size_t> max_size_=0;    // maximum size (content) of the buffer since it was reset
+        std::atomic&lt;double&gt; sum_size_=0;    // sum of the values of size sampled at every call to push(..) or publish(...)
+        std::atomic&lt;double&gt; sum_size2_=0;   // sum of the squared size values
+        std::atomic&lt;int&gt; sum_n_=0;          // Number of samplings of the size
+        std::atomic&lt;size_t&gt; max_size_=0;    // maximum size (content) of the buffer since it was reset
 
-        ring_buffer(ring_buffer const&);
-        void operator = (ring_buffer const&);
+        ring_buffer(ring_buffer const&amp;);
+        void operator = (ring_buffer const&amp;);
 
     public:
         ring_buffer(size_t buffer_size=0, size_t extra_size=0)
@@ -126,9 +127,9 @@ namespace apdcam10g
             buffer_ = 0;
             
             // Ensure buffer_size is power of 2
-            if(buffer_size>=2 && (buffer_size&(buffer_size-1))!=0) APDCAM_ERROR("Ring buffer size must be a power of 2");
+            if(buffer_size&gt;=2 &amp;&amp; (buffer_size&amp;(buffer_size-1))!=0) APDCAM_ERROR("Ring buffer size must be a power of 2");
 
-            if(buffer_size>0)
+            if(buffer_size&gt;0)
             {
                 // Allocate buffer with extra space for flattening
                 buffer_ = new T[buffer_size+extra_size];
@@ -149,9 +150,9 @@ namespace apdcam10g
             }
         }
 
-        //#target ring_buffer::copy_values
+        <a name='ring_buffer::copy_values'></a>
         // Copy the values from an instance of its base class using the base class's assignment operator
-        void copy_values(const BASE &rhs)
+        void copy_values(const BASE &amp;rhs)
         {
             BASE::operator=(rhs);
         }
@@ -181,7 +182,7 @@ namespace apdcam10g
         // Push a new element into the buffer. This function does not wait until free slots are avialable: it returns
         // nullptr immediately if the buffer is full. So a wait loop needs to be implemented around the call of this function.
         // In case of success, it returns a pointer to the newly stored object within the buffer.
-        T *push(T const& value)
+        T *push(T const&amp; value)
         {
             // Take a snapshot of the current status. Read pop_index as second to very slightly increase the chance
             // that the consumer thread liberates space
@@ -191,7 +192,7 @@ namespace apdcam10g
             const size_t pop_counter = pop_counter_.load(std::memory_order_relaxed);
 
             // Buffer is full
-            if(push_counter >= pop_counter+mask_+1) return 0;
+            if(push_counter &gt;= pop_counter+mask_+1) return 0;
 
             // Accumulate the statistical variables
             {
@@ -199,15 +200,15 @@ namespace apdcam10g
                 ++sum_n_;
                 sum_size_ += s;
                 sum_size2_ += s*s;
-                if(s>max_size_) max_size_ = s;
+                if(s&gt;max_size_) max_size_ = s;
             }
 
             // We are the only producers, and we have room. No other thread is producing data into the buffer, i.e.
             // no other thread has decreased the available space since we last checked it. So just write to the new place
-            buffer_[push_counter&mask_] = value;
+            buffer_[push_counter&amp;mask_] = value;
 
             // Get a pointer to the newly stored object
-            T* ptr = buffer_+(push_counter&mask_);
+            T* ptr = buffer_+(push_counter&amp;mask_);
 
             // We are the only producers, no other thread has changed push_counter_ in the meantime, so use the snapshot value 'push_counter', incremented
             push_counter_.store(push_counter+1,std::memory_order_release);
@@ -238,7 +239,7 @@ namespace apdcam10g
         // If the buffer is non-empty, copy the front element into 'value', remove it from the buffer, and return true
         // Otherwise return false;
         // Does not call the destructor of the object that is removed from the buffer.
-        bool pop(T &value)
+        bool pop(T &amp;value)
         {
             // Take a snapshot of the current status. Read push_counter as second to very slightly increase the chance that the producer thread added new data
             // and the queue is not empty
@@ -249,7 +250,7 @@ namespace apdcam10g
             if(push_counter == pop_counter) return false;
 
             // We are the only consumers, no other thread has removed data from the front
-            value = buffer_[pop_counter&mask_];
+            value = buffer_[pop_counter&amp;mask_];
 
             // We are the only consumers, no other thread has changed pop_counter_, so use the cached snapshot value 'pop_counter', incremented
             // We do not produce any side effect that should be propagated to the producer thread (copying the value of the just-popped
@@ -279,9 +280,9 @@ namespace apdcam10g
 
             // Spin-lock wait for a free slot for the future element
             // Pop only liberates slots, but does not have side effects, so load relaxed
-            while( pop_counter_.load(std::memory_order_relaxed)+mask_+1 <= push_counter_+n );
+            while( pop_counter_.load(std::memory_order_relaxed)+mask_+1 &lt;= push_counter_+n );
 
-            return buffer_+((push_counter_+n)&mask_);
+            return buffer_+((push_counter_+n)&amp;mask_);
         }
 
         // "Publish" n new elements. That is, if you have prepared data in the 'future' domain, you can now make it available
@@ -301,10 +302,10 @@ namespace apdcam10g
                 ++sum_n_;
                 sum_size_ += s;
                 sum_size2_ += s*s;
-                if(s>max_size_) max_size_ = s;
+                if(s&gt;max_size_) max_size_ = s;
             }
 
-            // release --> purge all previous writes to the data buffer
+            // release --&gt; purge all previous writes to the data buffer
             push_counter_.fetch_add(n, std::memory_order_release);
         }
 
@@ -319,10 +320,10 @@ namespace apdcam10g
         // to counter_to-counter_from)
         // If the 'terminated' flag is set by the producer before or after spin-lock waiting (1), the wait loop is broken
         // and the available number of elemens is returned in the second value
-        std::tuple<T*,size_t> operator()(size_t counter_from, size_t counter_to)
+        std::tuple&lt;T*,size_t&gt; operator()(size_t counter_from, size_t counter_to)
         {
             // We assume the user is not stupid... we do not check, for performance reasons
-            //if(counter_to < counter_from) APDCAM_ERROR("counter_to is less than counter_from");
+            //if(counter_to &lt; counter_from) APDCAM_ERROR("counter_to is less than counter_from");
 
             // Pop operation does not have side effects relevant to us (and we are anyway the consumer thread
             // which is calling pop), so load relaxed
@@ -335,15 +336,15 @@ namespace apdcam10g
             // was sitting (i.e. did not pop a range, say, 0-200, and then requests 100-200), then this ensures consistency.
             // If the queue is still empty when the second range 100-200 is queried, we just wait for the push-counter to
             // reach 200.
-            // However, the user must not query a range (a,b) such that a<pop_counter. It is his responsibility to not
+            // However, the user must not query a range (a,b) such that a&lt;pop_counter. It is his responsibility to not
             // query a range starting from a value which he already popped. 
-            // So we can get granted that counter_from>=pop_counter
+            // So we can get granted that counter_from&gt;=pop_counter
 
             // Storing snapshot of the terminated flag
             bool term = false;
 
             // spin-lock wait for the required data to become available
-            while( push_counter_.load(std::memory_order_acquire) < counter_to )
+            while( push_counter_.load(std::memory_order_acquire) &lt; counter_to )
             {
                 // but break the link if the queue is terminated. The 'terminated' flag indicates that
                 // no more data will ever arrive into the queue
@@ -352,27 +353,27 @@ namespace apdcam10g
                     // Re-query the push_counter, more data may have arrived in the meantime
                     const size_t push_counter = push_counter_.load(std::memory_order_acquire);
                     // and limit counter_to to push_counter if needed
-                    if(push_counter < counter_to) counter_to = push_counter;
+                    if(push_counter &lt; counter_to) counter_to = push_counter;
                 }
             }
 
             // Here: do not get granted that data is available up to the requested counter_to !
 
             // If the requested range cyclically goes to the front... copy that data to the extra space
-            if((counter_to&mask_) < (counter_from&mask_))
+            if((counter_to&amp;mask_) &lt; (counter_from&amp;mask_))
             {
                 // The number of requested elements
                 const size_t n = counter_to-counter_from;
 
                 // Calculate the number of elements that fit continuously up to the end
-                const size_t n_back = (mask_+1)-(counter_from&mask_);
+                const size_t n_back = (mask_+1)-(counter_from&amp;mask_);
 
                 // Number of elements which are at the front
                 const size_t n_front = n-n_back;
 
                 // If the requested number of elements do not fit into the extra space, punish the user
                 // (he should make sure he never requests too much which would not fit into the extra space)
-                if(n_front > extra_size_) APDCAM_ERROR("Requested range does not fit into extra space of the ring_buffer");
+                if(n_front &gt; extra_size_) APDCAM_ERROR("Requested range does not fit into extra space of the ring_buffer");
 
                 // Bitwise copy the front elements into the extra space
                 memcpy(buffer_+mask_+1,buffer_,n_front*sizeof(T));
@@ -381,7 +382,7 @@ namespace apdcam10g
             return 
             {
                 // if no data is available and we return because of being terminated, make sure the user does not get a non-zero pointer
-                (counter_to>counter_from?buffer_+(counter_from&mask_):0), 
+                (counter_to&gt;counter_from?buffer_+(counter_from&amp;mask_):0), 
                 counter_to-counter_from
             };
         }
@@ -389,14 +390,14 @@ namespace apdcam10g
         // Access an object within the ring_buffer identified by the given counter. The counter is a continuously running
         // number, starting at zero for the first object pushed into the buffer, and then increases sequentially.
         // Does not make any checks!
-        T &operator()(size_t counter)
+        T &amp;operator()(size_t counter)
         {
-            return buffer_[counter&mask_];
+            return buffer_[counter&amp;mask_];
         }
 
-        T &operator[](size_t index)
+        T &amp;operator[](size_t index)
         {
-            return buffer_[(pop_counter_+index)&mask_];
+            return buffer_[(pop_counter_+index)&amp;mask_];
         }
 
         size_t capacity() const
@@ -416,7 +417,7 @@ namespace apdcam10g
             return size()==0;
         }
 
-        ring_buffer &clear()
+        ring_buffer &amp;clear()
         {
             // Initialize counters and terminated flag
             push_counter_.store(0, std::memory_order_relaxed);
@@ -429,27 +430,27 @@ namespace apdcam10g
         {
             auto push_counter = push_counter_.load(std::memory_order_seq_cst);
             auto pop_counter  = pop_counter_.load(std::memory_order_seq_cst);
-            std::cerr<<"---------------------------------"<<std::endl;
-            std::cerr<<"Push position: "<<push_counter<<" ("<<(push_counter&mask_)<<")"<<std::endl;
-            std::cerr<<"Pop position: "<<pop_counter<<" ("<<(pop_counter&mask_)<<")"<<std::endl;
-            for(size_t p=0; p<=mask_; ++p)
+            std::cerr&lt;&lt;"---------------------------------"&lt;&lt;std::endl;
+            std::cerr&lt;&lt;"Push position: "&lt;&lt;push_counter&lt;&lt;" ("&lt;&lt;(push_counter&amp;mask_)&lt;&lt;")"&lt;&lt;std::endl;
+            std::cerr&lt;&lt;"Pop position: "&lt;&lt;pop_counter&lt;&lt;" ("&lt;&lt;(pop_counter&amp;mask_)&lt;&lt;")"&lt;&lt;std::endl;
+            for(size_t p=0; p&lt;=mask_; ++p)
             {
                 // Buffer is full
                 if(push_counter == pop_counter+mask_+1) 
                 {
-                    cerr<<"** ";
+                    cerr&lt;&lt;"** ";
                 }
-                else if( (push_counter&mask_)>(pop_counter&mask_) )
+                else if( (push_counter&amp;mask_)&gt;(pop_counter&amp;mask_) )
                 {
-                    if((pop_counter&mask_)<=p && p<(push_counter&mask_)) cerr<<"** ";
-                    else cerr<<"   ";
+                    if((pop_counter&amp;mask_)&lt;=p &amp;&amp; p&lt;(push_counter&amp;mask_)) cerr&lt;&lt;"** ";
+                    else cerr&lt;&lt;"   ";
                 }
                 else
                 {
-                    if( (pop_counter&mask_)<=p || p<(push_counter&mask_)) cerr<<"** ";
-                    else cerr<<"   ";
+                    if( (pop_counter&amp;mask_)&lt;=p || p&lt;(push_counter&amp;mask_)) cerr&lt;&lt;"** ";
+                    else cerr&lt;&lt;"   ";
                 }
-                cerr<<buffer_[p]<<endl;
+                cerr&lt;&lt;buffer_[p]&lt;&lt;endl;
             }
         }
 
@@ -463,3 +464,4 @@ namespace apdcam10g
 }
 
 #endif
+</pre></body></html>

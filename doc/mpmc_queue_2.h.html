@@ -1,0 +1,129 @@
+<html><body><pre>
+// https://www.1024cores.net/home/lock-free-algorithms/queues/bounded-mpmc-queue
+
+// I think the queue fails if more than max_value(size_t) data is sent through it, i.e. enqueue_pos_/dequeue_pos_ overflows
+
+#include &lt;assert.h&gt;
+#include &lt;iostream&gt;
+
+template&lt;typename T&gt;
+class mpmc_bounded_queue
+{
+public:
+
+/*
+    struct cell_t
+    {
+        std::atomic&lt;size_t&gt;   sequence_;
+        T                     data_;
+    };
+*/
+
+    static size_t const     cacheline_size = 64;
+    typedef char            cacheline_pad_t [cacheline_size];
+    cacheline_pad_t         pad0_; // I assume this here is needed to separate the members of this class from any other thing in memory
+    T* const                buffer_;
+    std::atomic_flag *const free_;
+    size_t const            buffer_mask_;
+    cacheline_pad_t         pad1_;
+    std::atomic&lt;size_t&gt;     enqueue_pos_;
+    cacheline_pad_t         pad2_;
+    std::atomic&lt;size_t&gt;     dequeue_pos_;
+    cacheline_pad_t         pad3_;  // I assume this is needed to separate members from anything else in memory
+    mpmc_bounded_queue(mpmc_bounded_queue const&amp;);
+    void operator = (mpmc_bounded_queue const&amp;);
+
+public:
+    mpmc_bounded_queue(size_t buffer_size) : buffer_(new T [buffer_size]), free_(new std::atomic_flag [buffer_size]), buffer_mask_(buffer_size - 1)
+    {
+        assert((buffer_size &gt;= 2) &amp;&amp; ((buffer_size &amp; (buffer_size - 1)) == 0));
+        for (size_t i = 0; i != buffer_size; ++i)
+        {
+            //sequence_[i].store(i, std::memory_order_relaxed);
+            free_[i].test_and_set(std::memory_order_seq_cst);
+        }
+        //enqueue_pos_.store(0, std::memory_order_relaxed);
+        enqueue_pos_.store(0, std::memory_order_seq_cst);
+        //dequeue_pos_.store(0, std::memory_order_relaxed);
+        dequeue_pos_.store(0, std::memory_order_seq_cst);
+//        cerr&lt;&lt;"queue pos lock free: "&lt;&lt;std::atomic&lt;size_t&gt;::is_always_lock_free&lt;&lt;endl;
+//        cerr&lt;&lt;endl;
+    }
+
+    ~mpmc_bounded_queue()
+    {
+        delete [] buffer_;
+        delete [] free_;
+    }
+
+    void dump_producer()
+    {
+        cerr&lt;&lt;"Enqueue position: "&lt;&lt;enqueue_pos_.load(std::memory_order_seq_cst)&lt;&lt;endl;
+        for(int i=0; i&lt;=buffer_mask_; ++i) std::cerr&lt;&lt;buffer_[i]&lt;&lt;"  --  "&lt;&lt;free_[i].test()&lt;&lt;endl;
+    }
+    void dump_consumer()
+    {
+        const auto dp = dequeue_pos_.load(std::memory_order_seq_cst);
+        cerr&lt;&lt;"Dequeue position: "&lt;&lt;dp&lt;&lt;" ("&lt;&lt;(dp&amp;buffer_mask_)&lt;&lt;")"&lt;&lt;endl;
+        for(int i=0; i&lt;=buffer_mask_; ++i) std::cerr&lt;&lt;buffer_[i]&lt;&lt;"  --  "&lt;&lt;free_[i].test()&lt;&lt;endl;
+    }
+
+    std::mutex the_mutex;
+
+
+    bool enqueue(T const&amp; value)
+    {
+        T* data=0;
+        std::atomic_flag *free=0;
+        
+        //size_t pos = enqueue_pos_.load(std::memory_order_relaxed);
+        size_t pos = enqueue_pos_.load(std::memory_order_seq_cst);
+        for (;;)
+        {
+            free = std::addressof(free_[pos &amp; buffer_mask_]);
+            if(!free-&gt;test()) return false;
+            data = std::addressof(buffer_[pos &amp; buffer_mask_]);
+
+            // Atomically check if enqueue_pos_ has not changed in the meantime. If it hasn't, increment it, and break the loop.
+            // If it has, then update 'pos' to the new value of enqueue_pos_, and keep looping.
+            //if (enqueue_pos_.compare_exchange_strong (pos, pos + 1, std::memory_order_relaxed)) break;
+            if (enqueue_pos_.compare_exchange_strong (pos, pos + 1, std::memory_order_seq_cst)) break;
+        }
+        
+        *data = value;
+        free-&gt;clear(std::memory_order_seq_cst);
+        return true;
+    }
+
+    bool dequeue(T&amp; value)
+    {
+        T* data=0;
+        std::atomic_flag *free=0;
+
+        size_t pos = dequeue_pos_.load(std::memory_order_seq_cst);
+        for (;;)
+        {
+            free = std::addressof(free_[pos &amp; buffer_mask_]);
+            // This element is 'free' yet, i.e. the producer has not finished writing the data to it. 
+            if(free-&gt;test()) return false;
+            data = std::addressof(buffer_[pos &amp; buffer_mask_]);
+
+            // Atomically check if dequeue_pos_ has not changed in the meantime. If it hasn't (i.e. no other thread dequeued the element), 
+            // increment it, and break the loop.
+            // If it has, then update 'pos' to the new value of dequeue_pos_, and keep looping.
+            //if (dequeue_pos_.compare_exchange_strong(pos, pos + 1, std::memory_order_relaxed)) break;
+            if (dequeue_pos_.compare_exchange_strong(pos, pos + 1, std::memory_order_seq_cst)) break;
+        }
+
+        value = *data;
+        // Update sequence_ to the value expected at the next enqueue operation
+        //sequence-&gt;store (pos + buffer_mask_ + 1, std::memory_order_release);
+        free-&gt;test_and_set(std::memory_order_seq_cst);
+        return true;
+    }
+
+
+}; 
+
+
+</pre></body></html>

@@ -1,0 +1,113 @@
+<html><body><pre>
+#ifndef __APDDCAM10G_ERROR_H__
+#define __APDDCAM10G_ERROR_H__
+
+#include &lt;string&gt;
+#include &lt;iostream&gt;
+#include &lt;string.h&gt;
+#include &lt;errno.h&gt;
+#incude "<a target='backtrace.h' href='backtrace.h.html'>backtrace.h</a>"
+
+namespace apdcam10g
+{
+    /*
+
+      This class 'error' is functioning as an exception. This class is thrown by fatal errors, which cause program termination,
+      with a message about the cause.
+
+     */
+    
+    class error
+    {
+    private:
+        std::string message_;
+        std::string file_;
+        int line_;
+        mutable bool handled_ = false;
+    public:
+        error(const std::string &amp;message, const std::string &amp;file, int line) : message_(message), file_(file), line_(line) {}
+        
+        const error &amp;operator=(const error &amp;rhs)
+            {
+                message_ = rhs.message_;
+                file_ = rhs.file_;
+                line_ = rhs.line_;
+                handled_ = rhs.handled_;
+                return *this;
+            }
+        
+        const std::string &amp;message() const {handled_ = true; return message_;}
+        const std::string &amp;file() const { handled_ = true; return file_; }
+        int line() const { handled_ = true; return line_; }
+        
+        std::string full_message() const { return "ERROR: "+message()+" [in "+file()+", line "+std::to_string(line())+"]"; }
+            
+        ~error() 
+        {
+            // Seemed to be a good idea to print the message if it has not been accessed before,
+            // but if the exception is not caught, its destructor is not called (because there is
+            // no stack unwinding?)
+            if(!handled_) std::cerr&lt;&lt;"Unhandled error: "&lt;&lt;message_&lt;&lt;std::endl;
+        }
+        
+        void print(std::ostream &amp;out = std::cerr)
+        {
+            out&lt;&lt;full_message()&lt;&lt;std::endl;
+        }
+
+    };
+
+    inline std::ostream &amp;operator&lt;&lt;(std::ostream &amp;out, const error &amp;e) 
+    {
+        out&lt;&lt;e.full_message();
+        return out;
+    }
+}
+
+/*
+
+  This macro prints the actual position in the source file, and prints the backtrace
+  for debuggin purposes, and throws an apdcam10g::error class with the provided
+  message 'msg'
+  This macro is called for serious errors.
+
+ */
+
+#define APDCAM_ERROR(msg)\
+    {\
+    std::cerr&lt;&lt;std::endl; \
+    std::cerr&lt;&lt;"File: "&lt;&lt;__FILE__&lt;&lt;", Line: "&lt;&lt;__LINE__&lt;&lt;std::endl; \
+    std::cerr&lt;&lt;"&gt;&gt;&gt; "&lt;&lt;msg&lt;&lt;std::endl;                              \
+    std::cerr&lt;&lt;std::endl;\
+    apdcam10g::print_backtrace();                \
+    throw apdcam10g::error(msg,__FILE__,__LINE__); \
+    }
+
+/*
+
+  This macro prints the actual position in the source file, and prints the backtrace
+  for debugging purposes
+  In addition to printing the message 'msg' it also appends the error message associated
+  with the C ssytem library's "errno", which carries information about the error
+  encountered in the last C system call
+
+ */
+
+#define APDCAM_ERROR_ERRNO(msg)\
+    {\
+    std::cerr&lt;&lt;std::endl; \
+    std::cerr&lt;&lt;"File: "&lt;&lt;__FILE__&lt;&lt;", Line: "&lt;&lt;__LINE__&lt;&lt;std::endl; \
+    std::cerr&lt;&lt;"&gt;&gt;&gt; "&lt;&lt;msg&lt;&lt;std::endl;                              \
+    std::cerr&lt;&lt;std::endl;\
+    apdcam10g::print_backtrace();                                     \
+    throw apdcam10g::error(std::string(msg) + ": " + std::string(strerror(errno)),__FILE__,__LINE__); \
+    }
+
+#define CATCH_ALL() \
+        catch(apdcam10g::error &amp;e) {e.print();} \
+        catch(std::exception &amp;e) { cerr&lt;&lt;"std::exception: "&lt;&lt;e.what()&lt;&lt;endl; } \
+        catch(...) { cerr&lt;&lt;"Unhandled exception caught"&lt;&lt;endl; }
+    
+
+#endif
+</pre></body></html>

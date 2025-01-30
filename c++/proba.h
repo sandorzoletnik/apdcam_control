@@ -1,3 +1,4 @@
+<html><body><pre>
 /*
 
   Author: Daniel Barna <daniel.barna@fusioninstruments.com>
@@ -46,8 +47,8 @@
 #include <sys/mman.h>
 #include <cmath>
 
-#include "error.h"
-#include "utils.h"
+#incude "<a target='error.h' href='error.h'>error.h</a>"
+#incude "<a target='utils.h' href='utils.h'>utils.h</a>"
 
 using namespace std;
 
@@ -149,7 +150,7 @@ namespace apdcam10g
             }
         }
 
-        //#target ring_buffer::copy_values
+        <a name='ring_buffer::copy_values'></a>
         // Copy the values from an instance of its base class using the base class's assignment operator
         void copy_values(const BASE &rhs)
         {
@@ -463,3 +464,4 @@ namespace apdcam10g
 }
 
 #endif
+</pre></body></html>

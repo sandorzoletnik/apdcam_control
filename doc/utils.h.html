@@ -1,0 +1,92 @@
+<html><body><pre>
+#ifndef __APDCAM10G_UTILS_H__
+#define __APDCAM10G_UTILS_H__
+
+#include &lt;vector&gt;
+#include &lt;map&gt;
+#include &lt;string&gt;
+//#include &lt;concepts&gt;
+#include &lt;mutex&gt;
+#include &lt;filesystem&gt;
+
+namespace apdcam10g
+{
+    // Concatenate a filesystem::path and a string, without directory separator.
+    inline std::filesystem::path operator+(const std::filesystem::path &amp;p1, const std::string &amp;p2)
+    {
+        return p1.string()+p2;
+    }
+
+    // Return the home directory of the current user
+    std::filesystem::path homedir();
+
+    // Return the directory where configuration and working files (such as the command FIFO) are stored.
+    // Create it if it doesn't exist
+    std::filesystem::path configdir();
+
+    // Take the square of anything
+    template &lt;typename T&gt;
+    T sq(const T &amp;t) { return t*t; }
+
+    // Split the string at the specified separators (by default: space, tab and newline), and return
+    // the substring in a vector. Consecutive separator characters are treated as one single separator
+    std::vector&lt;std::string&gt; split(const std::string &amp;s, const std::string &amp;separator = " \t\n");
+
+    // Take a vector of T* (first argument). Loop over its members and delete the objects pointed
+    // to by the given element.
+    // Resize the vector to 'size'. Then loop over the new elements, create a new object (using operator new)
+    // with the conostructor arguments args..., and assign its address to the given element
+    template &lt;typename T,typename... ARGS&gt;
+    void regenerate(std::vector&lt;T*&gt; &amp;v, size_t size, ARGS... args)
+    {
+        for(auto p : v) delete p;
+        v.resize(size);
+        for(auto &amp;p : v) p = new T(args...);
+    }
+
+    //template&lt;typename T, std::invocable&lt;unsigned int&gt; F&gt;
+    template&lt;typename T, typename F&gt;
+    void regenerate_by_func(std::vector&lt;T*&gt; &amp;v, size_t size, F func)
+    {
+        for(auto p : v) delete p;
+        v.resize(size);
+        for(unsigned int i=0; i&lt;size; ++i) v[i] = func(i);
+    }
+
+    std::recursive_mutex &amp;output_mutex();
+    class output_lock
+    {
+    public:
+        output_lock() { output_mutex().lock(); }
+        ~output_lock() { output_mutex().unlock(); }
+    };
+
+  class slock
+  {
+  public:
+    std::ostream &amp;ostream_;
+  public:
+    slock(std::ostream &amp;os) : ostream_(os) {}
+    template&lt;typename T&gt;
+    slock &amp;operator&lt;&lt;(const T &amp;val)
+    {
+      ostream_&lt;&lt;val;
+      return *this;
+    }
+
+  };
+
+    class exclusive_lock
+    {
+    private:
+        
+    };
+    
+
+
+    
+}
+
+
+#endif
+</pre></body></html>

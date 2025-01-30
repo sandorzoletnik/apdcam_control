@@ -1,0 +1,145 @@
+<html><body><pre>
+// https://www.1024cores.net/home/lock-free-algorithms/queues/unbounded-spsc-queue
+
+// load with 'consume' (data-dependent) memory ordering 
+
+template&lt;typename T&gt; 
+T load_consume(T const* addr) 
+{ 
+    // hardware fence is implicit on x86 
+    T v = *const_cast&lt;T const volatile*&gt;(addr); 
+    __memory_barrier(); // compiler fence 
+    return v; 
+} 
+
+// store with 'release' memory ordering 
+
+template&lt;typename T&gt; 
+void store_release(T* addr, T v) 
+{ 
+    // hardware fence is implicit on x86 
+    __memory_barrier(); // compiler fence 
+    *const_cast&lt;T volatile*&gt;(addr) = v; 
+} 
+
+// cache line size on modern x86 processors (in bytes) 
+size_t const cache_line_size = 64; 
+
+// single-producer/single-consumer queue 
+template&lt;typename T&gt; 
+class spsc_queue 
+{ 
+public: 
+
+    spsc_queue() 
+    { 
+        node* n = new node; 
+        n-&gt;next_ = 0; 
+        tail_ = head_ = first_= tail_copy_ = n; 
+    } 
+
+    ~spsc_queue() 
+    { 
+        node* n = first_; 
+        do 
+        { 
+            node* next = n-&gt;next_; 
+            delete n; 
+            n = next; 
+        } 
+        while (n); 
+    } 
+
+    void enqueue(T v) 
+    { 
+        node* n = alloc_node(); 
+        n-&gt;next_ = 0; 
+        n-&gt;value_ = v; 
+        store_release(&amp;head_-&gt;next_, n); 
+        head_ = n; 
+    } 
+
+    // returns 'false' if queue is empty 
+
+    bool dequeue(T&amp; v) 
+    { 
+        if (load_consume(&amp;tail_-&gt;next_)) 
+        { 
+            v = tail_-&gt;next_-&gt;value_; 
+            store_release(&amp;tail_, tail_-&gt;next_); 
+            return true; 
+        } 
+        return false; 
+    } 
+
+private: 
+
+    // internal node structure 
+
+    struct node 
+    { 
+        node* next_; 
+        T value_; 
+    }; 
+
+    // consumer part 
+
+    // accessed mainly by consumer, infrequently be producer 
+    node* tail_; // tail of the queue 
+
+    // delimiter between consumer part and producer part, 
+    // so that they situated on different cache lines 
+    char cache_line_pad_ [cache_line_size]; 
+
+    // producer part 
+    // accessed only by producer 
+    node* head_; // head of the queue 
+    node* first_; // last unused node (tail of node cache) 
+    node* tail_copy_; // helper (points somewhere between first_ and tail_) 
+
+    node* alloc_node() 
+    { 
+        // first tries to allocate node from internal node cache, 
+        // if attempt fails, allocates node via ::operator new() 
+        if (first_ != tail_copy_) 
+        { 
+            node* n = first_; 
+            first_ = first_-&gt;next_; 
+            return n; 
+        } 
+
+        tail_copy_ = load_consume(&amp;tail_); 
+        if (first_ != tail_copy_) 
+        { 
+            node* n = first_; 
+            first_ = first_-&gt;next_; 
+            return n; 
+        } 
+
+        node* n = new node; 
+        return n; 
+    } 
+
+    spsc_queue(spsc_queue const&amp;); 
+
+    spsc_queue&amp; operator = (spsc_queue const&amp;); 
+}; 
+
+// usage example 
+
+int main() 
+{ 
+  spsc_queue&lt;int&gt; q; 
+  q.enqueue(1); 
+  q.enqueue(2); 
+  int v; 
+  bool b = q.dequeue(v); 
+  b = q.dequeue(v); 
+  q.enqueue(3); 
+  q.enqueue(4); 
+  b = q.dequeue(v); 
+  b = q.dequeue(v); 
+  b = q.dequeue(v); 
+}
+
+</pre></body></html>

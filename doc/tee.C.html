@@ -1,0 +1,16 @@
+<html><body><pre>
+#incude "<a target='tee.h' href='tee.h.html'>tee.h</a>"
+
+namespace apdcam10g
+{
+    ostream &amp;tee(ostream &amp;orig_stream, const std::filesystem::path &amp;filename, std::ios_base::openmode mode)
+    {
+        std::streambuf *b1 = orig_stream.rdbuf();
+        std::filebuf   *b2 = new std::filebuf;
+        b2-&gt;open(filename,mode);
+        orig_stream.rdbuf(new teebuf(b1,b2,false,true));
+        return orig_stream;
+    }
+    
+}
+</pre></body></html>

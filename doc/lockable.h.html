@@ -1,0 +1,52 @@
+<html><body><pre>
+#ifndef __APDCAM10G_LOCKABLE_H__
+#define __APDCAM10G_LOCKABLE_H__
+
+#include &lt;shared_mutex&gt;
+
+/*
+
+lockable is a utility class to easily create a mutex associated with a specific variable.
+lockable simply inherits from the given type and from a mutex as well.
+
+Example:
+
+lockable&lt;vector&lt;int&gt;&gt; v;
+{
+   std::shared_lock lck(v);  // create a scoped lock 
+   v.resize(10);
+   v[0] = 1;
+}  // scope of locking ends here
+
+*/
+
+namespace apdcam10g
+{
+    template &lt;typename T, typename MUTEX=std::shared_mutex&gt;
+        class lockable : public T
+    {
+    private:
+        mutable MUTEX mutex_;
+
+    public:
+        void lock() const { mutex_.lock(); }
+        void unlock() const { mutex_.unlock(); }
+        void lock_shared() const { mutex_.lock_shared(); }
+        void unlock_shared() const { mutex_.unlock_shared(); }
+
+        template &lt;typename U&gt; requires std::is_constructible_v&lt;T,U&gt;
+        lockable(const U &amp;rhs) : T(rhs) {}
+        
+        lockable() : T() {}
+
+        template &lt;typename U&gt; requires std::is_assignable_v&lt;T,U&gt;
+        const T &amp;operator=(const U &amp;rhs) 
+            {
+                T::operator=(rhs);
+                return rhs;
+            }
+    };
+}
+
+#endif
+</pre></body></html>

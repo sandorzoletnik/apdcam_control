@@ -1,0 +1,167 @@
+<html><body><pre>
+#incude "<a target='udp.h' href='udp.h.html'>udp.h</a>"
+#include &lt;string&gt;
+#include &lt;string.h&gt;
+#include &lt;errno.h&gt;
+#include &lt;fcntl.h&gt;
+#include &lt;netdb.h&gt; 
+#include &lt;unistd.h&gt;
+#include &lt;arpa/inet.h&gt;
+#include &lt;iostream&gt;
+
+using namespace std;
+
+// https://www.geeksforgeeks.org/udp-server-client-implementation-c/
+// https://stackoverflow.com/questions/18995361/can-recvfrom-function-from-socket-extract-the-sender-ip-address
+
+namespace apdcam10g
+{
+    void udp_socket::close()
+    {
+        if(fd_!=0) ::close(fd_);
+        fd_ = 0;
+        active_ = false;
+    }
+
+    udp_socket &amp;udp_socket::open(unsigned int port)
+    {
+        if(fd_ != 0) close();
+        if((fd_ = socket(AF_INET,SOCK_DGRAM,0))&lt;0) APDCAM_ERROR_ERRNO("Error creating UDP server socket");
+        blocking(blocking_);
+        return *this;
+    }
+
+    udp_socket &amp;udp_socket::blocking(bool b)
+    {
+        blocking_ = b;
+        if(fd_ == 0) return *this;
+        
+        int flags = fcntl(fd_,F_GETFL);
+        if(!blocking_) flags |= O_NONBLOCK;
+        else flags &amp;= ~O_NONBLOCK;
+        fcntl(fd_,F_SETFL,flags);
+        return *this;
+    }
+
+    udp_server &amp;udp_server::open(unsigned int port) 
+    {
+        port_ = port;
+        udp_socket::open(port);
+        memset(&amp;server_address_, 0, sizeof(server_address_)); 
+        memset(&amp;client_address_, 0, sizeof(client_address_));
+        server_address_.sin_family    = AF_INET; // IPv4 
+        server_address_.sin_addr.s_addr = INADDR_ANY; 
+        server_address_.sin_port = htons(port);
+        if(bind(fd_, (sockaddr*)&amp;server_address_, sizeof(server_address_)) == -1) APDCAM_ERROR(string("Error binding the socket: ") + strerror(errno));
+        return *this;
+    }
+
+    std::string udp_server::last_ip() const
+    {
+        char ip[100];
+        inet_ntop(AF_INET,&amp;client_address_.sin_addr,ip,100);
+        return ip;
+    }
+
+    template &lt;safeness s&gt;
+    int udp_server::recv(apdcam10g::byte *buffer, int length)
+    {
+        socklen_t len = sizeof(client_address_);
+        int n = recvfrom(fd_, (char*)buffer, length, 0, (sockaddr*) &amp;client_address_, &amp;len); 
+        if(n&lt;0)
+        {
+            if(errno==EAGAIN || errno==EWOULDBLOCK)
+            {
+                // Should we take special action for timeout?
+            }
+        }
+        return n;
+    }
+    template &lt;safeness s&gt;
+    int udp_server::recv(char *buffer, int length)
+    {
+        socklen_t len = sizeof(client_address_);
+        int n = recvfrom(fd_, buffer, length, 0, (sockaddr*) &amp;client_address_, &amp;len); 
+        return n;
+    }
+
+    template &lt;safeness s&gt;
+    int udp_server::send(const apdcam10g::byte *buffer, int length)
+    {
+        return sendto(fd_, (char*)buffer, length, 0, (const sockaddr*) &amp;client_address_, sizeof(client_address_)); 
+    }
+    template &lt;safeness s&gt;
+    int udp_server::send(const char *buffer, int length)
+    {
+        return sendto(fd_, buffer, length, 0, (const sockaddr*) &amp;client_address_, sizeof(client_address_)); 
+    }
+
+
+
+    udp_client &amp;udp_client::open(unsigned int port, const std::string &amp;ip_address)
+    {
+        udp_socket::open(port);
+        memset(&amp;server_address_, 0, sizeof(server_address_)); 
+        server_address_.sin_family = AF_INET; 
+        server_address_.sin_port = htons(port); 
+        inet_pton(AF_INET,ip_address.c_str(),&amp;server_address_.sin_addr.s_addr);
+        return *this;
+    }
+
+    template &lt;safeness s&gt;
+    int udp_client::recv(apdcam10g::byte *buffer, int length)
+    {
+        socklen_t len = sizeof(server_address_);
+        int n = recvfrom(fd_, (char *)buffer, length, MSG_WAITALL, (sockaddr*) &amp;server_address_, &amp;len); 
+        return n;
+    }
+    template &lt;safeness s&gt;
+    int udp_client::recv(char *buffer, int length)
+    {
+        socklen_t len = sizeof(server_address_);
+        int n = recvfrom(fd_, buffer, length, MSG_WAITALL, (sockaddr*) &amp;server_address_, &amp;len); 
+        return n;
+    }
+
+    template &lt;safeness s&gt;
+    int udp_client::send(const apdcam10g::byte *buffer, int length)
+    {
+/*
+        cerr&lt;&lt;"udp_client::send, server address: "&lt;&lt;server_address_.sin_addr.s_addr&lt;&lt;endl;
+        cerr&lt;&lt;((server_address_.sin_addr.s_addr&gt;&gt;24)&amp;127)&lt;&lt;"."
+            &lt;&lt;((server_address_.sin_addr.s_addr&gt;&gt;16)&amp;127)&lt;&lt;"."
+            &lt;&lt;((server_address_.sin_addr.s_addr&gt;&gt;8 )&amp;127)&lt;&lt;"."
+            &lt;&lt;((server_address_.sin_addr.s_addr    )&amp;127)&lt;&lt;endl;
+*/
+        return sendto(fd_, (const char *)buffer, length, MSG_CONFIRM, (const sockaddr*) &amp;server_address_, sizeof(server_address_)); 
+    }
+    template &lt;safeness s&gt;
+    int udp_client::send(const char *buffer, int length)
+    {
+        return sendto(fd_, buffer, length, MSG_CONFIRM, (const sockaddr*) &amp;server_address_, sizeof(server_address_)); 
+    }
+
+    // template instantiation
+    template int udp_server::recv&lt;safe&gt;(apdcam10g::byte *buffer, int length);
+    template int udp_server::recv&lt;unsafe&gt;(apdcam10g::byte *buffer, int length);
+    template int udp_server::recv&lt;safe&gt;(char *buffer, int length);
+    template int udp_server::recv&lt;unsafe&gt;(char *buffer, int length);
+
+    template int udp_server::send&lt;safe&gt;(const apdcam10g::byte *buffer, int length);
+    template int udp_server::send&lt;unsafe&gt;(const apdcam10g::byte *buffer, int length);
+    template int udp_server::send&lt;safe&gt;(const char *buffer, int length);
+    template int udp_server::send&lt;unsafe&gt;(const char *buffer, int length);
+
+    template int udp_client::recv&lt;safe&gt;(apdcam10g::byte *buffer, int length);
+    template int udp_client::recv&lt;unsafe&gt;(apdcam10g::byte *buffer, int length);
+    template int udp_client::recv&lt;safe&gt;(char *buffer, int length);
+    template int udp_client::recv&lt;unsafe&gt;(char *buffer, int length);
+
+    template int udp_client::send&lt;safe&gt;(const apdcam10g::byte *buffer, int length);
+    template int udp_client::send&lt;unsafe&gt;(const apdcam10g::byte *buffer, int length);
+    template int udp_client::send&lt;safe&gt;(const char *buffer, int length);
+    template int udp_client::send&lt;unsafe&gt;(const char *buffer, int length);
+
+
+}
+</pre></body></html>

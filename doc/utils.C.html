@@ -1,0 +1,63 @@
+<html><body><pre>
+#incude "<a target='utils.h' href='utils.h.html'>utils.h</a>"
+#incude "<a target='config.h' href='config.h.html'>config.h</a>"
+#incude "<a target='error.h' href='error.h.html'>error.h</a>"
+
+// To get the home dir of the current user
+#include &lt;unistd.h&gt;
+#include &lt;sys/types.h&gt;
+#include &lt;pwd.h&gt;
+#include &lt;cstdlib&gt;
+
+
+
+using namespace std;
+
+namespace apdcam10g
+{
+    std::filesystem::path homedir()
+    {
+        return getenv("HOME");
+        //passwd *pw = getpwuid(getuid());
+        //return pw-&gt;pw_dir;
+    }
+
+    std::filesystem::path configdir()
+    {
+        auto path = homedir();
+        path /= config::configdir;
+        if(!std::filesystem::is_directory(path))
+        {
+            if(!std::filesystem::create_directory(path)) APDCAM_ERROR(std::string("Could not create config directory '") + path.string() + std::string("'"));
+        }
+        return path;
+    }
+
+    vector&lt;string&gt; split(const string &amp;s,const string &amp;separator)
+    {
+	vector&lt;string&gt; out;
+	string w;
+	for(unsigned int i=0; i&lt;s.size(); ++i)
+	{
+	    if(separator.find(s[i]) != string::npos)
+	    {
+		if(w != "") out.push_back(w);
+		w = "";
+	    }
+	    else
+	    {
+		w += s[i];
+	    }
+	}
+	if(w != "") out.push_back(w);
+	return out;
+    }
+
+    std::recursive_mutex &amp;output_mutex()
+    {
+        static std::recursive_mutex m;
+        return m;
+    }
+
+}
+</pre></body></html>

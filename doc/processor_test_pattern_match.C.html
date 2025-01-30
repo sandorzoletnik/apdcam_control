@@ -1,0 +1,110 @@
+<html><body><pre>
+#incude "<a target='processor_test_pattern_match.h' href='processor_test_pattern_match.h.html'>processor_test_pattern_match.h</a>"
+#incude "<a target='daq.h' href='daq.h.html'>daq.h</a>"
+#incude "<a target='utils.h' href='utils.h.html'>utils.h</a>"
+
+namespace apdcam10g
+{
+    void processor_test_pattern_match::init()
+    {
+        next_data_ = 0;
+        summaries_.clear();
+        summaries_.resize(daq_-&gt;all_enabled_channels_.size());
+        offsets_.clear();
+        offsets_.resize(daq_-&gt;all_enabled_channels_.size(),0);
+        offset_set_.clear();
+        offset_set_.resize(daq_-&gt;all_enabled_channels_.size(),false);
+        n_received_shots_.clear();
+        n_received_shots_.resize(daq_-&gt;all_enabled_channels_.size(),0);
+        n_missing_shots_.clear();
+        n_missing_shots_.resize(daq_-&gt;all_enabled_channels_.size(),0);
+    }
+
+    size_t processor_test_pattern_match::run_unique_(size_t from, size_t to)
+    {
+        for(size_t i_shot=from; i_shot&lt;to; ++i_shot)
+        {
+            for(unsigned int i_enabled_channel=0; i_enabled_channel&lt;daq_-&gt;all_enabled_channels_.size(); ++i_enabled_channel)
+            {
+                ++n_received_shots_[i_enabled_channel];
+                auto *c = daq_-&gt;all_enabled_channels_[i_enabled_channel];
+                if(!offset_set_[i_enabled_channel])
+                {
+                    for(int offs = 0; offs&lt;sequence_-&gt;size(); ++offs)
+                    {
+                        if((*c)(i_shot) == (*sequence_)[(i_shot+offs)%sequence_-&gt;size()])
+                        {
+                            offsets_[i_enabled_channel] = offs;
+                            offset_set_[i_enabled_channel] = true;
+                            break;
+                        }
+                    }
+                    if(!offset_set_[i_enabled_channel])
+                    {
+                        summaries_[i_enabled_channel] += "[" + std::to_string(i_shot) + "] NO MATCH\n";
+                    }
+                }
+                else
+                {
+                    // We only record the problems: missing samples
+                    if((*c)(i_shot) != (*sequence_)[(i_shot+offsets_[i_enabled_channel])%sequence_-&gt;size()])
+                    {
+                        offset_set_[i_enabled_channel] = false;
+                        //bool found = false;
+                        for(size_t missing=1; missing&lt;sequence_-&gt;size(); ++missing)
+                        {
+                            if((*c)(i_shot) == (*sequence_)[(i_shot+offsets_[i_enabled_channel]+missing)%sequence_-&gt;size()])
+                            {
+                                offset_set_[i_enabled_channel] = true;
+                                offsets_[i_enabled_channel] = (offsets_[i_enabled_channel]+missing)%sequence_-&gt;size();
+                                summaries_[i_enabled_channel] += "[" + std::to_string(i_shot) + "] missing " + std::to_string(missing) + "\n";
+                                n_missing_shots_[i_enabled_channel] += missing;
+                                break;
+                            }
+                        }
+                        if(!offset_set_[i_enabled_channel])
+                        {
+                            summaries_[i_enabled_channel] += "[" + std::to_string(i_shot) + "] could not re-match\n";
+                        }
+                    }
+                }
+            }
+        }
+        return (next_data_=to);
+    }
+
+    size_t processor_test_pattern_match::run(size_t from_counter, size_t to_counter)
+    {
+        if(sequence_==0) APDCAM_ERROR("No sequence is given in processor_test_pattern_match");
+        
+        const size_t start = std::max(from_counter, next_data_);
+        if(sequence_-&gt;unique_elements()) return run_unique_(start,to_counter);
+
+        APDCAM_ERROR("Can not handle yet a test pattern sequence with non-unique elements");
+    }
+
+    void processor_test_pattern_match::finish()
+    {
+        output_lock lck;
+        cerr&lt;&lt;daq::section_start("TEST PATTERN MATCH")&lt;&lt;endl;
+        unsigned int problems = 0;
+        for(unsigned int i_enabled_channel=0; i_enabled_channel&lt;daq_-&gt;all_enabled_channels_.size(); ++i_enabled_channel)
+        {
+            if(summaries_[i_enabled_channel] != "")
+            {
+                auto *c = daq_-&gt;all_enabled_channels_[i_enabled_channel];
+                cerr&lt;&lt;"Channel "&lt;&lt;c-&gt;board_number&lt;&lt;"/"&lt;&lt;c-&gt;channel_number&lt;&lt;endl;
+                cerr&lt;&lt;summaries_[i_enabled_channel];
+                cerr&lt;&lt;"Received shots: "&lt;&lt;n_received_shots_[i_enabled_channel]&lt;&lt;endl;
+                cerr&lt;&lt;"Missing shots : "&lt;&lt;n_missing_shots_[i_enabled_channel]&lt;&lt;endl;
+                cerr&lt;&lt;endl;
+                ++problems;
+            }
+        }
+        if(problems==0) cerr&lt;&lt;"No problems"&lt;&lt;endl;
+        else cerr&lt;&lt;"There were missing shots in "&lt;&lt;problems&lt;&lt;" channels"&lt;&lt;endl;
+        cerr&lt;&lt;daq::section_start("TEST PATTERN MATCH")&lt;&lt;endl;
+    }
+    
+}
+</pre></body></html>

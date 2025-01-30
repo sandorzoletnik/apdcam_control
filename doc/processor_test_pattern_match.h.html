@@ -1,0 +1,36 @@
+<html><body><pre>
+#ifndef __APDCAM10G_PROCESSOR_TEST_PATTERN_MATCH_H__
+#define __APDCAM10G_PROCESSOR_TEST_PATTERN_MATCH_H__
+
+#incude "<a target='processor.h' href='processor.h.html'>processor.h</a>"
+#incude "<a target='test_pattern.h' href='test_pattern.h.html'>test_pattern.h</a>"
+
+namespace apdcam10g
+{
+    class processor_test_pattern_match : public processor
+    {
+    private:
+        test_pattern_sequence *sequence_;
+
+        // The shot counter pointing to the next shot that has not yet been written to disk
+        size_t next_data_ = 0;
+        
+        size_t run_unique_(size_t from, size_t to);
+
+        std::vector&lt;std::string&gt; summaries_;
+        std::vector&lt;int&gt; offsets_;
+        std::vector&lt;bool&gt; offset_set_;
+        std::vector&lt;unsigned int&gt; n_received_shots_, n_missing_shots_;
+
+    public:
+        processor_test_pattern_match(test_pattern_sequence *s=0) : sequence_(s) {}
+        void sequence(test_pattern_sequence *s) { sequence_ = s; }
+        void init() override;
+        size_t run(size_t from_counter, size_t to_counter) override;
+        void finish() override;
+    };
+
+}
+
+#endif
+</pre></body></html>

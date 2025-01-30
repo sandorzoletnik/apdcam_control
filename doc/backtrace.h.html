@@ -1,0 +1,16 @@
+<html><body><pre>
+#ifndef __APDCAM10G_BACKTRACE_H__
+#define __APDCAM10G_BACKTRACE_H__
+
+#include &lt;execinfo.h&gt;
+#include &lt;vector&gt;
+#include &lt;string&gt;
+
+namespace apdcam10g
+{
+    std::vector&lt;std::string&gt; get_backtrace(unsigned int depth=20);
+    void print_backtrace(unsigned int depth=20);
+}
+
+#endif
+</pre></body></html>

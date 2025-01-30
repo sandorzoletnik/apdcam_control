@@ -1,0 +1,205 @@
+<html><body><pre>
+#incude "<a target='fake_camera.h' href='fake_camera.h.html'>fake_camera.h</a>"
+#incude "<a target='udp.h' href='udp.h.html'>udp.h</a>"
+#incude "<a target='packet.h' href='packet.h.html'>packet.h</a>"
+#incude "<a target='config.h' href='config.h.html'>config.h</a>"
+#include &lt;thread&gt;
+#include &lt;mutex&gt;
+
+using namespace std;
+
+namespace apdcam10g
+{
+    void fake_camera::test_pattern(uint8_t tp)
+    {
+        if(tp == 0)
+        {
+            delete test_pattern_sequence_;
+            test_pattern_sequence_ = 0;
+        }
+        else if(tp == 6)
+        {
+            delete test_pattern_sequence_;
+            test_pattern_sequence_ = new pseudo_random_short;
+        }
+        else APDCAM_ERROR("Currently only 0 and 6 can be specified as a test pattern");
+
+        set_generators_();
+    }
+
+    void fake_camera::calculate_channel_info()
+    {
+        daq_settings&lt;channel_info_with_generator&gt;::calculate_channel_info();
+        set_generators_();
+    }
+
+    void fake_camera::set_generators_()
+    {
+        for(auto c: all_enabled_channels_)
+        {
+            delete c-&gt;generator;
+            // If we have a test pattern sequence, set a generator for all channels
+            if(test_pattern_sequence_) c-&gt;generator = new test_pattern_generator(test_pattern_sequence_);
+            // otherwise set it to zero. The sender function in this case will automatically
+            // use the shot number as the generated value
+            else c-&gt;generator = 0;
+        }
+    }
+
+    fake_camera::~fake_camera()
+    {
+        delete test_pattern_sequence_;
+        for(auto c: all_enabled_channels_) delete c-&gt;generator;
+    }
+
+    fake_camera::fake_camera()
+    {
+        get_net_parameters();
+    }
+
+    void fake_camera::send(int nshots, bool wait)
+    {
+        if(octet_ == 0) APDCAM_ERROR("octet is not set");
+
+        const int n_adc = board_bytes_per_shot_.size();
+
+        // Allocate buffers for all ADC boards and set proper size. First index is ADC board number.
+        vector&lt;vector&lt;apdcam10g::byte&gt;&gt; buffer(n_adc);
+
+        vector&lt;vector&lt;int&gt;&gt; shot_numbers(n_adc);
+
+        // ---------------- print summary ------------------------------
+        cerr&lt;&lt;"----------------------------------------------------------"&lt;&lt;endl;
+        for(unsigned int i_adc=0; i_adc&lt;n_adc; ++i_adc)
+        {
+            cerr&lt;&lt;"ADC "&lt;&lt;i_adc&lt;&lt;endl;
+            cerr&lt;&lt;"Number of bytes per shot: "&lt;&lt;board_bytes_per_shot_[i_adc]&lt;&lt;endl;
+            for(unsigned int i_chip=0; i_chip&lt;4; ++i_chip)
+            {
+                cerr&lt;&lt;"Chip offset["&lt;&lt;i_adc&lt;&lt;"]["&lt;&lt;i_chip&lt;&lt;"] = "&lt;&lt;chip_offset_[i_adc][i_chip]&lt;&lt;endl;
+            }
+            cerr&lt;&lt;endl;
+        }
+        cerr&lt;&lt;endl;
+//        print_channel_map(cerr);
+        cerr&lt;&lt;"----------------------------------------------------------"&lt;&lt;endl;
+
+        for(unsigned int i_adc=0; i_adc&lt;n_adc; ++i_adc)
+        {
+            // Allocate sufficient memory to store exactly the nshots shots + the extra room for a cc_streamheader (22 bytes)
+            // at the front. Note that no room is allocated for a CC header at each shot, only at the very front of the buffer.
+            // Once the first packet is sent out, the space it occuped in memory can be liberated, and it gives space
+            // for the CC header to be moved just before the next packet's memory space
+            {
+                const int buffersize = nshots*board_bytes_per_shot_[i_adc]+packet::cc_streamheader;
+                buffer[i_adc].resize(buffersize,apdcam10g::byte(0));
+            }
+
+            // Byte counter within a packet, to keep track when we reach the boundary of a
+            // UDP packet. 
+            int packet_byte_index = 0;
+
+            for(unsigned int i_shot=0; i_shot&lt;nshots; ++i_shot)
+            {
+                // The starting index of the data of the given shot, within the ADC's buffer. We have a global offset of
+                // packet::cc_streamheader so that we have sufficient room before the first data to write the packet header.
+                // For the non-first packet, the previos packet's data region will be overwritten
+                const unsigned int shot_start =  i_shot*board_bytes_per_shot_[i_adc];
+                
+                int count = 0;
+                for(auto c : board_enabled_channels_[i_adc])
+                {
+                    if( (shot_start+c-&gt;byte_offset)%(8*octet_)==0   ||  // If the channel's value starts exactly at a multiple of 8*octet
+                        (shot_start+c-&gt;byte_offset)/(8*octet_) != (shot_start+c-&gt;byte_offset+c-&gt;nbytes)/(8*octet_) ) // or if the value covers a 8*octet boundary
+                    {
+                        shot_numbers[i_adc].push_back(i_shot);
+                    }
+
+                    const unsigned int skip = skip_shots_(i_shot);
+                    data_type value = i_shot + skip; // this is not good actually, because it only locally increases. We should accumulate these skips....
+                    if(c-&gt;generator)
+                    {
+                        // this is ok....
+                        for(unsigned int i=0; i&lt;skip; ++i) c-&gt;generator-&gt;get();
+                        value = c-&gt;generator-&gt;get();
+                    }
+                    c-&gt;set_in_shot(&amp;buffer[i_adc][packet::cc_streamheader + shot_start], value);
+                }
+            }
+        }
+
+        std::mutex the_mutex;
+
+        vector&lt;jthread&gt; threads;
+        for(unsigned int i_adc=0; i_adc&lt;n_adc; ++i_adc)
+        {
+            threads.push_back(std::jthread( [this,nshots,i_adc,&amp;shot_numbers,&amp;buffer,&amp;the_mutex](std::stop_token stok)
+                {
+                    {
+                        std::scoped_lock lock(the_mutex);
+                        cerr&lt;&lt;"----------- Thread for ADC #"&lt;&lt;i_adc&lt;&lt;" --------------------------"&lt;&lt;endl;
+                        cerr&lt;&lt;"PORT: "&lt;&lt;config::ports[i_adc]&lt;&lt;endl;
+                        cerr&lt;&lt;"IP  : "&lt;&lt;server_ip_&lt;&lt;endl;
+                        cerr&lt;&lt;"MTU : "&lt;&lt;mtu_&lt;&lt;endl;
+                        cerr&lt;&lt;endl;
+                    }
+                    udp_client client(config::ports[i_adc],server_ip_);
+                    packet_v2 p;
+
+                    try
+                    {
+                        for(unsigned int i_packet=0; !stok.stop_requested() &amp;&amp; packet::cc_streamheader+i_packet*8*octet_&lt;buffer[i_adc].size(); ++i_packet)
+                        {
+                            // The real data bytes start at cc_streamheader (=22) offset. We set the UDP packet data pointer
+                            // to 22 bytes before. At the head of each buffer, there was this extra 22 bytes reserved,
+                            // serving as the space for the header of the first packet. For subsequent packets, the packet start
+                            // pointer (i.e. including the 22 header bytes) will be moved forward, occupying the last 22 bytes
+                            // of the previous (already sent) packet memory region. This is for simplicity and efficiency. We overwrite
+                            // these 22 last bytes of each previous packet buffer, so the data is invalidated
+
+                            // The number of data bytes, including the CC streamheader. The last packet (or already the first one, if we are sending
+                            // less data than the packet size) may be shorter than 8*octet_+packet::cc_streamheader. We calculate it using the fact that
+                            // buffer[i_adc] has been sized to contain exactly the number of bytes needed + the CC streamheader size
+                            const unsigned int data_start = i_packet*8*octet_;
+                            const unsigned int data_size  = std::min(8*octet_+packet::cc_streamheader, (unsigned int)(buffer[i_adc].size()-i_packet*8*octet_));
+
+                            p.data(&amp;(buffer[i_adc].front())+data_start, data_size);
+                            p.clear_header();
+                            p.serial_number = i_packet;  // what is a serial number?
+                            p.packet_counter = i_packet;
+                            p.sample_counter = shot_numbers[i_adc][i_packet];
+                            p.udp_test_mode = 0;
+                            p.stream_number = i_adc;
+                            p.burst_counter = 0;
+                            p.data_bytes = data_size-packet::cc_streamheader;
+                            p.trigger_location = 0;
+                            p.trigger_status = 0;
+                            p.adc_stream_mode = 1;
+                            p.sample_start_condition = 0;
+                            p.dual_sata_mode = 0;
+                            p.burst_start = 0;
+
+                            if(packet_filter_(i_packet))
+                            {
+                                size_t packet_size = p.udp_packet_size();
+                                if(buffer[i_adc].size()-data_start &lt; packet_size) packet_size = buffer[i_adc].size()-data_start;
+                                cerr&lt;&lt;"Sending packet of size "&lt;&lt;packet_size&lt;&lt;endl;
+                                if(client.send(p.start(),packet_size)&lt;0) APDCAM_ERROR_ERRNO("Sending of package failed");
+                            }
+                        }
+                    }
+                    catch(const apdcam10g::error &amp;e)
+                    {
+                        cerr&lt;&lt;e.full_message()&lt;&lt;endl;
+                    }
+                }));
+        }
+
+        if(wait)
+        {
+            cerr&lt;&lt;"Waiting for the threads to finish"&lt;&lt;endl;
+            for(unsigned int i_adc=0; i_adc&lt;n_adc; ++i_adc) if(threads[i_adc].joinable()) threads[i_adc].join();
+        }
+    }
+}
+</pre></body></html>

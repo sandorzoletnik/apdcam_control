@@ -1,0 +1,140 @@
+<html><body><pre>
+#ifndef __APDCAM10G_ARG_H__
+#define __APDCAM10G_ARG_H__
+
+#incude "<a target='error.h' href='error.h.html'>error.h</a>"
+#include &lt;string&gt;
+
+/*
+
+  This class provides an easy interface to parse command line arguments with automatic error reporting.
+  Usage:
+
+  int main(argc, char **argv)
+  {
+    int value_int;
+    double value_dbl;
+    for(args a(argc,argv; a; ++a)
+    {
+      if(a("-h","--help","--give-me-help"))  // true if the next unparsed argument is any of these values (arbitrary number and type of args!)
+      { 
+        cerr&lt;&lt;"Help"&lt;&lt;endl; 
+        exit(1); 
+      }
+      else if(a("-i")) value_int=a.get&lt;int&gt;(1); // Get the cmd line argument 1 after the current one as an int. Give general error if missing
+      else if(a("-d")) value_dbl=a.get&lt;double&gt;(1,"Some double value"); // Get cmd line arg 1 after the current one as a double. Give it a name in the error report if missing
+    }
+  }
+
+ */
+
+namespace apdcam10g
+{
+    // Utility functions to get command line argument values
+    template &lt;typename T&gt;
+    T s2any(char *s) { return T(); }
+
+    template&lt;&gt; int s2any(char *s) { return atoi(s); }
+    template&lt;&gt; double s2any(char *s) { return atof(s); }
+    template&lt;&gt; const char * s2any(char *s) { return s; }
+    template&lt;&gt; std::string s2any(char *s) { return s; }
+    
+    class args
+    {
+    private:
+        unsigned int argc_;
+        char **argv_;
+        unsigned int index_;
+        unsigned int consumed_;
+        bool verbose_ = false;
+
+    public:
+        // Initialize from the (argc,argv) arguments of the main function
+        args(unsigned int argc, char **argv, bool verbose=true) : argc_(argc), argv_(argv), index_(1), consumed_(1), verbose_(verbose) {}
+
+        // Return the command line argumnet with an offset w.r.t. the current one, converted to the given type.
+        // That is, args.get&lt;int&gt;(1); returns the next command line argument after the current one, as an integer.
+        // It prints an error message about missing arguments (the second version of the get function accepts a
+        // name for this argument for this error report), and throws an error.
+        template &lt;typename T=std::string&gt;
+        T get(unsigned int offset, const std::string &amp;name="")
+            {
+                if(index_+offset &gt;= argc_)
+                {
+                    std::string msg = "At least " + std::to_string(offset) + " arguments ";
+                    if(name != "") msg += "(" + name + ") ";
+                    msg += std::string("expected after ") + argv_[index_];
+                    APDCAM_ERROR(msg);
+                }
+                if(index_+offset &gt; consumed_) consumed_ = index_+offset;
+                return s2any&lt;T&gt;(argv_[index_+offset]);
+            }
+    
+        template &lt;typename T=std::string&gt;
+        T get(unsigned int offset, const std::string &amp;name, T def)
+            {
+                if(index_+offset &gt;= argc_)
+                {
+                    if(verbose_)
+                    {
+                        std::cerr&lt;&lt;"Using default value '"&lt;&lt;def&lt;&lt;"' for missing argument "&lt;&lt;offset&lt;&lt;" ("&lt;&lt;name&lt;&lt;")  after "&lt;&lt;argv_[index_]&lt;&lt;std::endl;
+                    }
+                    return def;
+                }
+                if(index_+offset &gt; consumed_) consumed_ = index_+offset;
+                return s2any&lt;T&gt;(argv_[index_+offset]);
+            }
+
+        // Increment the internal index to one beyond the last consumed/processed argument (accessed either by operator() or get&lt;T&gt;(offset)
+        void operator++()
+            {
+                index_ = std::max(index_+1,consumed_+1);
+                consumed_ = index_;
+            }
+
+        // Return true if we have not yet processed all arguments, i.e. if we can evaluate for example operator()
+        operator bool() const
+            {
+                return index_&lt;argc_;
+            }
+
+        // Return the current command line argument as a string
+        std::string operator()() const
+            {
+                return argv_[index_];
+            }
+
+        // variadic template implementation of the () operator, with an arbitrary number and type of arguments.
+        // It returns true if the current cmd line argument (the one the internal index points to) agrees with any of the given
+        // arguments, converted to the proper type. 
+        template &lt;typename VALUE&gt;
+        bool operator()(VALUE value)
+        {
+            return get&lt;VALUE&gt;(0) == value;
+        }
+
+        template &lt;typename VALUE, typename... VALUES&gt;
+        bool operator()(VALUE value, VALUES... values)
+        {
+            if(operator()(value)) return true;
+            return operator()(values...);
+        }
+    };
+
+    // Specializations of the () operator to char* and const char* types, to interpret C-style strings as
+    // real strings, 
+    template &lt;&gt;
+    bool args::operator()&lt;const char *&gt;(const char *value)
+    {
+        return get&lt;std::string&gt;(0) == std::string(value);
+    }
+    template &lt;&gt;
+    bool args::operator()&lt;char *&gt;(char *value)
+    {
+        return get&lt;std::string&gt;(0) == std::string(value);
+    }
+
+}
+
+#endif
+</pre></body></html>

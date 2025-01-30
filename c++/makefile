@@ -10,15 +10,16 @@ ifneq (,$(wildcard /opt/gcc-14.2.0/bin/g++-14.2.0))
   LD = /opt/gcc-14.2.0/bin/g++-14.2.0
 endif
 
-HEDAERS = $(wildcard *.h)
+HEADERS = $(wildcard *.h)
 SRCS = $(wildcard *.C)
 CINCS = $(wildcard *.Cinc)
 DEPS = $(SRCS:.C=.d)
 OBJS = $(SRCS:.C=.o)
 
+
 OS = $(shell ./getos)
 
-all : binaries/$(OS)/libapdcam10g.so binaries/$(OS)/apdcam-daq.exe binaries/$(OS)/apdcam-fake-camera.exe
+all : binaries/$(OS)/libapdcam10g.so binaries/$(OS)/apdcam-daq.exe binaries/$(OS)/apdcam-fake-camera.exe doc
 so : binaries/$(OS)/libapdcam10g.so
 test : binaries/$(OS)/libtest.so
 
@@ -72,4 +73,7 @@ include $(DEPS)
 	$(CXX) $(CXXFLAGS) -M -MF $@ $^
 
 
-
+doc:
+	@echo
+	@echo UPDATING SOURCE DOCUMENTATION FILES IN ../doc
+	for f in *.h *.C; do ./c2html "$$f" "../doc/$${f}.html"; done

@@ -1,0 +1,84 @@
+<html><body><pre>
+#incude "<a target='processor_diskdump.h' href='processor_diskdump.h.html'>processor_diskdump.h</a>"
+#incude "<a target='daq.h' href='daq.h.html'>daq.h</a>"
+
+namespace apdcam10g
+{
+    unsigned int processor_diskdump::default_sampling_ = 1;
+    unsigned int processor_diskdump::default_period_ = 1000;
+    
+    std::filesystem::path processor_diskdump::default_output_dir_ = ".";
+
+    void processor_diskdump::init()
+    {
+          // Close all files, if there are any
+          for(auto &amp;f : files_) f.close();
+          files_.clear();
+
+          // Create a file for each enabled channel
+//          files_.resize(daq_-&gt;all_enabled_channels_.size());
+          files_.resize(daq_-&gt;all_enabled_channels_.size());
+
+          // Reset the pause flag to false.
+          pause_.clear();
+          previous_pause_ = false;
+
+          // Open the files for each channel
+          cerr&lt;&lt;prompt_&lt;&lt;"Output directory: "&lt;&lt;std::filesystem::absolute(output_dir_)&lt;&lt;endl;
+          cerr&lt;&lt;prompt_&lt;&lt;"Opening diskdump output files: "&lt;&lt;filename_pattern_&lt;&lt;endl;
+          auto p = filename_pattern_.find('%');
+          if(p==string::npos) APDCAM_ERROR("The filename pattern does not contain the character %");
+          for(unsigned int i=0; i&lt;daq_-&gt;all_enabled_channels_.size(); ++i)
+          {
+              const std::filesystem::path filename =
+                  output_dir_ / 
+                  filename_pattern_.substr(0,p) + 
+                  std::to_string(daq_-&gt;all_enabled_channels_[i]-&gt;absolute_channel_number) +
+                  filename_pattern_.substr(p+1);
+              files_[i].open(filename);
+              if(!files_[i].good())
+              {
+                  APDCAM_ERROR("Failed to open output files: " + filename_pattern_);
+              }
+          }
+          // The next data (shot) to be processed is #0
+          next_data_ = 0;
+    }
+
+    size_t processor_diskdump::run(size_t from_counter, size_t to_counter)
+    {
+          const size_t start = std::max(from_counter, next_data_);
+          const size_t stop = std::min(to_counter, start+period_);
+          for(size_t i=start; i&lt;stop; ++i)
+          {
+              const bool p = pause_.test(std::memory_order_acquire);
+              if(p != previous_pause_)
+              {
+                  // If we have just changed into paused mode, add an empty line to the file
+                  if(p) for(auto &amp;f : files_) f&lt;&lt;endl;
+                  // Otherwise add a comment with the shot number
+                  else for(auto &amp;f : files_) f&lt;&lt;"# resume: "&lt;&lt;i&lt;&lt;endl;
+                  previous_pause_ = p;
+              }
+
+              // Write out only if we are not paused
+              if(!p)
+              {
+                  // Load the sampling value in each loop because it may change while we are running.
+                  // Skip those shots which are not to be written
+                  const unsigned int s = sampling_.load(std::memory_order_seq_cst);
+                  if(i%s != 0) continue;
+                  
+                  for(unsigned int i_enabled_channel=0; i_enabled_channel&lt;daq_-&gt;all_enabled_channels_.size(); ++i_enabled_channel)
+                  {
+                      daq::channel_data_buffer_t *c = daq_-&gt;all_enabled_channels_[i_enabled_channel];
+                      files_[i_enabled_channel]&lt;&lt;hex&lt;&lt; (*c)(i)&lt;&lt;endl;
+                  }
+              }
+          }
+          return (next_data_ = stop);
+    }
+    
+
+}
+</pre></body></html>

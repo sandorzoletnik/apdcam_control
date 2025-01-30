@@ -1,1 +1,0 @@
-../c++/shot_data_layout.h

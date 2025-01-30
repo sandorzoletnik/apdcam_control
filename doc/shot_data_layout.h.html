@@ -1,0 +1,127 @@
+<html><body><pre>
+#ifndef __APDCAM10G_SHOT_DATA_LAYOUT_H__
+#define __APDCAM10G_SHOT_DATA_LAYOUT_H__
+
+#incude "<a target='channel_info.h' href='channel_info.h.html'>channel_info.h</a>"
+#incude "<a target='terminal.h' href='terminal.h.html'>terminal.h</a>"
+#include &lt;vector&gt;
+#include &lt;string&gt;
+#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+
+namespace apdcam10g
+{
+    class shot_data_layout
+    {
+    private:
+        std::string prompt_;
+
+        class bit
+        {
+        public:
+            int channel_index = -1;
+        };
+
+        class byte
+        {
+        public:
+            bit bits[8];
+            channel_info *channel = 0;
+        };
+
+        std::vector&lt;byte&gt; bytes_;
+        std::vector&lt;channel_info*&gt; channels_;
+
+        void init_(unsigned int n_bytes, unsigned int resolution_bits, const std::vector&lt;channel_info*&gt; &amp;channels) 
+            {
+                bytes_.resize(n_bytes);
+                for(auto &amp;b : bytes_) b = byte();
+                channels_ = channels;
+                for(unsigned int i_channel=0; i_channel&lt;channels_.size(); ++i_channel)
+                {
+                    channel_info *c = channels_[i_channel];
+                    int b = c-&gt;byte_offset + c-&gt;nbytes - 1;
+                    for(unsigned int i_bit=0, i_target_bit=c-&gt;shift; i_bit&lt;resolution_bits; ++i_bit)
+                    {
+                        bytes_[b].bits[i_target_bit].channel_index = i_channel;
+                        if(++i_target_bit &gt; 7)
+                        {
+                            --b;
+                            i_target_bit = 0;
+                        }
+                    }
+                    if(c-&gt;nbytes==3) bytes_[c-&gt;byte_offset+1].channel = c;
+                    else if(c-&gt;nbytes==2)
+                    {
+                        int n2 = 8-c-&gt;shift;
+                        int n1 = resolution_bits-n2;
+                        if(n2&gt;n1) bytes_[c-&gt;byte_offset+1].channel = c;
+                        else      bytes_[c-&gt;byte_offset  ].channel = c;
+                    }
+                    else if(c-&gt;nbytes==1) bytes_[c-&gt;byte_offset].channel = c;
+                    else APDCAM_ERROR("This should never happen");
+                }
+            }
+        
+
+    public:
+        void prompt(const std::string &amp;p) { prompt_ = p; }
+
+        shot_data_layout(unsigned int n_bytes, unsigned int resolution_bits, const std::vector&lt;ring_buffer&lt;data_type,channel_info&gt;*&gt; &amp;channels)
+            {
+                std::vector&lt;channel_info*&gt; channels2(channels.size());
+                for(unsigned int i=0; i&lt;channels.size(); ++i) channels2[i] = channels[i];
+                init_(n_bytes, resolution_bits, channels2);
+            }
+        shot_data_layout(unsigned int n_bytes, unsigned int resolution_bits, const std::vector&lt;channel_info*&gt; &amp;channels)
+            {
+                init_(n_bytes, resolution_bits, channels);
+            }
+
+
+        // begin, end -- range of the bytes to start
+        void show(apdcam10g::byte *buffer=0, ostream &amp;out = cerr, int begin=0, int end=-1) const
+            {
+                if(end&lt;0) end = bytes_.size();
+                if(end &gt; bytes_.size()) end = bytes_.size();
+                for(unsigned int i_byte = begin; i_byte&lt;end; ++i_byte)
+                {
+                    out&lt;&lt;prompt_&lt;&lt;" ["&lt;&lt;std::setw(2)&lt;&lt;i_byte&lt;&lt;"]   ";
+                    for(int i_bit=7; i_bit&gt;=0; --i_bit)
+                    {
+                        const int chind = bytes_[i_byte].bits[i_bit].channel_index;
+                        if(chind&lt;0) out&lt;&lt;terminal::reset;
+                        else
+                        {
+                            if(chind%2==0) out&lt;&lt;terminal::green_bg&lt;&lt;terminal::black_fg;
+                            else           out&lt;&lt;terminal::red_bg&lt;&lt;terminal::black_fg;
+                        }
+                        if(buffer)
+                        {
+                            out&lt;&lt;(int)((buffer[i_byte]&gt;&gt;i_bit)&amp;apdcam10g::byte(1));
+                        }
+                        else out&lt;&lt;"*";
+                        out&lt;&lt;terminal::reset;
+                    }
+                    if(bytes_[i_byte].channel)
+                    {
+                        channel_info *c = bytes_[i_byte].channel;
+                        string label = std::to_string(c-&gt;board_number) + "/" + std::to_string(c-&gt;chip_number) + "/" + std::to_string(c-&gt;channel_number);
+                        out&lt;&lt;"    "&lt;&lt;label;
+                        if(buffer) out&lt;&lt;"  --&gt; "&lt;&lt;c-&gt;get_from_shot(buffer);
+                    }
+                    out&lt;&lt;endl;
+                }
+                out&lt;&lt;endl;
+            }
+    };
+
+
+
+
+    
+
+}
+
+#endif
+</pre></body></html>

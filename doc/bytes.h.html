@@ -1,0 +1,311 @@
+<html><body><pre>
+#ifndef __APDCAM10G_BYTES_H__
+#define __APDCAM10G_BYTES_H__
+
+#include &lt;vector&gt;
+#include &lt;cstdint&gt;
+#include &lt;algorithm&gt;
+#include &lt;iostream&gt;
+#include &lt;cstddef&gt;
+#include &lt;sstream&gt;
+#include &lt;cmath&gt;
+#include &lt;bit&gt;
+#incude "<a target='error.h' href='error.h.html'>error.h</a>"
+#incude "<a target='safeness.h' href='safeness.h.html'>safeness.h</a>"
+#incude "<a target='typedefs.h' href='typedefs.h.html'>typedefs.h</a>"
+
+namespace apdcam10g
+{
+    // Ensure clear endianness (i.e. all numeric types having the same endianness... on some rare platforms
+    // integer and floating-point types have different endianness, which is not handled by this code)
+    // For mixed-endian systems std::endian::native does not equal any of big or little
+    static_assert(std::endian::native == std::endian::big || std::endian::native == std::endian::little, "Mixed-endian system, the code can not be compiled on this machine, sorry");
+
+    // Create a mask which has 'nbits' bits set, starting at 'startbit' (from the least significant one)
+    template &lt;typename T&gt; T make_mask(unsigned int nbits, unsigned int startbit=0)
+    {
+        // A value with all bits set to 1 (assumes unsigned integral type)
+        const T full = (T)-1;
+        const T one = (T)1;
+        const int size_in_bits = sizeof(T)*8;
+        return (nbits &gt;= size_in_bits ? full : (one&lt;&lt;nbits)-one) &lt;&lt; startbit;
+        
+        /*
+        T result = 0;
+        for(int i=0; i&lt;nbits; ++i) result |= 1&lt;&lt;(i+startbit);
+        return result;
+        */
+    }
+
+    template&lt;bool is_signed, int N&gt; class shortest_int 
+    {
+        static_assert(false,"Signed integers must be represented by the same number of bytes as their native size");
+    };
+
+    // For signed integers, specializations are only provided for the native fixed-width types
+    // stored in the same number of bytes as their native size. If tried to be used with a different
+    // number of bytes, the unspecified default will fail due to static_assert
+    template&lt;&gt; class shortest_int&lt;true,sizeof(int8_t)&gt;  { public: typedef int8_t type; };
+    template&lt;&gt; class shortest_int&lt;true,sizeof(int16_t)&gt; { public: typedef int16_t type; };
+    template&lt;&gt; class shortest_int&lt;true,sizeof(int32_t)&gt; { public: typedef int32_t type; };
+    template&lt;&gt; class shortest_int&lt;true,sizeof(int64_t)&gt; { public: typedef int64_t type; };
+
+    // For unsigned integer types, all sizes up to 8 bytes are specialized, so we will not fall back to the unspecialized
+    // (failing) default class above. 
+    template&lt;&gt; class shortest_int&lt;false,1&gt; { public: typedef uint_fast8_t type; };
+    template&lt;&gt; class shortest_int&lt;false,2&gt; { public: typedef uint_fast16_t type; };
+    template&lt;&gt; class shortest_int&lt;false,3&gt; { public: typedef uint_fast32_t type; };
+    template&lt;&gt; class shortest_int&lt;false,4&gt; { public: typedef uint_fast32_t type; };
+    template&lt;&gt; class shortest_int&lt;false,5&gt; { public: typedef uint_fast64_t type; };
+    template&lt;&gt; class shortest_int&lt;false,6&gt; { public: typedef uint_fast64_t type; };
+    template&lt;&gt; class shortest_int&lt;false,7&gt; { public: typedef uint_fast64_t type; };
+    template&lt;&gt; class shortest_int&lt;false,8&gt; { public: typedef uint_fast64_t type; };
+
+
+    /*
+      class byte_converter
+
+      A utility class which can convert between the byte-array representation of an integer number
+      in memory space (in either little or big endian format) and a native C++ integer type.
+
+      The class is templated, giving a great flexibility with no run-time cost. The native C++
+      integer type can be specified by the user, otherwise it is automatically chosen to be the shortest
+      unsigned integer type needed to represent NBYTES bytes. The class offers a typedef 'type' which
+      is an alias to the native C++ type
+
+      In addition, a 'safeness' template argument decides whether during conversion (back and forth)
+      any checks are made on overflow, etc. In safe mode (default), in case of a problem, an 
+      apdcam10g::error exception is thrown. In unsafe mode, no checks are made
+
+      The converter offers an (templated) assignment operator from any type which can be converted
+      to the native C++ type. Assignment automatically writes into the underlying memory space (the byte array)
+
+      The converter has a type-conversion operator to the native C++ type. Conversion is made at every call,
+      so the resulting integer value will automatically update if the underlying byte-array in memory is changed.
+
+     */
+
+    // This first version, which automatically tried to figure out if a conversion is needed, by comparing the provided endianness to the native one, and comparing
+    // the size of the type T to the required number of bytes, was removed. This could mean a non-converting byte_converter for unaligned memory addresses, which could cause
+    // undefined behavior.
+    //template&lt;int NBYTES, std::endian E, safeness S=default_safeness, typename T=shortest_int&lt;false,NBYTES&gt;::type, bool must_convert=(std::endian::native!=E || sizeof(T)!=NBYTES)&gt; class byte_converter {};
+    template&lt;int NBYTES, std::endian E, safeness S=default_safeness, typename T=shortest_int&lt;false,NBYTES&gt;::type, bool must_convert=true&gt; class byte_converter {};
+
+
+// non-converting byte_converter (i.e. last template argument being false) is disallowed, because this was implemented
+// as a T-type variable allocated to a given address, which may cause an unaligned read/write operation. This is supported
+// by some compilers on x86_64 platforms, but not on other platforms or by other compilers, which would cause undefined benavior.    
+// If you enable this, make sure you only set the last template argument 'must_convert' to false if this converter will always only
+// access memory at aligned addresses.
+/*
+    // The converter which actually does not make a conversion (first template argument is 'false')
+    // just maps the memory representation of the given type T to the byte array
+    template&lt;int NBYTES, std::endian E, safeness S, typename T&gt; class byte_converter&lt;NBYTES,E,S,T,false&gt;
+    {
+        // Make sure that the size of the native type T is matching the  number of bytes
+        static_assert(sizeof(T)==NBYTES);
+        // Also make sure that the required endianness is the system's native one
+        static_assert(std::endian::native == E);
+    private:
+        apdcam10g::byte *address_=0;
+        T *value_=0;
+    public:
+        // A symbolic constant to query whether this particular converter is indeed
+        // making any conversion in the background, or not
+        const bool converts = false;
+
+        // Symbolic typedef for the actual native C++ type, which is the shortest
+        // integer type being able to store the NBYTES bytes
+        typedef T type;
+
+        // Constructor, initialize from the underlying memory region (byte array)
+        byte_converter(apdcam10g::byte *a=0) : address_(a), value_((T*)a) {}
+
+        // Set the address of the underlying byte array memory storage
+        void address(apdcam10g::byte *a) {address_ = a; value_ = (T*)a;}
+
+        // Assignment operator. Any type can be assigned to this object which can be
+        // implicitly converted to the native type. The value is propagated down to the 
+        // underlying byte array in memory
+        template &lt;typename T2&gt;
+        byte_converter&lt;NBYTES,E,S,T,false&gt; &amp;operator=(const T2 &amp;t) { *value_ = t; return *this; }
+
+        // Type conversion operator to the native C++ type. The value is calculated from the byte
+        // array at each call so it automatically updates if the byte array is changed
+        operator T() const { return *value_; }
+    };
+*/
+
+    template&lt;int NBYTES, std::endian E, safeness S, typename T&gt; class byte_converter&lt;NBYTES,E,S,T,true&gt;
+    {
+    private:
+        mutable union
+        {
+            T value;
+            apdcam10g::byte mem[sizeof(T)];
+        } storage_;
+        apdcam10g::byte *address_ = 0;
+    public:
+        // A symbolic constant to query whether this particular converter is indeed
+        // making any conversion in the background, or not
+        const bool converts = true;
+
+        // Symbolic typedef for the actual native type
+        typedef T type;
+
+        // Constructor, initialize from the underlying memory region (byte array)
+        byte_converter(apdcam10g::byte *a =0) : address_(a) {}
+
+        // Set the address of the underlying byte array memory storage
+        void address(apdcam10g::byte *a)
+            {
+                address_ = a;
+            }
+
+        // Assignment operator. Any type can be assigned to this object which can be
+        // implicitly converted to the native type. The value is propagated down to the 
+        // underlying byte array in memory
+        template &lt;typename T2&gt;
+        byte_converter&lt;NBYTES,E,S,T,true&gt; &amp;operator=(const T2 &amp;t)
+            {
+                storage_.value = t;
+
+                if(S &amp;&amp; NBYTES !=sizeof(T2)) // optimized out at compile time if not needed
+                {
+                    // Loop over the truncated bytes (the most significant ones which will be discarded
+                    // because we are down-converting to a smaller number of bytes from the native type T
+                    for(unsigned int i=(std::endian::native==std::endian::little ? NBYTES : 0); 
+                        i&lt;(std::endian::native==std::endian::little ? sizeof(T2) : sizeof(T2)-NBYTES); 
+                        ++i)
+                    {
+                        if(storage_.mem[i] != (apdcam10g::byte)0) 
+                        { 
+                            std::string msg;
+                            std::ostringstream msgstream(msg);
+                            msgstream&lt;&lt;"The value '"&lt;&lt;t&lt;&lt;"' does not fit into "&lt;&lt;NBYTES&lt;&lt;" bytes";
+                            APDCAM_ERROR(msg);
+                        }
+                    }
+                }
+                
+
+                // Now copy the least significant bytes. Remember that the native type used to represent this value, T, may be
+                // longer than the number of bytes in the buffer. So we do need to take care to only copy NBYTES bytes, the
+                // least significant ones
+                // The conditions of these ifs are evaluable at compile time and will be optimized out
+                if(std::endian::native == std::endian::little)
+                {
+                    if(E == std::endian::native) std::copy        (storage_.mem, storage_.mem+NBYTES,address_); // if no endianness reversion is needed
+                    else                         std::reverse_copy(storage_.mem, storage_.mem+NBYTES,address_); // if endianness reversion is needed
+                }
+                else
+                {
+                    if(E == std::endian::native) std::copy        (storage_.mem+sizeof(T2)-NBYTES, storage_.mem+sizeof(T2),address_);
+                    else                         std::reverse_copy(storage_.mem+sizeof(T2)-NBYTES, storage_.mem+sizeof(T2),address_);
+                }
+                return *this;
+            }
+
+        // Type conversion operator to the native C++ type. The value is calculated from the byte
+        // array at each call so it automatically updates if the byte array is changed
+        operator T() const
+            {
+                // Make sure that unused bytes in the native type representation are zero
+                std::fill(storage_.mem,storage_.mem+sizeof(T),(apdcam10g::byte)0);
+                if(std::endian::native == std::endian::little)
+                {
+                    if(E == std::endian::native) std::copy        (address_, address_+NBYTES, storage_.mem);
+                    else                         std::reverse_copy(address_, address_+NBYTES, storage_.mem);
+                }
+                else
+                {
+                    if(E == std::endian::native) std::copy        (address_, address_+NBYTES, storage_.mem+sizeof(T)-NBYTES);
+                    else                         std::reverse_copy(address_, address_+NBYTES, storage_.mem+sizeof(T)-NBYTES);
+                }
+                return storage_.value;
+            }
+    };
+
+    template&lt;int NBYTES, std::endian E, int STARTBIT, int NBITS, safeness S=default_safeness&gt; class bits
+    {
+    public:
+        // A symbolic typedef: the native unsigned type that can store the the given number
+        // of bits
+        typedef shortest_int&lt;false,NBITS/8+(NBITS%8?1:0)&gt;::type type;
+
+        // A symbolic typedef: the native unsigned type that can store the given number of BYTES
+        typedef shortest_int&lt;false,NBYTES&gt;::type internal_type;
+        
+    private:
+        byte_converter&lt;NBYTES, E, S, internal_type, true &gt; converter_;
+        //byte_converter&lt;NBYTES, E, S, shortest_int&lt;false,NBYTES&gt;::type, true &gt; converter_;
+
+        // Even though there is a general make_mask function provided, we define here a private one
+        // with constexpr specification so that we guarantee compile-time evaluation
+        constexpr static internal_type make_mask_(const int nbits, const int startbit)
+            {
+                internal_type result = 0;
+                for(int i=0; i&lt;nbits; ++i) result |= 1&lt;&lt;(i+startbit);
+                return result;
+            }
+
+        // mask and inverse mask in-place (i.e. not shifted to the lowest bit).
+        // For extracting the bit-encoded value, the mask must first be applied, and then the value
+        // must be shifted
+        static const internal_type mask_ = make_mask_(NBITS,STARTBIT);
+        static const internal_type inverse_mask_ = ~mask_;
+    public:
+
+        bits(apdcam10g::byte *a=0) : converter_(a) {}
+
+        void address(apdcam10g::byte *a) { converter_.address(a); }
+
+        template &lt;typename T2&gt;
+        bits&lt;NBYTES, E, STARTBIT, NBITS, S&gt; &amp;operator=(const T2 &amp;t) 
+            { 
+                internal_type tmp = converter_;
+                converter_ = (tmp &amp; inverse_mask_) | ((((internal_type)t)&lt;&lt;STARTBIT) &amp; mask_);
+                return *this; 
+            }
+
+        operator type() const { return (((internal_type)converter_)&amp;mask_)&gt;&gt;STARTBIT; }
+
+        internal_type internal_value() const { return converter_; }
+    };
+
+
+    /*
+    class bytearray : std::vector&lt;unsigned char&gt;
+    {
+    public:
+        template &lt;typename T&gt;
+            bytearray(const T &amp;t, endian::type byteorder, int n=0);
+        
+        template &lt;typename T&gt;
+            static bytearray from(const T &amp;t, int n, endian::type byteorder);
+    };
+
+    bytearray operator+(const bytearray &amp;b1, const bytearray &amp;b2)
+    {
+        bytearray result = b1;
+        result.insert(result.end(),b2.begin(),b2.end());
+        return result;
+    }
+
+    template &lt;&gt;
+        bytearray::bytearray(const unsigned int &amp;value, endian::type byteorder, int n) : std::vector&lt;unsigned char&gt;((n==0 ? sizeof(unsigned int) : n))
+    {
+        const int N = size();
+        for(int i=0; i&lt;N; ++i)
+        {
+            int target_index = i;
+            if(byteorder == endian::big) target_index = N-i;
+            if(i&lt;sizeof(unsigned int)) (*this)[target_index] = (unsigned char)((value&gt;&gt;(8*i)) &amp; 0xff);
+            else (*this)[target_index] = 0;
+        }
+    }
+    */
+}
+
+#endif
+</pre></body></html>

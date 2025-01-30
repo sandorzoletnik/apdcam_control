@@ -1,0 +1,554 @@
+<html><body><pre>
+#ifndef __APDCAM10G_DAQ_H__
+#define __APDCAM10G_DAQ_H__
+
+#include &lt;tuple&gt;
+#include &lt;string&gt;
+#include &lt;vector&gt;
+#include &lt;cstddef&gt;
+#include &lt;thread&gt;
+#include &lt;iostream&gt;
+#include &lt;fstream&gt;
+#include &lt;atomic&gt;
+#include &lt;condition_variable&gt;
+#incude "<a target='ring_buffer.h' href='ring_buffer.h.html'>ring_buffer.h</a>"
+#incude "<a target='udp_packet_buffer.h' href='udp_packet_buffer.h.html'>udp_packet_buffer.h</a>"
+#incude "<a target='packet.h' href='packet.h.html'>packet.h</a>"
+#incude "<a target='channel_info.h' href='channel_info.h.html'>channel_info.h</a>"
+#incude "<a target='terminal.h' href='terminal.h.html'>terminal.h</a>"
+#incude "<a target='typedefs.h' href='typedefs.h.html'>typedefs.h</a>"
+#incude "<a target='udp.h' href='udp.h.html'>udp.h</a>"
+#incude "<a target='udp_packet_buffer.h' href='udp_packet_buffer.h.html'>udp_packet_buffer.h</a>"
+#incude "<a target='safeness.h' href='safeness.h.html'>safeness.h</a>"
+//#incude "<a target='daq_settings.h' href='daq_settings.h.html'>daq_settings.h</a>"
+#incude "<a target='channel_data_extractor.h' href='channel_data_extractor.h.html'>channel_data_extractor.h</a>"
+#incude "<a target='processor.h' href='processor.h.html'>processor.h</a>"
+#incude "<a target='utils.h' href='utils.h.html'>utils.h</a>"
+#incude "<a target='lockable.h' href='lockable.h.html'>lockable.h</a>"
+
+
+namespace apdcam10g
+{
+
+    // Return true if the mask (vector of booleans) of a given ADC board has at least one true element
+    bool has_enabled_channel(const std::vector&lt;bool&gt; &amp;mask);
+
+    // class daq_settings
+    // This class defines all settings which influence the data transfer between the camera and the PC, 
+    // providing read/write functions to load/save the settings from/to a file
+    // This way both the real data recording code and the fake camera can use the same settings.
+    // The template parameter is a class that is associated with a given channel. It is substituted
+    // with two different types:
+    // In apdcam10g::fake_camera it only stores channel info (chnanel number, etc)
+    // In apdcam10g::daq it contains a ring_buffer as well.
+
+    template &lt;typename CHINFO&gt;
+    class daq_settings
+    {
+    protected:
+        lockable&lt;std::string&gt; interface_;
+        const static int ipv4_header_ = 20;
+        const static int udp_header_ = 8;
+        std::atomic&lt;unsigned int&gt; mtu_ = 0;
+        std::atomic&lt;unsigned int&gt; octet_ = 0;
+
+        // The maximum UDP packet size, which is 22 bytes (streamheader) + 8*octet. At the end of a burst or a sequence
+        // of transmitted shots, there may be a smaller UDP packet if the shots do not fill an entire one, but
+        // all preceding packets will have this maximum size
+        std::atomic&lt;unsigned int&gt; max_udp_packet_size_ = 0;
+
+        // A lot of (redundant) information to be able to access and manipulate the memory storage
+        // in different ways efficiently
+        lockable&lt;std::vector&lt;std::vector&lt;bool&gt;&gt;&gt;              channel_masks_;           // Indices: ADC number, channel number within board. It is initialized for all channels being enabled
+        lockable&lt;std::vector&lt;unsigned int&gt;&gt;                   resolution_bits_;         // Index: ADC number. Initialized as 14 for all boards
+
+        // These data members below are not initialized by default. They are calculated by the 'calculate_channel_info' member function
+        // which must be called before the daq is started
+        lockable&lt;std::vector&lt;unsigned int&gt;&gt;                   board_bytes_per_shot_;    // index is ADC number
+        lockable&lt;std::vector&lt;std::vector&lt;unsigned int&gt;&gt;&gt;      chip_bytes_per_shot_;     // indices are ADC number (0..3max) and chip nummber (0..3)
+        lockable&lt;std::vector&lt;std::vector&lt;unsigned int&gt;&gt;&gt;      chip_offset_;             // Offset of the first data byte of the chip w.r.t. the board's first data byte, indices are ADC number and chip number
+
+        lockable&lt;std::vector&lt;CHINFO*&gt;&gt;               all_channels_;           // A vector of all possible channels (all physical channels of all present ADC boards). Zero pointer is stored for disabled ones.
+                                                                              // The vector index is the absolute channel number from 0 to 127
+        lockable&lt;std::vector&lt;CHINFO*&gt;&gt;               all_enabled_channels_;   // A vector of all of the enabled channels. Vector index is a continuously running index, the 'enabled channel index'
+        lockable&lt;std::vector&lt;std::vector&lt;CHINFO*&gt;&gt;&gt;  board_enabled_channels_; // An array of enabled channels grouped by ADC boards. First index is ADC board number, second index is the enabled channel index within
+                                                                              // the board, i.e. from 0 to maximum 31 (depending on how many channels of the given board are enabled)
+        lockable&lt;std::vector&lt;CHINFO*&gt;&gt;               board_last_enabled_channel_;  // The last enabled channel of each board. Vector index is the ADC board number. 
+
+        // Set MTU
+        void mtu(unsigned int m);
+
+        // A virtual function that creates a "channel info" class. It is overridden in the "daq" class to
+        // create a ring buffer for the channels with a given size
+        virtual CHINFO *create_channel_info() { return new CHINFO(); }
+
+    public:
+
+        void dump();
+
+        // Initialize with all possible ADC boards being present, with all of their channels being
+        // enabled, and all ADC boards' resolution being set to 14 bits
+        daq_settings();
+
+        ~daq_settings();
+
+        unsigned int n_adc() const { std::shared_lock lck(board_enabled_channels_); return board_enabled_channels_.size(); }
+        unsigned int n_channels() const { std::shared_lock lck(all_channels_); return all_channels_.size(); }
+
+        // get the MTU value (Maximum Transmission Unit, the biggest size of packet that can be sent
+        // without fragmentation) used for all sockets
+        unsigned int mtu() const { return mtu_; }
+
+        unsigned int octet() const { return octet_; }
+
+        daq_settings &amp;interface(const std::string &amp;i) { std::unique_lock lck(interface_); interface_ = i; return *this; }
+        const std::string &amp;interface() const { std::shared_lock lck(interface_); return interface_; }
+        daq_settings &amp;get_net_parameters();
+
+        // Set the channel masks
+        daq_settings &amp;channel_masks(const std::vector&lt;std::vector&lt;bool&gt;&gt; &amp;m) { std::unique_lock lck(channel_masks_); channel_masks_ = m; return *this; }
+        // Get the enabled/disabled status of a given channel
+        bool channel_mask(unsigned int i_adc, unsigned int i_channel_of_board) { std::shared_lock lck(channel_masks_); return channel_masks_[i_adc][i_channel_of_board]; }
+
+        // Set the resolutions for all ADC boards (the vector 'r' must have as many elements as there are ADC boards)
+        daq_settings &amp;resolution_bits(const std::vector&lt;unsigned int&gt; &amp;r) { resolution_bits_ = r;  return *this; }
+        daq_settings &amp;resolution_bits(std::initializer_list&lt;unsigned int&gt; r) {  resolution_bits(std::vector&lt;unsigned int&gt;{r}); return *this; }
+        // Get the resolution in bits for the given ADC board (0-based)
+        unsigned int resolution_bits(int i_adc) const { return resolution_bits_[i_adc]; }
+
+        // These functions only return meaningful results after calling calculate_channel_info();
+        unsigned int board_bytes_per_shot(int i_adc) { return board_bytes_per_shot_[i_adc]; }
+        unsigned int chip_bytes_per_shot(int i_adc, int i_chip) { return chip_bytes_per_shot_[i_adc][i_chip]; }
+        unsigned int chip_offset(int i_adc, int i_chip) { return chip_offset_[i_adc][i_chip]; }
+
+        // Return the number of all enabled channels
+        unsigned int enabled_channels() { return all_enabled_channels_.size(); }
+
+        // Return the number of enabled channels on board 'board_number' (0-based)
+//        unsigned int enabled_channels(unsigned int board_number) { return board_enabled_channels_[board_number].size(); }
+
+        // Returns the maximum size of the packets: the CC header + the ADC data 
+        // (but not including the UDP header, IPv4 header and Ethernet header)
+        // If fewer samples are available at the end of a burst or data recording sequence,
+        // the packet will be shorter.
+        unsigned int max_udp_packet_size() const { return max_udp_packet_size_; }
+        
+
+        // Read/write the configuration into a  file
+        void write_settings(const std::filesystem::path &amp;filename);
+        bool read_settings(const std::filesystem::path &amp;filename);
+
+        // Calculate the byte/bit offsets of the channels within the ADC bytes of a given sample,
+        // and the masks/shifts to extract the values
+        // calculates the bytes_per_sample_[...] values as well for each ADC
+        // The resolution_bits_[i_adc] array and channel_masks_ must be set before calling this function !!!
+        virtual void calculate_channel_info();
+
+        void print_channel_map(std::ostream &amp;out = std::cout);
+
+    };    
+
+    // The 'daq' class is the topmost element in the DAQ system. It starts "network threads"
+    // for each input socket which  dump the UDP packets into ring-buffers associated with each socket.
+    // It starts "extraction threads" for each socket to extract the data packed into and split among
+    // subsequent UDP packets, and dump this data into ring buffers associated with each channel.
+    // It starts a data processor thread that runs a sequence of processor tasks which can be
+    // defined by the user. And finally, it starts a command interpreter thread which reads input from
+    // the FIFO ~/.apdcam10g/cmd in order to provide a very simple control interface for external programs.
+
+    class daq : public daq_settings&lt;ring_buffer&lt;apdcam10g::data_type,channel_info&gt;&gt;
+    {
+        // ufff, bad design, should remove these friends....
+        friend class processor_diskdump;
+        friend class processor_test_pattern_match; 
+
+        // Being a singleton, the constructor is private and the only instance can be accessed
+        // via the static daq::instance() function
+        daq();
+
+      // The singleton instance. 
+        static daq *instance_;
+
+    private:
+        // A mutex to avoid concurrenty during initialization in daq::instance()
+        static std::mutex init_mutex_;
+
+        // An atomic flag to indicate whether the python task can run (or is running). Logically it should be a
+        // static variable in the scope of processor_python, but on the python side, we will load (ctypes.CDLL)
+        // all functions from  the shared library in the 'daq' "scope", so let's do the same here as well. Also,
+        // since class 'daq' is a singleton with an on-demand created instance, we can use a simple data member, 
+        // no need to worry about global data initialization order, etc
+        std::atomic_flag python_analysis_run_;
+
+        // A flag to signal the python processor loop (if there are any python processors added)
+        // that the data flow has terminated (nor more data is going to be processed).
+        // The python loop is not waiting on this, so it is necessary to wake
+        // it up by setting the python_analysis_run_ flag
+        std::atomic_flag python_analysis_stop_;
+
+        // a variable into which each python processor's earliers data counter is written,
+        // which is required to stay in the buffer/memory
+        std::atomic&lt;size_t&gt; python_analysis_needs_data_from_ = 0;
+
+        // variables to communicate the available data range to the python processors
+        std::atomic&lt;size_t&gt; python_analysis_data_available_from_ = 0;
+        std::atomic&lt;size_t&gt; python_analysis_data_available_to_ = 0;
+
+        // A flag to control debugging output
+        bool debug_ = false;
+
+        // Self-explanatory flag
+        bool dual_sata_ = false;
+
+        // Firmware version of the camera hardware
+        version fw_version_ = version::v1;
+
+        // The period (number of shots) for calling the processor tasks on the channel data. The default 128 means that once there are
+        // 128 new shots in the buffer, all processor tasks are triggered and run.
+        // It must be a power of 2
+        std::atomic&lt;unsigned int&gt; process_period_ = 128;
+
+        // The input network sockets to read data from
+        std::vector&lt;udp_server&gt;  sockets_;
+      
+        // A set of buffers to store received UDP packets, transparently handling packet loss
+        // (by replacing lost packets with zero-filled packets)
+        std::vector&lt;apdcam10g::udp_packet_buffer&lt;default_safeness&gt;*&gt; network_buffers_;
+
+        // In order to store channel info (which ADC board this channel belongs to, channel number, chip number etc),
+        // the 3rd template argument of ring_buffer is channel_info so that we derive from channel_info 
+        typedef ring_buffer&lt;apdcam10g::data_type,channel_info&gt; channel_data_buffer_t;
+
+        // a vector of nof_adc*channels_per_board buffer pointers. That is, we have a slot for each hardware
+        // channel, even if it is not enabled, and will receive no data.
+        // Non-enabled channels will be  associated with a null pointer. Rationale: python analysis tasks
+        // do not need to 
+        // However, no room is allocated for missing entire ADC boards since these would be 0 pointers
+//        std::vector&lt;channel_data_buffer_t*&gt; all_channels_buffers_;
+
+        // Flattened vector of the pointers to buffers for all enabled channels from all boards
+//        std::vector&lt;channel_data_buffer_t*&gt; all_enabled_channels_buffers_;
+
+        // Vector of vector of pointers to enabled channels. First index is adc board, second index is
+        // a running index over the enabled channels of that board
+//        std::vector&lt;std::vector&lt;channel_data_buffer_t*&gt;&gt; board_enabled_channels_buffers_;
+
+        // Vector of pointers to the buffers of the last enabled channel of the board. Index is board number
+//        std::vector&lt;channel_data_buffer_t*&gt; board_last_enabled_channel_buffers_;
+
+
+        std::vector&lt;std::jthread&gt;  network_threads_;    // read the UDP packets and produce data in the ring buffer
+        std::atomic_flag           network_threads_active_[config::max_boards]; // flags which indicate whether the given threads are active
+        std::vector&lt;std::jthread&gt;  extractor_threads_;  // extract the signals of the individual channels and store them in a per-channel ring buffer
+        std::atomic_flag           extractor_threads_active_[config::max_boards]; 
+        std::jthread               processor_thread_;   // analyze the signals (search for some signature, write to disk, whatever else)
+        std::atomic_flag           processor_thread_active_;
+        std::jthread               command_thread_;
+        std::atomic_flag           command_thread_active_;
+
+        // A vector of channel data extractors, one for each ADC board
+//        std::vector&lt;apdcam10g::channel_data_extractor&lt;default_safeness&gt;*&gt; extractors_;  
+
+        // A vector of different channel data processors, doing different tasks. That is, each element of this vector is doing a different
+        // analysis task on ALL channels of ALL ADC boards
+        std::vector&lt;processor *&gt; processors_;
+
+        std::atomic&lt;unsigned int&gt; network_buffer_size_ = 1&lt;&lt;10;    // The size of the network input ring buffer size in terms of UDP packets (real mamory is MTU*this_value measured in bytes)
+        std::atomic&lt;unsigned int&gt; channel_buffer_size_ = 1&lt;&lt;18;   // The number of channel signal values stored in memory before dumping to disk
+        std::atomic&lt;unsigned int&gt; channel_buffer_extra_size_ = 1&lt;&lt;8; // Extra size at the end of the sample buffers to flatten a flipped-back data range
+
+        std::filesystem::path cmd_fifo_name_ = configdir() / "cmd";
+
+
+        channel_data_buffer_t *create_channel_info() override { return new channel_data_buffer_t(channel_buffer_size_,channel_buffer_extra_size_); }
+
+    public:
+
+
+        static std::string section_start(std::string text);
+        static std::string section_end(std::string text);
+
+
+        // A function to query the status of the python_analysis_stop_ flag. It will be called from the python
+        // code within the processor loop to terminate if this is true
+        bool python_analysis_stop();
+
+        // Setting the phthon_analysis_stop_ flag (from C++) to stop the python analysis loop. 
+        void python_analysis_stop(bool b);
+
+        // To be called from the C++ code. Wait for the python analysis to finish. Block the calling thread until then.
+        // It returns the 'need_data_from' value that the python analysis task communicated to the C++ code
+        size_t python_analysis_wait_finish();
+
+        // To be called from the python code. Block until we are allowed to run because
+        // there is new data in the buffer
+        // Return the available data range in the two arguments
+        void python_analysis_wait_for_data(size_t *from_counter, size_t *to_counter);
+
+        // To be called from C++
+        // Set the available data range such that the python task can query it (via the 
+        // above 'python_analysis_wait_for_data function') and
+        // set the flag which signals the python thread to run the analysis task
+        void python_analysis_start(size_t from_counter, size_t to_counter); 
+
+        // To be called from python. Clear the flag to signal the C++ backend that the analysis
+        // task is done. Also, communicate from which shot the python analysis requires data to
+        // remain in the buffer
+        void python_analysis_done(size_t need_data_from);
+
+        // Accessing the singleton instance
+        static daq &amp;instance();
+
+        ~daq()
+        {
+//            for(auto p : extractors_) delete p;
+//            for(auto p : all_enabled_channels_buffers_) delete p;
+            unlink((configdir() / "pid").c_str());
+        }
+
+        // Returns the ring_buffer and other data associated with the given channel
+        channel_data_buffer_t *channel_buffer(unsigned int absolute_channel_number) 
+        {
+            if(absolute_channel_number&gt;=all_channels_.size()) return 0;
+            return all_channels_[absolute_channel_number];
+        }
+
+        void show_error(const std::string &amp;msg, const std::string &amp;location="")
+            {
+                output_lock lck;
+                cerr&lt;&lt;terminal::red_fg&lt;&lt;"[ERROR] "  &lt;&lt;msg&lt;&lt;" ["&lt;&lt;location&lt;&lt;"]"&lt;&lt;terminal::reset&lt;&lt;endl;
+            }
+        void show_warning(const std::string &amp;msg, const std::string &amp;location="")
+            {
+                output_lock lck;
+                cerr&lt;&lt;terminal::orange_fg&lt;&lt;"[WARNING] "&lt;&lt;msg&lt;&lt;" ["&lt;&lt;location&lt;&lt;"]"&lt;&lt;terminal::reset&lt;&lt;endl;
+            }
+
+        daq &amp;dual_sata(bool d) { dual_sata_ = d; return *this; }
+        bool dual_sata() const { return dual_sata_; }
+
+        daq &amp;fw_version(version v) { fw_version_ = v; return *this; }
+        version fw_version() const { return fw_version_; }
+
+        daq &amp;clear_processors();
+
+        daq &amp;add_processor(processor *p) 
+            { 
+                p-&gt;set_daq(this);
+                processors_.push_back(p); 
+                return *this ;
+            }
+
+        void finish();
+
+        void debug(bool d) 
+            {
+                debug_ = d;
+//                for(auto e : extractors_) if(e) e-&gt;debug(d);
+            }
+
+        // Pause all diskdump processors (they will process the data but will not write it to disk)
+        void diskdump_pause();
+        
+        // Resume all diskdump processors (writing to disk continues)
+        void diskdump_resume();
+
+        // Set a sampling number for all diskdump processors. That is, only shot numbers being an integer multiple
+        // of 's' will be written to disk (to save space). Currently it writes no markers in the file so the user
+        // can not reconstruct the shot numbers from the file. This should be further developed. 
+        void diskdump_sampling(unsigned int s);
+
+        // Set the process period (the number of shots to trigger the processor tasks to run)
+        // Must be called before init(...), the value must be a power of 2
+        daq &amp;process_period(unsigned int p);
+      
+        // Set the buffer size, the number of channel signal values (for each ADC separately) buffered in memory before dumping them to disk
+        // Must be called before init(...)
+        daq &amp;channel_buffer_size(unsigned int b) { channel_buffer_size_ = b; return *this; }
+        unsigned int channel_buffer_size() const { return channel_buffer_size_; }
+        daq &amp;channel_buffer_extra_size(unsigned int e) { channel_buffer_extra_size_ = e; return *this; }
+        unsigned int channel_buffer_extra_size() const { return channel_buffer_extra_size_; }
+
+        // Set the size of the network input ring buffer size in terms of UDP packets (real mamory is MTU*this_value measured in bytes)
+        // Must be called before init(...)
+        daq &amp;network_buffer_size(unsigned int b) { network_buffer_size_ = b; return *this; }
+        unsigned int network_buffer_size() const { return network_buffer_size_; }
+
+        // Return a formatted help text describing the available commands (to be sent to the running DAQ process
+        // via the command apdcam-daq -c
+        static std::string cmd_help_text();
+
+        // Print the formatted help text to the standard error
+        static void cmd_help() { cout&lt;&lt;cmd_help_text()&lt;&lt;endl; }
+
+        // Start/stop the command interpreter thread, via which one can interact with the running DAQ process
+        void start_cmd_thread();
+        void stop_cmd_thread();
+
+        // The specified safeness is transmitted to the signal extractor
+        template &lt;safeness S=default_safeness&gt;
+        daq &amp;init();
+
+        // Start the data processing with a given safeness. The specified safeness is transmitted to socket recv
+        template &lt;safeness S=default_safeness&gt;
+        daq &amp;start(bool wait=false);
+
+        // Stops the DAQ process by gently interrupting the network input threads. These will then raise the 'terminated' flag in
+        // the network buffers, the data extractor threads will thereby be notified and stop, but they will also raise the
+        // 'terminated' flags in the channel data buffers, causing finally the processor thread to also terminate. So a soft
+        // stop in the network reader threads will propagate through all threads, and stop them.
+        // If the timeout argument is zero, the function returns immediately and does not check if and when the threads finish.
+        // If the timeout argument is larger than zero, this function will block until all threads are finished, but latest
+        // the given time in seconds, and then gracelessly terminate all worker threads
+        template &lt;safeness S=default_safeness&gt;
+        daq &amp;stop(unsigned int timeout_sec=0);
+
+        // Gracelessly kill the DAQ threads, sending them the KILL signal.
+        // Normally it should not be used, since 'stop' can do it gently
+        daq &amp;kill();
+
+        // Wait for all threads to finish, join them
+        daq &amp;wait_finish();
+
+        void dump();
+
+        // Returns the number of received packets of the given stream (0-based)
+        size_t received_packets(unsigned int i_stream) const;
+
+        // Returns the number of lost packets of the given stream
+        size_t lost_packets(unsigned int i_stream) const;
+
+        bool network_thread_active(unsigned int i_stream) const;
+        bool extractor_thread_active(unsigned int i_stream) const;
+        bool processor_thread_active() const;
+
+        unsigned int network_threads() const;
+        unsigned int extractor_threads() const;
+        unsigned int processor_threads() const;
+
+        size_t network_buffer_content(unsigned int i_stream) const;
+        size_t max_network_buffer_content(unsigned int i_stream) const;
+        
+        size_t channel_buffer_content(unsigned int i_channel) const;
+        size_t max_channel_buffer_content(unsigned int i_channel) const;
+
+        // Returns the actual content of the buffer of the last chnanel of the given board
+        // (other channels have the same number of entries in their buffer, or one more)
+        size_t channel_buffer_content_of_board(unsigned int i_adc) const;
+
+        // Returns the maximum content of the buffer of the last channel of the given board
+        // since the start of the dadta acqvisition
+        size_t max_channel_buffer_content_of_board(unsigned int i_adc) const;
+
+        size_t extracted_shots(unsigned int i_channel) const;
+        size_t extracted_shots_of_board(unsigned int i_adc) const;
+    };
+
+#define CLASS_DAQ_DEFINED
+
+
+}
+
+
+// -----------  Python-interface functions ----------------------------
+#ifdef FOR_PYTHON
+extern "C"
+{
+    using namespace apdcam10g;
+
+    unsigned int n_adc();
+    unsigned int n_channels();
+
+    void start(bool wait=false);
+    void stop(bool wait=true);
+    void kill_all();  // both 'kill' and 'abort' would conflict with existing standard C library functions
+    void version(apdcam10g::version v);
+    void dual_sata(bool d);
+    void channel_masks(bool **m, int n_adc_boards);
+    void resolution_bits(unsigned int *r, int n_adc_boards);
+    void add_processor_diskdump(unsigned int process_period,unsigned int sampling);
+    void add_processor_python();
+    void debug(bool d);
+    void init(bool safe);
+    void write_settings(const char *filename);
+    void wait_finish();        
+    void dump();
+    void test();
+    void clear_processors();
+    void default_output_dir(const char *dirname);
+    void interface(const char *i);
+
+    // Set the network buffer and sample buffer sizes (capacities). It does not take immediate effect, only
+    // when daq::init is called
+    void network_buffer_size(unsigned int bufsize);
+    void channel_buffer_size(unsigned int bufsize); 
+
+    unsigned int get_network_buffer_size();
+    unsigned int get_channel_buffer_size();
+
+    unsigned int get_mtu();
+    unsigned int get_octet();
+
+    size_t received_packets(unsigned int i_stream);
+    size_t lost_packets(unsigned int i_stream);
+
+    size_t network_buffer_content(unsigned int i_stream);
+    size_t max_network_buffer_content(unsigned int i_stream);
+    size_t channel_buffer_content(unsigned int i_channel);
+    size_t max_channel_buffer_content(unsigned int i_channel);
+    size_t channel_buffer_content_of_board(unsigned int i_stream);
+    size_t max_channel_buffer_content_of_board(unsigned int i_stream);
+
+    // Returns the number of extracted shots for the given channel (absolute channel number)
+    size_t extracted_shots(unsigned int i_channel);
+
+    // REturns hte number of extracted shots for the last enabled channel of the
+    // given board (previous channels of the same board have at least this many
+    // shots extracted)
+    size_t extracted_shots_of_board(unsigned int i_stream);
+
+    unsigned int network_threads();
+    unsigned int extractor_threads();
+    unsigned int processor_threads();
+
+    bool network_thread_active(unsigned int i_stream);
+    bool extractor_thread_active(unsigned int i_stream);
+    bool processor_thread_active();
+
+    void diskdump_sampling(unsigned int s);
+
+    void start_cmd_thread();
+    void stop_cmd_therad();
+
+    // Return the number of acquired UDP packets and extracted shots
+//    void statistics(unsigned int *n_packets, unsigned int *n_shots);
+
+    // Query the status of the DAQ process, in particular the number of active network, extractor and processor threads
+//    void status(unsigned int *n_active_network_threads, unsigned int *n_active_extractor_threads, unsigned int *n_active_processor_thread);
+
+
+    // Return the channel #absolute_chnanel_number data's ring buffer's size and memory buffer
+    // in the 2nd and 3rd argument
+    void get_buffer(unsigned int absolute_channel_number, unsigned int *buffersize, apdcam10g::data_type **buffer);
+
+    // To be called from a python analysis task: block the calling thread until data for the next python
+    // analysis task becomes available
+    void python_analysis_wait_for_data(size_t *from_counter, size_t *to_counter);
+
+    // From a python analysis task: set/communicate the earliest data counter to the C++ DAQ backend
+    // that the task still requires to stay in the ring buffers, and set a flag to inform the C++
+    // DAQ backend that the python task has finished analyzing the data
+    void python_analysis_done(size_t from_counter);
+
+    bool python_analysis_stop();
+
+
+}
+
+
+
+#endif
+
+#endif
+
+</pre></body></html>

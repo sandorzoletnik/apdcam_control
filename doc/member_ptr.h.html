@@ -1,0 +1,98 @@
+<html><body><pre>
+#ifndef __APDCAM10G_MEMBER_PTR_H__
+#define __APDCAM10G_MEMBER_PTR_H__
+
+namespace apdcam10g
+{
+    /*
+
+      Description of the problem:
+
+      class Base { virtual void show() { cerr&lt;&lt;"Base"&lt;&lt;endl; }
+      class Derived : public Base { void show() { cerr&lt;&lt;"Derived"&lt;&lt;endl; }
+      class Parent
+      {
+        public:
+          Derived d;
+      }
+
+      Now, even though Derived is based from Base, one can not store the pointer-to-member of the member 'd'
+      in a "Base Parent::*" type variable:
+
+      Base Parent::*ptr = &amp;Parent::d;   // error
+      
+     */
+
+    template &lt;typename PARENT, typename BASE, typename DERIVED&gt;
+    class member_ptr__ : public member_ptr__&lt;PARENT,BASE,void&gt;
+    {
+    private:
+        DERIVED PARENT::*ptr_ = 0;
+    public:
+
+        // Constructor, initialize to point to a given member of type DERIVED
+        // of a class of type PARENT
+        member_ptr__(DERIVED PARENT::*p) : ptr_(p) {}
+        
+        const member_ptr__&lt;PARENT,BASE,DERIVED&gt; &amp;operator= (DERIVED PARENT::*p)
+            {
+                ptr_ = p;
+                return *this;
+            }
+        
+        typedef DERIVED PARENT::*type;
+        operator type() const { return ptr_; }
+        
+        BASE *dereference(PARENT *p)
+            {
+                return &amp;(p-&gt;*ptr_);
+            }
+        member_ptr__&lt;PARENT,BASE,DERIVED&gt; *clone() const
+            {
+                return new member_ptr__&lt;PARENT,BASE,DERIVED&gt;(ptr_);
+            }
+    };
+    
+    // The base class (specialization), which only provides a virtual dereferencing parenthesis operator.
+    template &lt;typename PARENT, typename BASE&gt;
+    class member_ptr__&lt;PARENT,BASE,void&gt;
+    {
+    public:
+        virtual BASE *dereference(PARENT *p) = 0;
+    };
+    
+
+    template &lt;typename PARENT, typename BASE&gt;
+    class member_ptr
+    {
+    private:
+        member_ptr__&lt;PARENT,BASE,void&gt; *ptr_ = 0;
+
+    public:
+        ~member_ptr() { delete ptr_; }
+        member_ptr(const member_ptr&lt;PARENT,BASE&gt; &amp;rhs) { ptr_ = rhs.ptr_-&gt;clone(); }
+        template &lt;typename DERIVED&gt;
+        member_ptr(DERIVED PARENT::*p) { ptr_ = new member_ptr__&lt;PARENT,BASE,DERIVED&gt;(p); }
+
+        template &lt;typename DERIVED&gt;
+        const member_ptr&lt;PARENT,BASE&gt; &amp;operator=(DERIVED PARENT::*p) 
+            {
+                delete ptr_;
+                ptr_ = new member_ptr__&lt;PARENT,BASE,DERIVED&gt;(p);
+                return *this;
+            }
+
+        BASE *operator()(PARENT *p)
+            {
+                if(!ptr_) return 0;
+                return ptr_-&gt;dereference(p);
+            }
+    };
+
+
+    
+        
+}
+
+#endif
+</pre></body></html>

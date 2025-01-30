@@ -1,0 +1,118 @@
+<html><body><pre>
+#ifndef __APDCAM10G_CHANNEL_INFO_H__
+#define __APDCAM10G_CHANNEL_INFO_H__
+
+#incude "<a target='typedefs.h' href='typedefs.h.html'>typedefs.h</a>"
+#incude "<a target='bytes.h' href='bytes.h.html'>bytes.h</a>"
+#incude "<a target='utils.h' href='utils.h.html'>utils.h</a>"
+#incude "<a target='test_pattern.h' href='test_pattern.h.html'>test_pattern.h</a>"
+#include &lt;iostream&gt;
+#include &lt;atomic&gt;
+
+namespace apdcam10g
+{
+
+    /*
+      This class stores information about how the channel data is encoded in the byte stream of a given ADC board,
+      taking into account which channels are enabled, and what is the bit-resolution
+     */
+
+    struct channel_info
+    {
+        void dump()
+            {
+                using namespace std;
+                output_lock lck;
+                cerr&lt;&lt;"Board: "&lt;&lt;board_number&lt;&lt;", chip: "&lt;&lt;chip_number&lt;&lt;", channel: "&lt;&lt;channel_number&lt;&lt;", abs. channel: "&lt;&lt;absolute_channel_number&lt;&lt;", enabled channel: "&lt;&lt;enabled_channel_number&lt;&lt;endl;
+                cerr&lt;&lt;"Byte offset: "&lt;&lt;byte_offset&lt;&lt;endl;
+                cerr&lt;&lt;"Nbytes: "&lt;&lt;nbytes&lt;&lt;endl;
+                cerr&lt;&lt;"Nbits:  "&lt;&lt;nbits&lt;&lt;endl;
+                cerr&lt;&lt;"Shift:  "&lt;&lt;shift&lt;&lt;endl;
+                cerr&lt;&lt;endl;
+                
+            }
+
+
+        // The number (0..3) of the ADC board of this channel
+        std::atomic&lt;unsigned int&gt; board_number;
+
+        // The number (0..3) of the chip within the ADC board
+        std::atomic&lt;unsigned int&gt; chip_number;
+
+        // The channel number (0..31 inclusive) within the ADC board
+        std::atomic&lt;unsigned int&gt; channel_number;
+
+        // The absolute channel number (0..127 inclusive)
+        std::atomic&lt;unsigned int&gt; absolute_channel_number;
+
+        // An index running from 0 over the enabled channels. 
+        std::atomic&lt;unsigned int&gt; enabled_channel_number;
+
+        // The offset of the first byte (full or partial) of this channel w.r.t. the ADC board's data, 
+        // i.e. the first byte of the first (enabled) channel of the first chip of a given shot.
+        std::atomic&lt;unsigned int&gt; byte_offset;
+        
+        // The number of bytes that this value is extending over. Possible values are
+        // 1 - if resolution is 8-bit
+        // 2
+        // 3 - if resolution is 12-bit
+        std::atomic&lt;unsigned int&gt; nbytes;
+
+        // The number of bits
+        std::atomic&lt;unsigned int&gt; nbits;
+
+        // The amount of bitwise right-shift (i.e. towards least significant bit)
+        std::atomic&lt;unsigned int&gt; shift;
+
+        data_type get_from_shot(const apdcam10g::byte *shot_buffer)
+            {
+                const apdcam10g::byte * const ptr = shot_buffer + byte_offset;
+                switch(nbytes)
+                {
+                    // For 1 and 2 bytes we fit into data_type. However, if the value reaches over 3 bytes, we need to use a larger integer to represent it
+                    // before shifting down to the least significant bit.
+                case 2: return ((data_type(ptr[0])&lt;&lt;8 | data_type(ptr[1])) &gt;&gt; shift) &amp; make_mask&lt;data_type&gt;(nbits,0); 
+                case 3: return data_type( (data_envelope_type(ptr[0])&lt;&lt;16 | data_envelope_type(ptr[1])&lt;&lt;8 | data_envelope_type(ptr[2])) &gt;&gt; shift) &amp; make_mask&lt;data_type&gt;(nbits,0); 
+                case 1: return(data_type(ptr[0])&gt;&gt;shift) &amp; make_mask&lt;data_type&gt;(nbits,0); 
+                default: APDCAM_ERROR("Bug! Number of bytes should be 1, 2 or 3");
+                }
+            }
+
+        void set_in_shot(apdcam10g::byte *shot_buffer, data_type value)
+            {
+                // Create an envelope-type value (i.e. that type which can hold the value even after bit-shifting),
+                // and shift it
+                data_envelope_type val = data_envelope_type(value) &lt;&lt; shift;
+                
+                // Pointer to the right-most (least significant) byte
+                apdcam10g::byte *ptr = shot_buffer + byte_offset + nbytes - 1;
+
+                int remaining_bits = nbits;
+                int actual_shift = shift;
+
+                // We iterate from right to left, i.e. from the least significant byte to the most significant one
+                for(int i_byte = nbytes-1; i_byte &gt;= 0; --i_byte)
+                {
+                    // The number of bits that would fit into the current byte
+                    const int actual_bits = std::min(8-actual_shift,remaining_bits);
+                    const auto mask = make_mask&lt;apdcam10g::byte&gt;(actual_bits,actual_shift);
+                    shot_buffer[byte_offset+i_byte] = ( shot_buffer[byte_offset+i_byte] &amp; ~mask ) | ( (apdcam10g::byte)val &amp; mask );
+                    actual_shift = 0;
+                    remaining_bits -= actual_bits;
+                    // We have processed one byte from the value, so shift it out
+                    val &gt;&gt;= 8;
+                }
+            }
+
+    };
+
+    class channel_info_with_generator : public channel_info
+    {
+    public:
+        test_pattern_generator *generator = 0;
+    };
+  
+}
+
+#endif
+</pre></body></html>
