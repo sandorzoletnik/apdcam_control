@@ -45,6 +45,14 @@
           <li>Loop indices are verbose. Instead of using <tt>i</tt> as
           the loop index, I tried to use indices like <tt>i_adc</tt>
             (index running over the ADC boards), etc
+          <li>Private member names of classes are postfixed by underscore, e.g. <tt>ring_buffer::pop_counter_</tt>
+          <li>Getter/setter functions only differ by their argument lists, e.g. <tt>some_class::name()</tt> returns
+            the <tt>name</tt> property,
+            whereas <tt>some_class::name(const string &n)</tt> sets
+            the name. This convention is sometimes broken due to
+            conflicts in which case explicit names are
+            provided: <tt>get_name()</tt> and <tt>set_name(const
+            string &n)</tt>
         </ul>
       </dd>
     </dll>
