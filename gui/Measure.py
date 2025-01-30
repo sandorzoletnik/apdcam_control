@@ -38,7 +38,8 @@ class Measure(QtWidgets.QWidget):
         self.sampleNumber.setMaximum(1000000)
         self.sampleNumber.setValue(10)
         self.sampleNumber.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
-        self.sampleNumber.lineEdit().returnPressed.connect(lambda: self.gui.camera.setSampleNumber(self.sampleNumber.value()))
+        #self.sampleNumber.lineEdit().returnPressed.connect(lambda: self.gui.camera.setSampleNumber(self.sampleNumber.value()))
+        self.sampleNumber.lineEdit().editingFinished.connect(lambda: self.gui.camera.setSampleNumber(self.sampleNumber.value()))
         self.sampleNumber.setToolTip("Set the number of samples to acquire")
         h.addWidget(self.sampleNumber)
 
@@ -76,7 +77,8 @@ class Measure(QtWidgets.QWidget):
         self.daqNetworkBufferSize.setMinimum(2)
         self.daqNetworkBufferSize.setMaximum(1<<20)
         self.daqNetworkBufferSize.setValue(DAQ().get_network_buffer_size())
-        self.daqNetworkBufferSize.lineEdit().returnPressed.connect(lambda: DAQ().network_buffer_size(self.daqNetworkBufferSize.value()))
+        #self.daqNetworkBufferSize.lineEdit().returnPressed.connect(lambda: DAQ().network_buffer_size(self.daqNetworkBufferSize.value()))
+        self.daqNetworkBufferSize.lineEdit().editingFinished.connect(lambda: DAQ().network_buffer_size(self.daqNetworkBufferSize.value()))
         h.addWidget(self.daqNetworkBufferSize)
         h.addStretch(1)
 
@@ -85,7 +87,8 @@ class Measure(QtWidgets.QWidget):
         self.daqSampleBufferSize.setMinimum(2)
         self.daqSampleBufferSize.setMaximum(1<<20)
         self.daqSampleBufferSize.setValue(DAQ().get_channel_buffer_size())
-        self.daqSampleBufferSize.lineEdit().returnPressed.connect(lambda: DAQ().channel_buffer_size(self.daqSampleBufferSize.value()))
+        #self.daqSampleBufferSize.lineEdit().returnPressed.connect(lambda: DAQ().channel_buffer_size(self.daqSampleBufferSize.value()))
+        self.daqSampleBufferSize.lineEdit().editingFinished.connect(lambda: DAQ().channel_buffer_size(self.daqSampleBufferSize.value()))
         h.addWidget(self.daqSampleBufferSize)
         h.addStretch(5)
 
@@ -162,6 +165,7 @@ class Measure(QtWidgets.QWidget):
         layout.addStretch(1)
 
     def updateDaqState(self):
+
         if not hasattr(self,"updateDaqStateCounter"):
             self.updateDaqStateCounter = 0
         self.updateDaqStateCounter += 1
@@ -170,9 +174,8 @@ class Measure(QtWidgets.QWidget):
         if self.updateDaqStateCounter%3==1:
             self.MTU_label.setText(str(DAQ().get_mtu()))
             self.OCTET_label.setText(str(DAQ().get_octet()))
-        
-        self.processorThreads.setText(str(DAQ().processor_threads()))
 
+        self.processorThreads.setText(str(DAQ().processor_threads()))
 
         n_adc = DAQ().n_adc()
         
@@ -201,14 +204,14 @@ class Measure(QtWidgets.QWidget):
 
 
     def abortMeasurement(self):
-        DAQ().kill_all()
+        dummy = DAQ().kill_all()
 
     def stopMeasurement(self):
-        DAQ().stop(False)
+        dummy = DAQ().stop(False)
         
     def startMeasurement(self):
 
-        DAQ().default_output_dir(self.dataDirectory.text().encode('utf-8'))
+        dummy = DAQ().default_output_dir(self.dataDirectory.text().encode('utf-8'))
 
         channelMasks = []
         resolutionBits = []

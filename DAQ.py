@@ -59,8 +59,12 @@ def convertToCArray(l,ctype):
 
 
 
-# Load the shared library if it hasnt been loaded yet, and set up the argument and return types
-# of the functions defined therein
+# This function is the interface to the DAQ C++ code. It returns a reference to the CDLL.
+# If thiiiis shared library has not been loaded yet, it loads first, and make some setup:
+# it defines the arguments and return values of the functions defined therein, and in addition,
+# it pythonifies some of those functions by creating wrapper functions which accept python types
+# (for example a python list, instead of C pointers), and replace the functions by these wrappers.
+# If the library has already been loaded, it simply returns a reference to it.
 def DAQ():
     traceback.print_exc()
     if DAQ.instance_ is None:
@@ -68,20 +72,17 @@ def DAQ():
         getos=os.path.join(dir,"c++/getos")
         os_label=subprocess.check_output([getos]).decode('utf-8').strip()
         dllpath = os.path.join(dir,"c++","binaries",os_label,"libapdcam10g.so")
-#        dllpath = os.path.join(dir,"c++","binaries",os_label,"libtest.so")
         print("Loading shared library: " + dllpath)
         DAQ.instance_ = ctypes.CDLL(dllpath)
 
         print("Loaded the shared library")
 
-        DAQ.instance_.printint()
-        
         if DAQ.instance_ is None:
             print("Failed to load shared library")
             return None
 
-#        DAQ.instance_.get_net_parameters.restype = None
-#        DAQ.instance_.get_net_parameters.argtypes = []
+        DAQ.instance_.interface.restype = None
+        DAQ.instance_.write_settings.argtypes = [ctypes.c_char_p]
 
         DAQ.instance_.write_settings.restype = None
         DAQ.instance_.write_settings.argtypes = [ctypes.c_char_p]
@@ -110,7 +111,7 @@ def DAQ():
         DAQ.instance_.add_processor_diskdump.argtypes = [ctypes.c_uint,ctypes.c_uint]
         orig_add_processor_diskdump = DAQ.instance_.add_processor_diskdump
         def add_processor_diskdump(process_period=1000,sampling=1):
-            orig_add_processor_diskdump(process_period,sampling)
+            dummy = orig_add_processor_diskdump(process_period,sampling)
         DAQ.instance_.add_processor_diskdump = add_processor_diskdump
 
         DAQ.instance_.add_processor_python.restype = None
@@ -179,13 +180,13 @@ def DAQ():
         # Overwrite the C++ library's 'channel_masks' routine by a wrapper which accepts python list
         orig_channel_masks = DAQ.instance_.channel_masks
         def channel_masks(m):
-            orig_channel_masks(convertToCArray(m,ctypes.c_bool),len(m))
+            dummy = orig_channel_masks(convertToCArray(m,ctypes.c_bool),len(m))
         DAQ.instance_.channel_masks = channel_masks
 
         # Overwrite the C++ library's 'resolution_bits' routine by a wrapper which accepts a python list
         orig_resolution_bits = DAQ.instance_.resolution_bits
         def resolution_bits(r):
-            orig_resolution_bits(convertToCArray(r,ctypes.c_uint),len(r))
+            dummy = orig_resolution_bits(convertToCArray(r,ctypes.c_uint),len(r))
         DAQ.instance_.resolution_bits = resolution_bits
 
         # Overwrite the C++ library 'add_processor_python'
@@ -195,7 +196,7 @@ def DAQ():
             # That class has no connection to the actual python class that is doing the real job. The C++ python_processor
             # is only a bookkeeper that sets the flag that allows the next python object to run, and then obtains
             # its return value
-            orig_add_processor_python()
+            dummy = orig_add_processor_python()
             # In addition, add this python processor to the list of processors
             DAQ.python_processors_.append(p)
         DAQ.instance_.add_processor_python = add_processor_python
@@ -204,7 +205,7 @@ def DAQ():
         orig_clear_processors = DAQ.instance_.clear_processors
         # define a new one which just calls the old one, and also clears the list of python processors
         def clear_processors():
-            orig_clear_processors()
+            dummy = orig_clear_processors()
             DAQ.python_processors_ = []
         # set the new one
         DAQ.instance_.clear_processors = clear_processors
@@ -218,17 +219,15 @@ def DAQ():
         def start(wait):
             # Call this function to make sure we set the C++/python communication flag to
             # the right state
-            DAQ.instance_.python_analysis_done(0)
+            dummy = DAQ.instance_.python_analysis_done(0)
             if len(DAQ.python_processors_) > 0:
-
                 buffers = [None]*Config.max_channels
                 for i in range(len(buffers)):
                     b = ctypes.POINTER(ctypes.c_uint16)()
                     n = ctypes.c_uint()
-                    DAQ.instance_.get_buffer(i,ctypes.byref(n),ctypes.byref(b))
+                    dummy = DAQ.instance_.get_buffer(i,ctypes.byref(n),ctypes.byref(b))
                     if b:
                         buffers[i] = RingBuffer(ctypes.c_uint16,n.value,b)
-
 
                 # Define a function which loops until we stop it, and in each loop it
                 # calls all processors
@@ -247,8 +246,7 @@ def DAQ():
 
                 DAQ.python_processor_thread_ = threading.Thread(target=processor_loop)
                 DAQ.python_processor_thread_.start()
-            orig_start(wait)
-
+            dummy = orig_start(wait)
 
         DAQ.instance_.start = start
 

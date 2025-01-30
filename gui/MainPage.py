@@ -8,6 +8,9 @@ QtWidgets = importlib.import_module(QtVersion+".QtWidgets")
 QtGui     = importlib.import_module(QtVersion+".QtGui")
 Qt = importlib.import_module(QtVersion+".QtCore")
 
+from DAQ import *
+
+
 #from PyQt6.QtWidgets import QApplication, QWidget, QFormLayout, QVBoxLayout, QHBoxLayout, QGridLayout, QTabWidget, QLineEdit, QDateEdit, QPushButton, QTextEdit, QGroupBox, QLabel
 #from PyQt6.QtCore import Qt
 
@@ -33,6 +36,9 @@ class MainPage(QtWidgets.QWidget):
         addressGroupBox.addWidget(QtWidgets.QLabel("Interface: "),1,0)
         self.interface = QtWidgets.QLineEdit()
         addressGroupBox.addWidget(self.interface,1,1)
+        self.interface.setText("lo")
+
+        self.interface.editingFinished.connect(lambda: DAQ().interface(self.interface.text()))
 
         layout.addWidget(QtWidgets.QLabel("Camera type:"))
         self.cameraType = QtWidgets.QTextEdit()

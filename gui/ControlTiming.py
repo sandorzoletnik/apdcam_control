@@ -284,8 +284,10 @@ class ControlTiming(QtWidgets.QWidget):
         self.serialPllFreq.setCurrentText(frequencyFormat.format(20.0*self.serialPllMult.value()/self.serialPllDiv.value()))
 
         self.serialPllFreq.activated               .connect(self.gui.call(lambda: setFreqMultDiv(self.serialPllMult,self.serialPllDiv,self.serialPllFreq) and self.setSerialPll()))
-        self.serialPllMult.lineEdit().returnPressed.connect(self.gui.call(lambda: setFreqCombo  (self.serialPllMult,self.serialPllDiv,self.serialPllFreq) and self.setSerialPll()))
-        self.serialPllDiv .lineEdit().returnPressed.connect(self.gui.call(lambda: setFreqCombo  (self.serialPllMult,self.serialPllDiv,self.serialPllFreq) and self.setSerialPll()))
+        #self.serialPllMult.lineEdit().returnPressed.connect(self.gui.call(lambda: setFreqCombo  (self.serialPllMult,self.serialPllDiv,self.serialPllFreq) and self.setSerialPll()))
+        self.serialPllMult.lineEdit().editingFinished.connect(self.gui.call(lambda: setFreqCombo  (self.serialPllMult,self.serialPllDiv,self.serialPllFreq) and self.setSerialPll()))
+        #self.serialPllDiv .lineEdit().returnPressed.connect(self.gui.call(lambda: setFreqCombo  (self.serialPllMult,self.serialPllDiv,self.serialPllFreq) and self.setSerialPll()))
+        self.serialPllDiv .lineEdit().editingFinished.connect(self.gui.call(lambda: setFreqCombo  (self.serialPllMult,self.serialPllDiv,self.serialPllFreq) and self.setSerialPll()))
                                                                                  
 
         # ----------------------- ADC PLL parameters/frequency -----------------------------------------
@@ -323,8 +325,10 @@ class ControlTiming(QtWidgets.QWidget):
         self.adcPllFreq.currentTextChanged.connect(self.updateSamplingFrequency)
 
         self.adcPllFreq.activated.connect               (lambda: setFreqMultDiv(self.adcPllMult,self.adcPllDiv,self.adcPllFreq) and self.setAdcClockParameters())
-        self.adcPllMult.lineEdit().returnPressed.connect(lambda: setFreqCombo  (self.adcPllMult,self.adcPllDiv,self.adcPllFreq) and self.setAdcClockParameters())
-        self.adcPllDiv.lineEdit() .returnPressed.connect(lambda: setFreqCombo  (self.adcPllMult,self.adcPllDiv,self.adcPllFreq) and self.setAdcClockParameters())
+        #self.adcPllMult.lineEdit().returnPressed.connect(lambda: setFreqCombo  (self.adcPllMult,self.adcPllDiv,self.adcPllFreq) and self.setAdcClockParameters())
+        self.adcPllMult.lineEdit().editingFinished.connect(lambda: setFreqCombo  (self.adcPllMult,self.adcPllDiv,self.adcPllFreq) and self.setAdcClockParameters())
+        #self.adcPllDiv.lineEdit() .returnPressed.connect(lambda: setFreqCombo  (self.adcPllMult,self.adcPllDiv,self.adcPllFreq) and self.setAdcClockParameters())
+        self.adcPllDiv.lineEdit() .editingFinished.connect(lambda: setFreqCombo  (self.adcPllMult,self.adcPllDiv,self.adcPllFreq) and self.setAdcClockParameters())
         
         
 
@@ -361,8 +365,10 @@ class ControlTiming(QtWidgets.QWidget):
         g.addWidget(self.extClockFreqScaled,3,4)
         self.extClockFreqScaled.valueChanged.connect(self.updateSamplingFrequency)
 
-        self.extClockMult.lineEdit().returnPressed.connect(self.setAdcClockParameters)
-        self.extClockDiv.lineEdit() .returnPressed.connect(self.setAdcClockParameters)
+        #self.extClockMult.lineEdit().returnPressed.connect(self.setAdcClockParameters)
+        self.extClockMult.lineEdit().editingFinished.connect(self.setAdcClockParameters)
+        #self.extClockDiv.lineEdit() .returnPressed.connect(self.setAdcClockParameters)
+        self.extClockDiv.lineEdit() .editingFinished.connect(self.setAdcClockParameters)
 
         # -----------------------------  Sampling frequency -------------------------------------------------
         
@@ -383,7 +389,8 @@ class ControlTiming(QtWidgets.QWidget):
         self.sampleDiv.setMinimum(2)
         self.sampleDiv.setValue(10)
         self.sampleDiv.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
-        self.sampleDiv.lineEdit().returnPressed.connect(self.setSampleDivider)
+        #self.sampleDiv.lineEdit().returnPressed.connect(self.setSampleDivider)
+        self.sampleDiv.lineEdit().editingFinished.connect(self.setSampleDivider)
         self.sampleDiv.setToolTip("Sample clock divider (sampling frequency w.r.t. true ADC frequency, APDCAM User Guide Fig. 6). Takes effect when you press Enter")
 
         #self.sampleFreq = QtWidgets.QDoubleSpinBox()
@@ -401,7 +408,8 @@ class ControlTiming(QtWidgets.QWidget):
         self.adc_out_freq_div.setMaximum(254)
         self.adc_out_freq_div.setSingleStep(1)
         self.adc_out_freq_div.setToolTip("Divider for the ADC output frequency going to the EIO connector. Only available from FW version 105. Must be an even number up to 254 or 1!")
-        self.adc_out_freq_div.lineEdit().returnPressed.connect(self.setEioAdcClockDivider)
+        #self.adc_out_freq_div.lineEdit().returnPressed.connect(self.setEioAdcClockDivider)
+        self.adc_out_freq_div.lineEdit().editingFinished.connect(self.setEioAdcClockDivider)
         self.adc_out_freq_div.valueChanged.connect(self.setEioAdcClockDivider)
 
         l.addStretch(1)
@@ -516,7 +524,8 @@ class ControlTiming(QtWidgets.QWidget):
         self.trigMinus.stateChanged.connect(self.setTrigger)
         self.internalTrig.stateChanged.connect(self.setTrigger)
         self.disableWhileStreamsOff.stateChanged.connect(self.setTrigger)
-        self.triggerDelay.lineEdit().returnPressed.connect(self.setTrigger)
+        #self.triggerDelay.lineEdit().returnPressed.connect(self.setTrigger)
+        self.triggerDelay.lineEdit().editingFinished.connect(self.setTrigger)
 
         g = QVGroupBox("Gate")
         l.addWidget(g)

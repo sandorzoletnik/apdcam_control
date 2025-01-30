@@ -283,9 +283,7 @@ class ApdcamGui(QtWidgets.QMainWindow):
         self.stopGuiThread()
         DAQ().kill_all()
         print("Exiting...")
-#        QtWidgets.QApplication.exit(rc)
-#        raise SystemExit
-        sys.exit(rc)
+        QtWidgets.QApplication.exit(rc)
 
     def cameraPolling(self,flag):
         self.updateCameraStateFlag = flag

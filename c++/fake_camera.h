@@ -1,7 +1,7 @@
 #ifndef __APDCAM10G_FAKE_CAMERA_H__
 #define __APDCAM10G_FAKE_CAMERA_H__
 
-#include "daq_settings.h"
+#include "daq.h"
 
 #include <string>
 #include <netinet/in.h>

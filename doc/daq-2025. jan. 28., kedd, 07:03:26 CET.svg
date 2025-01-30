@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25)"
+   sodipodi:docname="daq.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="1.5358306"
+     inkscape:cx="331.74232"
+     inkscape:cy="124.36267"
+     inkscape:window-width="1912"
+     inkscape:window-height="1026"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g10" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <text
+       xml:space="preserve"
+       style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583;fill:#ff0000;fill-opacity:1"
+       x="32.562336"
+       y="18.84413"
+       id="text1"
+       onmouseover="style.cursor=&quot;help&quot;"><title
+         id="title1">Repeatedly calls the 'receive' function of network_buffer_[0] until stopped</title><tspan
+         sodipodi:role="line"
+         id="tspan1"
+         style="fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+         x="32.562336"
+         y="18.84413">Network thread[0]</tspan></text>
+    <rect
+       style="fill:none;stroke:#ff0000;stroke-width:0.499999;stroke-linecap:round"
+       id="rect1"
+       width="29.38201"
+       height="13.448481"
+       x="30.40526"
+       y="15.470623" />
+    <text
+       xml:space="preserve"
+       style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+       x="69.204575"
+       y="18.30814"
+       id="text2"
+       onmouseover="style.cursor=&quot;help&quot;"><title
+         id="title2">Variable of the 'daq' class</title><tspan
+         sodipodi:role="line"
+         id="tspan2"
+         style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+         x="69.204575"
+         y="18.30814">network_buffers_[0]</tspan></text>
+    <g
+       id="g5">
+      <text
+         xml:space="preserve"
+         style="text-decoration:underline;stroke-width:0.264583;fill-opacity:1;fill:#0000ff;font-family:sans-serif;line-height:1.25;font-size:2.82223px;"
+         x="69.155853"
+         y="22.206251"
+         id="text3"
+         onmouseover="style.cursor=&quot;help&quot;"><title
+           id="title3">A smart buffer class (deriving from ring_buffer) which adds extra functionality: 'receive' function to get packets from the net, and automatic checking for missing packets, which are then substituted with zero-filled packets.</title><tspan
+           sodipodi:role="line"
+           id="tspan3"
+           style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+           x="69.155853"
+           y="22.206251">udp_packet_buffer</tspan></text>
+      <a
+         id="a4"
+         target="udp_packet_buffer_h"
+         xlink:href="udp_packet_buffer.h"
+         transform="translate(-1.0680995,-0.55127557)">
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="95.917877"
+           y="22.99885"
+           id="text4"><tspan
+             sodipodi:role="line"
+             id="tspan4"
+             style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+             x="95.917877"
+             y="22.99885">.h</tspan></text>
+      </a>
+      <a
+         id="a5"
+         target="udp_packet_buffer_C"
+         xlink:href="udp_packet_buffer.C"
+         transform="translate(2.4844488,-0.52619339)">
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="95.917877"
+           y="22.99885"
+           id="text5"><tspan
+             sodipodi:role="line"
+             id="tspan5"
+             style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+             x="95.917877"
+             y="22.99885">.C</tspan></text>
+      </a>
+    </g>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#0000ff;stroke-width:0.499999;stroke-linecap:round;stroke-opacity:1"
+       id="rect5"
+       width="36.301155"
+       height="8.9656553"
+       x="67.656578"
+       y="15.300081" />
+    <text
+       xml:space="preserve"
+       style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+       x="116.01175"
+       y="18.155029"
+       id="text6"
+       onmouseover="style.cursor=&quot;help&quot;"><title
+         id="title4">Creates an instance of the class 'channel_data_extractor' and calls its 'run' function which does the job (see there)</title><tspan
+         sodipodi:role="line"
+         id="tspan6"
+         style="fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+         x="116.01175"
+         y="18.155029">Extractor thread[0]</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+       x="115.78741"
+       y="21.822523"
+       id="text7"
+       onmouseover="style.cursor=&quot;help&quot;"><title
+         id="title5">Local variable of the extractor thread</title><tspan
+         sodipodi:role="line"
+         id="tspan7"
+         style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+         x="115.78741"
+         y="21.822523">extractor</tspan></text>
+    <g
+       id="g10"
+       transform="translate(46.651736,3.6522061)">
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+         x="64.607834"
+         y="23.515528"
+         id="text8"
+         onmouseover="style.cursor=&quot;help&quot;"><title
+           id="title7">Reads through the bytes of the UDP packets, and extracts the data for each channels, taking care of shots being eventually split between two packets, etc.</title><tspan
+           sodipodi:role="line"
+           id="tspan8"
+           style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+           x="64.607834"
+           y="23.515528">channel_data_extractor</tspan></text>
+      <a
+         id="a9"
+         target="channel_data_extractor_h"
+         xlink:href="channel_data_extractor.h"
+         transform="translate(1.6882809,0.55128079)">
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="95.917877"
+           y="22.99885"
+           id="text9"><tspan
+             sodipodi:role="line"
+             id="tspan9"
+             style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+             x="95.917877"
+             y="22.99885">.h</tspan></text>
+      </a>
+      <a
+         id="a10"
+         target="channel_data_extractor_C"
+         xlink:href="channel_data_extractor.C"
+         transform="translate(5.7921074,0.09398799)">
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="95.917877"
+           y="22.99885"
+           id="text10"><tspan
+             sodipodi:role="line"
+             id="tspan10"
+             style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+             x="95.917877"
+             y="22.99885">.C</tspan></text>
+      </a>
+    </g>
+  </g>
+</svg>

@@ -1,7 +1,4 @@
 #include <exception>
-//#ifdef STACKTRACE
-//#include <stacktrace>
-//#endif
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -11,6 +8,7 @@
 #include <fcntl.h>
 #include <chrono>
 
+#include "settings.h"
 #include "backtrace.h"
 #include "tee.h"
 #include "daq.h"
@@ -25,15 +23,6 @@
 #include <map>
 
 #include <unistd.h>
-
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <unistd.h>
-//#include <string.h>
-//#include <sys/types.h>
-//#include <sys/socket.h>
-//#include <netinet/in.h>
-
 
 namespace apdcam10g
 {
@@ -118,14 +107,452 @@ namespace apdcam10g
 
     std::map<std::jthread::id,std::string> signal2exception::thread_names_;
 
+    // ------------------------- daq_settings -----------------------------------------------
+
+    inline bool has_enabled_channel(const std::vector<bool> &mask)
+    {
+        for(auto f : mask) if(f) return true;
+        return false;
+    }
+
+    template <typename CHINFO>
+    void daq_settings<CHINFO>::dump()     
+    {
+        using namespace std;
+        output_lock lck;
+        cerr<<"Interface: "<<interface()<<endl;
+        cerr<<"MTU      : "<<mtu_<<endl;
+        cerr<<"Octet    : "<<octet_<<endl;
+        cerr<<"Max packet size: "<<max_udp_packet_size_<<endl;
+
+        cerr<<"Channel masks: "<<endl;
+        {
+            std::shared_lock lck(channel_masks_);
+            for(int i=0; i<channel_masks_.size(); ++i)
+            {
+                for(int j=0; j<channel_masks_[i].size(); ++j) 
+                {
+                    if(channel_masks_[i][j]) cerr<<terminal::green_bg<<terminal::black_fg;
+                    cerr<<j;
+                    if(channel_masks_[i][j]) cerr<<terminal::reset;
+                    cerr<<"  ";
+                }
+                cerr<<endl;
+            }
+        }
+        cerr<<"Resolutions: [ ";
+        {
+            std::shared_lock lck(resolution_bits_);
+            for(auto r : resolution_bits_) cerr<<r<<" ";
+        }
+        cerr<<" ]"<<endl;
+
+        cerr<<"Bytes per shot: ";
+        {
+            std::shared_lock lck(board_bytes_per_shot_);
+            for(auto b : board_bytes_per_shot_) cerr<<b<<" ";
+        }
+        cerr<<endl;
+
+        cerr<<"Chip bytes per shot: ";
+        {
+            std::shared_lock lck(chip_bytes_per_shot_);
+            for(auto &a: chip_bytes_per_shot_)
+            {
+                cerr<<"[ ";
+                for(auto &b: a) cerr<<b<<" ";
+                cerr<<"] ";
+            }
+        }
+        cerr<<endl;
+
+        cerr<<"Chip offsets: ";
+        {
+            std::shared_lock lck(chip_offset_);
+            for(auto &a: chip_offset_)
+            {
+                cerr<<"[ ";
+                for(auto &b: a) cerr<<b<<" ";
+                cerr<<"] ";
+            }
+        }
+        cerr<<endl;
+
+        cerr<<"All enabled channels: "<<endl;
+        {
+            std::shared_lock lck(all_enabled_channels_);
+            for(auto a: all_enabled_channels_) a->dump();
+        }
+        cerr<<endl;
+        
+        cerr<<"Board enabled channels: "<<endl;
+        {
+            std::shared_lock lck(board_enabled_channels_);
+            for(int i=0; i<board_enabled_channels_.size(); ++i)
+            {
+                cerr<<"Board "<<i<<endl;
+                for(auto a: board_enabled_channels_[i]) a->dump();
+            }
+        }
+    }
+
+
+    template <typename CHINFO>
+    daq_settings<CHINFO>::daq_settings()
+    {
+        {
+            std::unique_lock lck(interface_);
+            interface_ = std::string("lo");
+        }
+        {
+            std::unique_lock lck(channel_masks_);
+            channel_masks_.resize(config::max_boards);
+            // By default enable all channels, with all possible ADC boards present
+            for(auto &a : channel_masks_) a.resize(config::channels_per_board,true);
+        }
+        {
+            std::unique_lock lck(resolution_bits_);
+            resolution_bits_.resize(config::max_boards,14);
+        }
+    }
+
+    template <typename CHINFO>
+    daq_settings<CHINFO>::~daq_settings()
+    {
+        std::unique_lock lck(all_enabled_channels_);
+        for(auto c : all_enabled_channels_) delete c;
+    }
+
+    template <typename CHINFO>
+    void daq_settings<CHINFO>::print_channel_map(std::ostream &out)
+    {
+        for(int i_adc=0; i_adc<board_enabled_channels_.size(); ++i_adc)
+        {
+            out<<endl<<"ADC "<<i_adc<<endl;
+            {
+                std::shared_lock lck(resolution_bits_);
+                out<<"Resolution: "<<resolution_bits_[i_adc]<<endl;
+            }
+
+            out<<endl;
+            {
+                std::shared_lock lck(board_enabled_channels_);
+                for(auto c : board_enabled_channels_[i_adc])
+                {
+                    out<<"board number    : "<<c->board_number<<endl;
+                    out<<"chip number     : "<<c->chip_number<<endl;
+                    out<<"channel number  : "<<c->channel_number<<endl;
+                    out<<"abs. ch. number : "<<c->absolute_channel_number<<endl;
+                    out<<"enabl. ch. numb.: "<<c->enabled_channel_number<<endl;
+                    out<<"byte offset     : "<<c->byte_offset<<endl;
+                    out<<"nbytes          : "<<c->nbytes<<endl;
+                    out<<"shift           : "<<c->shift<<endl;
+                    out<<endl;
+                }
+            }
+        }
+    }
+
+    template <typename CHINFO>
+    void daq_settings<CHINFO>::mtu(unsigned int m)
+    {
+        mtu_ = m;
+        const int max_adc_data_length = mtu_ - (packet::ipv4_header+packet::udp_header+packet::cc_streamheader);
+        octet_ = max_adc_data_length/8; // INTEGER DIVISION!
+        if (octet_ < 1) APDCAM_ERROR("MTU value is too small!" + std::to_string(m));
+        max_udp_packet_size_ = 8*octet_ + packet::cc_streamheader;
+    }    
+
+    template <typename CHINFO>
+    daq_settings<CHINFO> &daq_settings<CHINFO>::get_net_parameters()
+    {
+        bool mtu_ok=false, mac_ok=false, ip_ok=false;
+
+        {
+
+
+            string cmd_string = "ip link show " + interface_;
+            ipstream cmd(cmd_string);
+            string s;
+            while(cmd>>s)
+            {
+                if(s == "mtu")
+                {
+                    unsigned int m=0;
+                    cmd>>m;
+                    mtu(m); // Set MTU and calculate 'octet_'
+                    mtu_ok = true;
+                }
+                /*
+                if(s == "link/ether") 
+                {
+                    cmd>>s;
+                    auto ss = split(s,":");
+                    if(ss.size() != 6) APDCAM_ERROR("The MAC address returned by the command '" + cmd_string+ "' does not contain 6 bytes");
+                    for(int i=0; i<6; ++i) mac_[i] = std::stol(ss[i],0,16);
+                    mac_ok = true;
+                }
+                */
+            }
+        }
+
+        /*
+        {
+            string cmd_string = "ip -o address show " + interface_;
+            auto cmd = ipstream(cmd_string);
+            string s;
+            while(cmd>>s)
+            {
+                if(s=="inet")
+                {
+                    cmd>>s;
+                    ip_ = split(s,"/")[0];
+                    ip_ok = true;
+                }
+            }
+        }
+
+        if(!mtu_ok || !mac_ok || !ip_ok)
+        {
+            string cmd_string = "ifconfig " + interface_;
+            ipstream cmd(cmd_string);
+            string s;
+            while(cmd>>s)
+            {
+                if(s=="mtu")
+                {
+                    cmd>>mtu_;
+                    mtu_ok = true;
+                }
+                if(s=="ether") 
+                {
+                    cmd>>s;
+                    auto ss = split(s,":");
+                    if(ss.size() != 6) APDCAM_ERROR("The MAC address returned by the command '" + cmd_string+ "' does not contain 6 bytes");
+                    for(int i=0; i<6; ++i) mac_[i] = std::stol(ss[i],0,16);
+                    mac_ok = true;
+                }
+                if(s=="inet")
+                {
+                    cmd>>ip_;
+                    ip_ok = true;
+                }
+            }
+        }
+        if(!mtu_ok || !mac_ok || !ip_ok) APDCAM_ERROR("Could not determine MTU, MAC or IP");
+        */
+
+        output_lock lck;
+	if(!mtu_ok)
+	{
+	  APDCAM_ERROR("Could not determine MTU");
+	}
+	else
+	{
+	    {
+	      std::shared_lock lck(interface_);
+	      cerr<<"Interface: "<<interface_<<endl;
+	    }
+	    cerr<<"this = "<<this<<endl;
+	    cerr<<"&mtu = "<<&mtu_<<endl;
+	    cerr<<"&octet = "<<&octet_<<endl;
+	    cerr<<"MTU      : "<<mtu_<<endl;
+	    cerr<<"OCTET    : "<<octet_<<endl;
+	    cerr<<endl;
+	}
+
+        return *this;
+    }
+
+    template <typename CHINFO>
+    void daq_settings<CHINFO>::calculate_channel_info()
+    {
+        if(resolution_bits_.size() != channel_masks_.size()) 
+            APDCAM_ERROR("Resolutions (" + std::to_string(resolution_bits_.size()) + ") and channel masks (" + std::to_string(channel_masks_.size()) + ") have different size");
+
+        std::shared_lock lck1(channel_masks_);
+        std::unique_lock lck2(board_bytes_per_shot_);
+        std::unique_lock lck3(chip_bytes_per_shot_);
+        std::unique_lock lck4(chip_offset_);
+        std::unique_lock lck5(all_enabled_channels_);
+        std::unique_lock lck6(board_enabled_channels_);
+
+        const unsigned int nof_adc = channel_masks_.size();
+
+        board_bytes_per_shot_.clear();
+        board_bytes_per_shot_.resize(nof_adc,0);
+
+        chip_bytes_per_shot_.clear();
+        chip_bytes_per_shot_.resize(nof_adc);
+        for(auto &v : chip_bytes_per_shot_) v.resize(config::chips_per_board,0);
+
+        chip_offset_.clear();
+        chip_offset_.resize(nof_adc);
+        for(auto &v : chip_offset_) v.resize(config::chips_per_board,0);
+
+        // Delete all channel_info objects, and clear the vector
+        for(auto a : all_enabled_channels_) delete a;
+        all_enabled_channels_.clear();
+
+        // Resize the per-board vector, and clear all of its elements
+        board_enabled_channels_.resize(nof_adc);
+        for(auto &a : board_enabled_channels_) a.clear();
+
+        // Create a slot for all possible channels (even for those not enabled), containing initially
+        // zero pointers. This array is indexed by the absolute channel number
+        all_channels_.clear();
+        all_channels_.resize(nof_adc*config::channels_per_board,0);
+
+        // For each adc board there is a last channel (this is made use of in DAQ)
+        // This array is indexed by the ADC board number
+        board_last_enabled_channel_.clear();
+        board_last_enabled_channel_.resize(nof_adc);
+
+        cerr<<"CHECK THE LOCKS FROM HERE DOWNWARDS IN daq.C"<<endl;
+
+        for(unsigned int i_adc=0; i_adc<nof_adc; ++i_adc)
+        {
+            board_bytes_per_shot_[i_adc] = 0;
+
+            // Skip those ADC boards which have no channels enabled. All info has been already initialized before this loop so we
+            // do not need to do anything else
+            if(!has_enabled_channel(channel_masks_[i_adc])) continue;
+
+            for(unsigned int i_chip=0; i_chip<config::chips_per_board; ++i_chip)
+            {
+                if(i_chip==0) chip_offset_[i_adc][i_chip] = 0;
+                else          chip_offset_[i_adc][i_chip] = chip_offset_[i_adc][i_chip-1] + chip_bytes_per_shot_[i_adc][i_chip-1];
+
+                // start accumulating the chip's bytes per shot from zero
+                chip_bytes_per_shot_[i_adc][i_chip] = 0;
+
+                // The offset of the given channel in terms of bits w.r.t. the given chip's first bit, a sliding value
+                unsigned int channel_bit_offset = 0;
+
+                // Calculate the number of bits used by this chip (a chip is a group of config::channels_per_chip channels). 
+                for(unsigned int i_channel_of_chip=0; i_channel_of_chip<config::channels_per_chip; ++i_channel_of_chip)
+                {
+                    const unsigned int i_channel_of_board = i_chip*config::channels_per_chip + i_channel_of_chip;
+
+                    // skip disabled channels
+                    if(!channel_masks_[i_adc][i_channel_of_board]) continue;
+
+                    //CHINFO *chinfo = new CHINFO;
+                    CHINFO *chinfo = create_channel_info();
+                    
+                    chinfo->board_number = i_adc;
+                    chinfo->chip_number = i_chip;
+                    chinfo->channel_number = i_channel_of_board;
+                    chinfo->absolute_channel_number = i_adc*config::chips_per_board*config::channels_per_chip + i_channel_of_board;
+                    chinfo->enabled_channel_number = all_enabled_channels_.size();
+                    chinfo->byte_offset    = chip_offset_[i_adc][i_chip] + channel_bit_offset/8;
+
+                    // The first bit of this channel's value within the byte, STARTING FROM LEFT, FROM THE MOST SIGNIFICANT BIT
+                    const unsigned int startbit = channel_bit_offset%8; // starting from 'left', that is, from the most significant bit
+
+                    // The number of bytes over which this value is distributed
+                    chinfo->nbytes = (startbit+resolution_bits_[i_adc])/8 + ((startbit+resolution_bits_[i_adc])%8 ? 1 : 0);
+                    chinfo->nbits = resolution_bits_[i_adc];
+
+                    // The right-shift (deduced from the last bit of this value within the last byte)
+                    chinfo->shift = 8-((startbit+resolution_bits_[i_adc])%8); 
+                    if(chinfo->shift==8) chinfo->shift=0;
+
+                    // Checks
+                    if(chinfo->nbytes == 1 && chinfo->shift != 0) APDCAM_ERROR("Bug! With 1 bytes the shift should be 1.");
+
+                    channel_bit_offset += resolution_bits_[i_adc];
+
+                    all_enabled_channels_.push_back(chinfo);
+                    board_enabled_channels_[i_adc].push_back(chinfo);
+                    all_channels_[chinfo->absolute_channel_number] = chinfo;
+                    board_last_enabled_channel_[i_adc] = chinfo;
+                }
+
+                // channel_bit_offset here is the number of bits used for this chip. Calculate the number of full bytes
+                // which can contain this many bits
+                // const int variable named only to clearly indicate what we do. Used only in the next line
+                chip_bytes_per_shot_[i_adc][i_chip] = channel_bit_offset/8 + (channel_bit_offset%8 ? 1 : 0);
+
+                // Accumulate the number of bytes by each chip
+                board_bytes_per_shot_[i_adc] += chip_bytes_per_shot_[i_adc][i_chip];
+            }
+
+            // Round up the number of bytes of an ADC board to an integer multiple of 4 bytes
+            if(board_bytes_per_shot_[i_adc]%4 != 0) board_bytes_per_shot_[i_adc] = (board_bytes_per_shot_[i_adc]/4+1)*4;
+        }
+    }
+
+    template <typename CHINFO>
+    void daq_settings<CHINFO>::write_settings(const std::filesystem::path &filename)
+    {
+        //Json::Value settings_root;
+        settings the_settings;
+        the_settings["n_adc"] = channel_masks_.size();
+        for(unsigned int i_adc=0; i_adc<channel_masks_.size(); ++i_adc)
+        {
+            //settings_root["resolution_bits"][i_adc] = resolution_bits_[i_adc];
+            the_settings["resolution_bits/" + std::to_string(i_adc)] = resolution_bits_[i_adc];
+            //settings_root["resolution_bits"][i_adc].setComment(Json::String(("// ADC " + std::to_string(i_adc)).c_str()),Json::commentAfterOnSameLine);
+            for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
+            {
+                const bool b = channel_masks_[i_adc][i_board_channel];
+                //settings_root["channel_masks"][i_adc][i_board_channel] = b;
+                the_settings["channel_masks/" + std::to_string(i_adc) + "/" + std::to_string(i_board_channel)] = b;
+                //settings_root["channel_masks"][i_adc][i_board_channel].setComment(Json::String(("// Channel " + std::to_string(i_board_channel)).c_str()),Json::commentAfterOnSameLine);
+            }
+            //settings_root["channel_masks"][i_adc].setComment(Json::String(("// ADC " + std::to_string(i_adc)).c_str()),Json::commentBefore);
+        }
+        ofstream file(filename);
+        //file<<settings_root<<endl;
+        file<<the_settings;
+    }
+    
+    template <typename CHINFO>
+    bool daq_settings<CHINFO>::read_settings(const std::filesystem::path &filename)
+    {
+        ifstream file(filename);
+        if(!file) return false;
+        //Json::Value settings_root;
+        settings the_settings;
+        //file>>settings_root;
+        file>>the_settings;
+//        for(auto key: {"resolution_bits","channel_masks"})
+//        {
+//            if(!settings_root.isMember(key)) APDCAM_ERROR(string("Value '") + key + "' is not stored in the file '" + filename + "'");
+//        }
+
+        //const int n_adc = settings_root["channel_masks"].size();
+        const int n_adc = the_settings["n_adc"];
+
+//        if(settings_root["resolution_bits"].size() != n_adc) APDCAM_ERROR("The arrays 'channel_masks' and 'resolution_bits' must have the same size in file '" + filename + "'");
+
+        channel_masks_.resize(n_adc);
+        for(auto &a : channel_masks_) a.resize(config::channels_per_board);
+        resolution_bits_.resize(n_adc);
+
+        for(unsigned int i_adc=0; i_adc<n_adc; ++i_adc)
+        {
+            //resolution_bits_[i_adc] = settings_root["resolution_bits"][i_adc].asInt();
+            resolution_bits_[i_adc] = the_settings["resolution_bits/" + std::to_string(i_adc)];
+            for(unsigned int i_board_channel=0; i_board_channel<config::channels_per_board; ++i_board_channel)
+            {
+                //channel_masks_[i_adc][i_board_channel] = settings_root["channel_masks"][i_adc][i_board_channel].asBool();
+                channel_masks_[i_adc][i_board_channel] = the_settings["channel_masks/" + std::to_string(i_adc) + "/" + std::to_string(i_board_channel)];
+            }
+        }
+
+        calculate_channel_info();
+        return true;
+    }
+    template class daq_settings<ring_buffer<apdcam10g::data_type,channel_info>>;
+    template class daq_settings<channel_info_with_generator>;
+    
+
+    // ------------------------- daq -------- -----------------------------------------------
+    
     daq::daq()
     {
-      {
-	output_lock lck;
-	cerr<<"daq::daq() called"<<endl;
-      }
-
-
 
         // the class 'daq' is a singleton, so we make global initialization here
 
@@ -136,19 +563,8 @@ namespace apdcam10g
         
         // Convert segmentation violation and termination signals to exceptions
         signal2exception::set("DAQ-main",SIGSEGV,SIGTERM);
-	/*
-	{
-	  output_lock lck;
-	  cerr<<"'this' within the constructor="<<this<<endl;
-	}
-	*/
-
 
 	get_net_parameters();
-	{
-	  output_lock lck;
-	  cerr<<"daq::daq() finished"<<endl;
-	}
     }
 
     std::string daq::section_start(std::string text)
@@ -256,25 +672,13 @@ namespace apdcam10g
     template <safeness S>
     daq &daq::init()
     {
-      {
-	output_lock lck;
-	cerr<<"daq::init started"<<endl;
-      }
         try
         {
             // Calculate the all_enabled_channels_info / board_enabled_channels_info vectors (ranges), and the
             // number of all enabled channels
             calculate_channel_info();
 
-	    cerr<<"1 ok"<<endl;
-	    //	    	    	    mtu_ = 111;
-	    cerr<<"fff"<<endl;
-
-
             if(mtu_ == 0) APDCAM_ERROR("MTU has not been set");
-
-
-	    cerr<<"mtu printed"<<endl;
 
             // Calculate and store the number of ADC boards from the channel mask's size.
             unsigned int nof_adc = 0;
@@ -282,8 +686,6 @@ namespace apdcam10g
                 std::shared_lock lck(channel_masks_);
                 nof_adc = channel_masks_.size();
             }
-
-	    cerr<<"3 ok"<<endl;
 
             if(mtu_==0) APDCAM_ERROR("MTU has not yet been specified in daq::initialize");
             if(dual_sata_ && nof_adc>2) APDCAM_ERROR("Dual sata is set with more than two ADC boards present");
@@ -302,7 +704,7 @@ namespace apdcam10g
 
             // Resize the extractors vector to have as many elements as there are ADC boards
             //regenerate_by_func(extractors_, nof_adc, [this](unsigned int i_adc){return new channel_data_extractor<default_safeness>(this,fw_version_,i_adc);});
-            regenerate_by_func(extractors_, nof_adc, [this](unsigned int i_adc){return has_enabled_channel(channel_masks_[i_adc]) ? new channel_data_extractor<default_safeness>(this,fw_version_,i_adc) : 0; });
+//            regenerate_by_func(extractors_, nof_adc, [this](unsigned int i_adc){return has_enabled_channel(channel_masks_[i_adc]) ? new channel_data_extractor<default_safeness>(this,fw_version_,i_adc) : 0; });
 
             // Open the input ports
             {
@@ -555,63 +957,78 @@ stop [timeout]
                     signal2exception::set("processor",SIGSEGV,SIGTERM);
                     try
                     {
+                        // Loop until we receive a stop request (we break the loop if no more data is coming, see below)
+                        // Processor tasks are called only when 'process_period_' new shots have arrived from all channels.
+                        // to_counter is the running counter (shot-number) for which we need to wait (from each channels).
+                        // It is incremented at the end of this loop
                         for(unsigned int to_counter=process_period_; !stok.stop_requested(); )
                         {
-			  cerr<<"AAA"<<endl;
+                            // Limits of the range of shots which are simultaneously available in all channel buffers
                             size_t common_pop_counter=0;
                             size_t common_push_counter=0;
                         
                             // check the last channels of each board, and spin-lock wait until they have a required new number
                             // of entries, or are terminated
+
+                            // A flag to indicated whether there is a non-terminated buffer (stream of channel data) 
                             bool non_terminated_exists = false;
 
-                            for(int i=0; i<board_last_enabled_channel_.size(); ++i)
+                            // The channel signals are stored sequentially in the UDP packets. So it is sufficient to
+                            // check for the last channel of each board (i.e. in each stream), if it has arrived, all
+                            // other channels of the same board have also arrived. We loop over all boards sequentially,
+                            // and wait until we get the desired shot from this board. Then go to next board.
+                            for(int i_adc=0; i_adc<board_last_enabled_channel_.size(); ++i_adc)
                             {
-                                const channel_data_buffer_t *b = board_last_enabled_channel_[i];
+                                const channel_data_buffer_t *b = board_last_enabled_channel_[i_adc];  // just make a shorthand alias
                                 bool terminated;
                                 size_t push_counter;
+                                // Spin-lock wait until the shot with the desired last channels of this board
                                 while( (push_counter=b->push_counter())<to_counter && (terminated=b->terminated())==false );
                         
-                                // re-query to capture the case when between the two and-ed conditions in the while loop there were new
-                                // entries added to the ring_buffer, and it was terminated as well.
-                                if(terminated)
-                                {
-                                    push_counter = b->push_counter();
-                                }
-                                else non_terminated_exists = true;
-                                if(i==0 || push_counter<common_push_counter) common_push_counter = push_counter;
+                                // If the buffer is terminated, re-query its push_counter (i.e. the last shot number pushed into this buffer)
+                                // to capture the case when there were new shots added to the ring_buffer between the two statements (AND-ed)
+                                // within the spin-lock while loop
+                                if(terminated) push_counter = b->push_counter();
+                                // Otherwise, if not terminated, set the flag that there are non-terminated buffers
+                                else non_terminated_exists = true;  
+
+                                // Make sure that 'common_push_counter' is the smallest among the last shot numbers of all ADC boards
+                                // (i.e. we take the smallest interval of available shots from all ADC boards)
+                                if(i_adc==0 || push_counter<common_push_counter) common_push_counter = push_counter;
                         
+                                // Make sure that 'common_pop_counter' is the largest among the ADC boards,
+                                // i.e. we take the smallest interval of available shots from all ADC boards
                                 size_t pop_counter = b->pop_counter();
                                 if(pop_counter > common_pop_counter) common_pop_counter = pop_counter;
                             }
 
-			    cerr<<"BBB"<<endl;
 
                             bool data_in_buffer = false;
-                            if(common_push_counter > common_pop_counter)
+                            // is this 'if' needed? We waited for the shot 'to_counter' which has been incremented
+                            // since its last value. Probably not
+                            if(common_push_counter > common_pop_counter) 
                             {
                                 // the counter to indicate the first element that is required to stay in the buffers
                                 // by any of the processors
-                                unsigned int needed = common_push_counter;
+                                unsigned int need_shots_from = common_push_counter;
                                 for(auto p : processors_) 
                                 {
                                     const unsigned int this_processor_needs = p->run(common_pop_counter, common_push_counter);
                                     if(this_processor_needs > common_push_counter) APDCAM_ERROR("processor returned too high needed value");
-                                    if(this_processor_needs < needed) needed = this_processor_needs;
+                                    if(this_processor_needs < need_shots_from) need_shots_from = this_processor_needs;
                                 }
                         
                                 // after all tasks have run, and reported what the earliest element in the buffers that they
                                 // need for further processing, clear the buffers up to this
                                 for(auto a: all_enabled_channels_)
                                 {
-                                    a->pop_to(needed);
+                                    a->pop_to(need_shots_from);
                                     if(!a->empty()) data_in_buffer = true;
                                 }
-
                             }
 
-			    cerr<<"CCC"<<endl;
-
+                            // If there are no more non-terminated data streams (i.e. all streams are terminated)
+                            // and they are also all empty, signal the python thread to stop, and break the infinite loop
                             if(!non_terminated_exists && !data_in_buffer)
                             {
                                 python_analysis_stop_.test_and_set();  // Setting this will cause the python processor loop to stop
@@ -620,8 +1037,9 @@ stop [timeout]
                                 break;
                             }
 
-			    cerr<<"DDD"<<endl;
-
+                            // Set the shot number that we will be waiting for in the next round. common_push_counter
+                            // is the last shot nummber that all processor tasks have processed. Wait for 'process_period_'
+                            // new shots. 
                             to_counter = common_push_counter + process_period_;
                         }
                         {
@@ -659,7 +1077,10 @@ stop [timeout]
                         signal2exception::set("extractor" + std::to_string(i_adc),SIGSEGV,SIGTERM);
                         try
                         {
-                            extractors_[i_adc]->run(*network_buffers_[i_adc],board_enabled_channels_[i_adc]);
+                            channel_data_extractor extractor(this,fw_version_,i_adc);
+                            
+//                            extractors_[i_adc]->run(*network_buffers_[i_adc],board_enabled_channels_[i_adc]);
+                            extractor.run(*network_buffers_[i_adc],board_enabled_channels_[i_adc]);
 
                             // Write a summary of what happened
                             {
@@ -1048,13 +1469,6 @@ extern "C"
 {
     using namespace apdcam10g;
 
-  void printint()
-  {
-    cerr<<"Trying to print an integer to cerr..... check if we segfault"<<endl;
-    cerr<<1<<endl;
-    cerr<<"Success printing an integer!"<<endl;
-  }
-
     void start_cmd_thread()
     {
         try
@@ -1234,6 +1648,16 @@ extern "C"
         try
         {
             daq::instance().write_settings(filename);
+        }
+        catch(apdcam10g::error &e) {e.print();}
+        catch(...) { cerr<<"Unhandled expection"<<endl; }            
+    }
+
+    void interface(const char *i)
+    {
+        try
+        {
+            daq::instance().interface(i);
         }
         catch(apdcam10g::error &e) {e.print();}
         catch(...) { cerr<<"Unhandled expection"<<endl; }            

@@ -1,0 +1,722 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="180mm"
+   height="180mm"
+   viewBox="-10 -10 180 180"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25)"
+   sodipodi:docname="processor_thread.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="1"
+     inkscape:cx="291.5"
+     inkscape:cy="325"
+     inkscape:window-width="1912"
+     inkscape:window-height="1026"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <script
+     id="script1">
+    function toggle(id1,id2)
+    {
+      obj1 = document.getElementById(id1);
+      obj2 = document.getElementById(id2);
+      if(!obj1 || !obj2)
+      {
+        alert(&quot;Object not found&quot;);
+        return;
+      }
+      if(obj1.style.display==&quot;none&quot;)
+      {
+        obj1.style.display=&quot;block&quot;;
+        obj2.style.display=&quot;none&quot;;
+      }
+      else
+      {
+        obj1.style.display=&quot;none&quot;;
+        obj2.style.display=&quot;block&quot;;
+      }
+    }
+  </script>
+  <defs
+     id="defs1">
+    <marker
+       style="overflow:visible"
+       id="marker29"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path29" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker27"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path27" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker25"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path25" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker22"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path22" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker9"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path9" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker6"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path6" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="ConcaveTriangle"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path7" />
+    </marker>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-42.166294,-15.123423)">
+    <g
+       id="run_processor_tasks_details"
+       style="display:none">
+      <rect
+         style="fill:#eeeeff;fill-opacity:1;stroke:none;stroke-width:0.264999;stroke-linecap:round"
+         onclick="toggle('run_processor_tasks','run_processor_tasks_details');"
+         onmouseover="style.cursor=&quot;pointer&quot;"
+         id="rect1"
+         width="159.62399"
+         height="31.056709"
+         x="39.999336"
+         y="78.169777" />
+      <g
+         id="g17"
+         transform="translate(-5.3445825,73.712912)">
+        <rect
+           style="fill:none;stroke:#000001;stroke-width:0.264999;stroke-linecap:round;stroke-dasharray:none"
+           id="rect16"
+           width="59.795826"
+           height="8.4137506"
+           x="46.489124"
+           y="10.203005" />
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="48.02187"
+           y="13.642588"
+           id="text17"><tspan
+             sodipodi:role="line"
+             id="tspan17"
+             style="stroke-width:0.264583"
+             x="48.02187"
+             y="13.642588">i_processor = 0</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="48.02187"
+             y="17.170376"
+             id="tspan23">need_shots_from = common_push_counter</tspan></text>
+      </g>
+      <g
+         id="g19"
+         transform="translate(-2.8574968,73.18374)">
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="54.555202"
+           y="27.311995"
+           id="text19"><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="54.555202"
+             y="27.311995"
+             id="tspan19">i_processor &lt; </tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="54.555202"
+             y="30.839783"
+             id="tspan20">n_processors</tspan></text>
+        <path
+           style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+           d="m 44.906641,28.327715 5.662086,-4.868336 h 26.881664 l 4.974166,4.868336 -4.974166,4.788955 H 50.568727 Z"
+           id="path20"
+           sodipodi:nodetypes="ccccccc" />
+      </g>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker6)"
+         d="m 60.194541,92.065074 v 2.910422"
+         id="path19"
+         sodipodi:nodetypes="cc" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker22)"
+         d="m 79.517525,101.63879 h 7.333879"
+         id="path21" />
+      <g
+         id="g22"
+         transform="translate(42.06875,88.95291)">
+        <rect
+           style="fill:none;stroke:#000001;stroke-width:0.264999;stroke-linecap:round;stroke-dasharray:none"
+           id="rect22"
+           width="110.1725"
+           height="8.7312622"
+           x="46.489124"
+           y="10.203005" />
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="48.02187"
+           y="13.642588"
+           id="text22"><tspan
+             sodipodi:role="line"
+             id="tspan22"
+             style="stroke-width:0.264583"
+             x="48.02187"
+             y="13.642588">Run processor task #i_processor</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="48.02187"
+             y="17.170376"
+             id="tspan1">n = processors_[i_processor]-&gt;run(common_pop_counter,common_push_counter)</tspan></text>
+      </g>
+      <g
+         id="g11"
+         transform="translate(110.95091,61.153383)">
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="50.057285"
+           y="29.481573"
+           id="text10"><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="50.057285"
+             y="29.481573"
+             id="tspan10">n &lt; need_shots_from</tspan></text>
+        <path
+           style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+           d="m 44.906641,28.327715 5.662086,-4.868336 h 26.881664 l 4.974166,4.868336 -4.974166,4.788955 H 50.568727 Z"
+           id="path10"
+           sodipodi:nodetypes="ccccccc" />
+      </g>
+      <g
+         id="g21"
+         transform="translate(66.622076,76.993744)">
+        <rect
+           style="fill:none;stroke:#000001;stroke-width:0.264999;stroke-linecap:round;stroke-dasharray:none"
+           id="rect18"
+           width="29.262911"
+           height="4.8683367"
+           x="46.489124"
+           y="10.203005" />
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="48.02187"
+           y="13.642588"
+           id="text21"><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="48.02187"
+             y="13.642588"
+             id="tspan21">need_shots_from=n</tspan></text>
+      </g>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker25)"
+         d="M 174.49271,98.901246 V 95.914441"
+         id="path24"
+         sodipodi:nodetypes="cc" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker27)"
+         d="M 155.62035,89.652887 H 144.39503"
+         id="path26"
+         sodipodi:nodetypes="cc" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker29)"
+         d="m 113.03897,89.540632 h -4.26562 v -9.84086 H 61.627006"
+         id="path28"
+         sodipodi:nodetypes="cccc" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+         x="147.7252"
+         y="88.642609"
+         id="text29"><tspan
+           sodipodi:role="line"
+           id="tspan29"
+           style="stroke-width:0.264583"
+           x="147.7252"
+           y="88.642609">true</tspan></text>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 174.51631,84.489241 V 79.699772 H 108.73593"
+         id="path30"
+         sodipodi:nodetypes="ccc" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+         x="175.47166"
+         y="82.258957"
+         id="text30"><tspan
+           sodipodi:role="line"
+           id="tspan30"
+           style="stroke-width:0.264583"
+           x="175.47166"
+           y="82.258957">false</tspan></text>
+    </g>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#ConcaveTriangle)"
+       d="m 72.722387,28.657558 h 16.71315"
+       id="path2" />
+    <g
+       id="g2"
+       transform="translate(-0.42332687,0.26458333)">
+      <rect
+         style="fill:none;stroke:#000001;stroke-width:0.264999;stroke-linecap:round"
+         id="rect2"
+         width="8.1510687"
+         height="4.1412582"
+         x="92.115494"
+         y="26.562326" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+         x="92.912941"
+         y="29.704399"
+         id="text2"><tspan
+           sodipodi:role="line"
+           id="tspan2"
+           style="stroke-width:0.264583"
+           x="92.912941"
+           y="29.704399">Quit</tspan></text>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+       x="75.77478"
+       y="27.417831"
+       id="text3"><tspan
+         sodipodi:role="line"
+         id="tspan3"
+         style="stroke-width:0.264583"
+         x="75.77478"
+         y="27.417831">yes</tspan></text>
+    <g
+       id="g18">
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="M 48.505376,28.85246 60.199705,21.007516 72.576209,28.85246 60.199705,36.69741 Z"
+         id="path1"
+         sodipodi:nodetypes="ccccc" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+         x="54.555202"
+         y="27.311995"
+         id="text4"><tspan
+           sodipodi:role="line"
+           id="tspan4"
+           style="stroke-width:0.264583"
+           x="54.555202"
+           y="27.311995">Stop</tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="54.555202"
+           y="30.839783"
+           id="tspan5">requested?</tspan></text>
+    </g>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker6)"
+       d="m 60.194541,36.767166 v 8.255"
+       id="path5" />
+    <text
+       xml:space="preserve"
+       style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+       x="61.834957"
+       y="42.323418"
+       id="text6"><tspan
+         sodipodi:role="line"
+         id="tspan6"
+         style="stroke-width:0.264583"
+         x="61.834957"
+         y="42.323418">no</tspan></text>
+    <g
+       id="g7"
+       transform="translate(-5.0799992,0.05291788)">
+      <rect
+         style="fill:none;stroke:#000001;stroke-width:0.264999;stroke-linecap:round;stroke-dasharray:none"
+         id="rect6"
+         width="40.904579"
+         height="5.079999"
+         x="46.489124"
+         y="10.203005" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+         x="48.02187"
+         y="13.642588"
+         id="text7"><tspan
+           sodipodi:role="line"
+           id="tspan7"
+           style="stroke-width:0.264583"
+           x="48.02187"
+           y="13.642588">to_counter = process_period_</tspan></text>
+    </g>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker9)"
+       d="m 60.370457,15.602625 v 3.704167"
+       id="path8"
+       sodipodi:nodetypes="cc" />
+    <g
+       id="g10"
+       transform="translate(-5.5033342,-1.0054135)">
+      <rect
+         style="fill:none;stroke:#000001;stroke-width:0.264999;stroke-linecap:round;stroke-dasharray:none"
+         id="rect9"
+         width="85.248741"
+         height="27.199181"
+         x="42.802128"
+         y="47.934708" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+         x="44.442543"
+         y="51.797623"
+         id="text9"><tspan
+           sodipodi:role="line"
+           id="tspan9"
+           style="stroke-width:0.264583"
+           x="44.442543"
+           y="51.797623">Spin-lock wait for shot 'to_counter'</tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="44.442543"
+           y="55.325409"
+           id="tspan11">from last channel of each ADC board.</tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="44.442543"
+           y="58.853199"
+           id="tspan13">Calculate smallest of last shot numbers:</tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="44.442543"
+           y="62.380985"
+           id="tspan12">common_push_counter = min{push_counter[i_adc]|i_adc=0..3}</tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="44.442543"
+           y="65.908775"
+           id="tspan14">Calculate largest of oldest shot numbers available in </tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="44.442543"
+           y="69.436562"
+           id="tspan15">channel buffers:</tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="44.442543"
+           y="72.964348"
+           id="tspan16">common_pop_counter = max{pop_counter[i_adc]|i_adc=0..3}</tspan></text>
+    </g>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker6)"
+       d="m 60.194541,73.650085 v 8.255"
+       id="path17" />
+    <g
+       id="run_processor_tasks"
+       transform="translate(-3.816611,-0.37417214)">
+      <rect
+         style="fill:#eeeeff;fill-opacity:1;stroke:#000001;stroke-width:0.264999;stroke-linecap:round;stroke-dasharray:none"
+         id="rect30"
+         width="96.313232"
+         height="22.226133"
+         x="41.144543"
+         y="83.915916"
+         onmouseover="style.cursor=&quot;pointer&quot;"
+         onclick="toggle('run_processor_tasks','run_processor_tasks_details');" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+         x="43.666492"
+         y="92.983055"
+         id="text31"><tspan
+           sodipodi:role="line"
+           id="tspan31"
+           style="stroke-width:0.264583"
+           x="43.666492"
+           y="92.983055">Run all processor tasks, find the smallest (oldest) shot number</tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="43.666492"
+           y="96.510841"
+           id="tspan32">that they still need later. Store it in 'need_shots_from'</tspan></text>
+    </g>
+    <g
+       id="g28"
+       transform="translate(-5.5033342,67.768375)">
+      <rect
+         style="fill:none;stroke:#000001;stroke-width:0.264999;stroke-linecap:round;stroke-dasharray:none"
+         id="rect3"
+         width="83.976532"
+         height="9.4631777"
+         x="42.802128"
+         y="47.934708" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+         x="44.442543"
+         y="51.797623"
+         id="text28"><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="44.442543"
+           y="51.797623"
+           id="tspan28">Pop all shots from all channel buffers up to but not including</tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="44.442543"
+           y="55.325409"
+           id="tspan38">'need_shots_from'</tspan></text>
+    </g>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker6)"
+       d="m 60.194541,105.60483 v 8.255"
+       id="path31" />
+    <g
+       id="g40"
+       transform="translate(-8.75575,-1.0102776)">
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+         d="m 49.08234,141.90477 5.038818,-5.61074 h 31.485411 l 5.503042,5.61074 -5.503042,4.87327 H 54.121158 Z"
+         id="path38"
+         sodipodi:nodetypes="ccccccc" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+         x="57.277645"
+         y="140.73315"
+         id="text39"><tspan
+           sodipodi:role="line"
+           id="tspan39"
+           style="stroke-width:0.264583"
+           x="57.277645"
+           y="140.73315">all buffers empty</tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="57.277645"
+           y="144.26094"
+           id="tspan40">and are terminated?</tspan></text>
+    </g>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker6)"
+       d="m 60.194541,125.32397 v 8.255"
+       id="path40" />
+    <g
+       id="g42"
+       transform="translate(-5.5033342,107.2815)">
+      <rect
+         style="fill:none;stroke:#000001;stroke-width:0.264999;stroke-linecap:round;stroke-dasharray:none"
+         id="rect40"
+         width="83.976532"
+         height="9.4631777"
+         x="42.802128"
+         y="47.934708" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+         x="44.442543"
+         y="51.797623"
+         id="text42"><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="44.442543"
+           y="51.797623"
+           id="tspan41">Set 'stop' flag for python processor thread</tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="44.442543"
+           y="55.325409"
+           id="tspan43">signal it (wake up) so that it notifies this and quits</tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="44.442543"
+           y="58.853199"
+           id="tspan42" /></text>
+    </g>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker6)"
+       d="m 60.194541,145.52955 v 8.255"
+       id="path42" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker6)"
+       d="m 60.194541,164.76226 v 8.255"
+       id="path43" />
+    <g
+       id="g44"
+       transform="translate(-36.643693,147.91495)">
+      <rect
+         style="fill:none;stroke:#000001;stroke-width:0.264999;stroke-linecap:round"
+         id="rect43"
+         width="8.1510687"
+         height="4.1412582"
+         x="92.115494"
+         y="26.562326" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+         x="92.912941"
+         y="29.704399"
+         id="text44"><tspan
+           sodipodi:role="line"
+           id="tspan44"
+           style="stroke-width:0.264583"
+           x="92.912941"
+           y="29.704399">Quit</tspan></text>
+    </g>
+    <text
+       xml:space="preserve"
+       style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+       x="62.020794"
+       y="151.62677"
+       id="text45"><tspan
+         sodipodi:role="line"
+         id="tspan45"
+         style="stroke-width:0.264583"
+         x="62.020794"
+         y="151.62677">yes</tspan></text>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#ConcaveTriangle)"
+       d="m 82.366061,141.19598 120.438339,0 V 17.688491 l -141.111463,0"
+       id="path45"
+       sodipodi:nodetypes="cccc" />
+    <text
+       xml:space="preserve"
+       style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+       x="86.267487"
+       y="139.95244"
+       id="text46"><tspan
+         sodipodi:role="line"
+         id="tspan46"
+         style="stroke-width:0.264583"
+         x="86.267487"
+         y="139.95244">no</tspan></text>
+  </g>
+</svg>

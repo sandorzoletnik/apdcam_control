@@ -385,6 +385,8 @@ namespace apdcam10g
             };
         }
 
+        // Access an object within the ring_buffer identified by the given counter. The counter is a continuously running
+        // number, starting at zero for the first object pushed into the buffer, and then increases sequentially.
         // Does not make any checks!
         T &operator()(size_t counter)
         {

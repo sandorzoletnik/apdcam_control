@@ -1,0 +1,65 @@
+<html>
+  <style>
+    dt { font-weight:bold; }
+    dd { margin-bottom:8px; }
+  </style>
+  <body>
+
+    <h1>Flowcharts</h1>
+    The flowcharts are somewhat interactive. Hover with the mouse over
+    items, if the cursor turns into a help icon, wait for the tooltip
+    to appear, which gives some extra info. If the cursor is a
+    pointer, it indicates a clickable item.
+    <ul>
+      <li><a target="daq.svg" href="daq.svg">DAQ (threads,
+      variables)</a> - Red block indicate threads. Blue block indicate
+      variables with the first line(s) being the variable name, the
+      last line being the type (underlined). Subsequent .h and .C
+      links will open the corresponding source files. 
+      <li><a target="processor_thread.svg"
+      href="processor_thread.svg">Channel data processor</a> - Classic
+      programming flowchart
+    </ul>
+
+    <h1>Conventions</h1>
+    <dl>
+
+      <dt>Nomenclature</dt>
+      <dd>
+        <dl>
+          <dt>Shot</dt>
+          <dd>The collection of the values of all channels (pixels)
+            which were recorded at the same time
+          </dd>
+        </dl>
+      </dd>
+
+      <dt>Indexing</dt>
+      <dd>In the C++ code 0-based indexing is used
+      everywhere. Naturally for C++ arrays, vectors, etc, but also for
+        the numbering of the channels.</dd>
+
+      <dt>Variable names</dt>
+      <dd>
+        <ul>
+          <li>Loop indices are verbose. Instead of using <tt>i</tt> as
+          the loop index, I tried to use indices like <tt>i_adc</tt>
+            (index running over the ADC boards), etc
+        </ul>
+      </dd>
+    </dll>
+
+    <h1>Inter-thread synchronization</h1>
+    The <a target="daq.svg" href="daq.svg">DAQ</a> system uses
+    threads. Individual threads read UDP packets and store them in
+    separate buffers for each stream (ADC board). Subsequently, UDP
+    packets from these buffers are consumed by individual threads
+    which extract the channel data, and push them into channel data
+    buffers, one for each channel separately. Then a common
+    <a target="processor_thread.svg" href="processor_thread.svg">processor
+    thread</a> consumes this data, calling the specified tasks in a
+    loop, and removing those shots (channel data) which all tasks
+    reported as "not needed anymore". Currently, inter-thread
+    synchronization is implemented by spin-locks on the buffers
+  <body>
+</html>

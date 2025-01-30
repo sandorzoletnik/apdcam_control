@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <filesystem>
+#include <memory>
 
 using namespace apdcam10g;
 using namespace std;
@@ -92,20 +93,25 @@ try
         else APDCAM_ERROR(std::string("Bad argument: ") + a());
     }
 
-    pseudo_random_short prs;
+//    pseudo_random_short prs;
+//    daq::instance().add_processor(new processor_test_pattern_match(&prs));
 
-    daq::instance().add_processor(new processor_test_pattern_match(&prs));
-
+    // A smart pointer to automatically delete the test pattern sequence if we dynamically
+    // create one
+    std::unique_ptr<test_pattern_sequence> tps; 
     if(test_pattern>0)
     {
         switch(test_pattern)
         {
             case 6:
-                daq::instance().add_processor(new processor_diskdump); break;
+                tps = std::unique_ptr<test_pattern_sequence>(new pseudo_random_short);
+                daq::instance().add_processor(new processor_test_pattern_match(tps.get())); 
+                break;
             default:
                 APDCAM_ERROR("Bad test pattern specified");
         }
     }
+    daq::instance().add_processor(new processor_diskdump); 
     daq::instance().resolution_bits({14});
     daq::instance().channel_masks(
         {

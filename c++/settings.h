@@ -1,6 +1,7 @@
 #include <cctype>
 #include <map>
 #include <iostream>
+#include "error.h"
 
 namespace apdcam10g
 {

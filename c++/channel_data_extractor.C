@@ -32,7 +32,7 @@ namespace apdcam10g
 
     {
 
-        // Spin-lock wait until we have a packet in the buffer
+        // Spin-lock wait for the first packet from the network
         while( network_buffer.empty() && !network_buffer.terminated() );
 
         // If the spin-lock was broken due to the stream being terminated, return
