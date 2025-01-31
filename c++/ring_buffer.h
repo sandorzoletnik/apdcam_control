@@ -149,7 +149,7 @@ namespace apdcam10g
             }
         }
 
-        //#target ring_buffer::copy_values
+        //html-target ring_buffer::copy_values
         // Copy the values from an instance of its base class using the base class's assignment operator
         void copy_values(const BASE &rhs)
         {

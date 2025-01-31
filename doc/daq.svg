@@ -24,15 +24,15 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
-     inkscape:zoom="1.2179347"
-     inkscape:cx="432.28918"
-     inkscape:cy="174.06516"
+     inkscape:zoom="1.4213892"
+     inkscape:cx="444.9872"
+     inkscape:cy="154.07462"
      inkscape:window-width="1912"
      inkscape:window-height="1026"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
-     inkscape:current-layer="layer1" />
+     inkscape:current-layer="g13" />
   <defs
      id="defs1">
     <marker
@@ -206,7 +206,9 @@
            style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
            x="58.701103"
            y="24.614197"
-           id="text2-3" onmouseover='style.cursor="help"'><title>Local variable of the thread, of type 'channel_data_extractor'</title><tspan
+           id="text2-3"
+           onmouseover="style.cursor=&quot;help&quot;"><title
+             id="title5">Local variable of the thread, of type 'channel_data_extractor'</title><tspan
              sodipodi:role="line"
              id="tspan2-5"
              style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
@@ -220,34 +222,46 @@
              style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
              x="53.938599"
              y="27.7892"
-             id="text3-2" onmouseover='style.cursor="help"'><title>This class implements the algorithm to extract data from the UDP packets. Its 'run' member function continuously waits for new packets in the network buffer, and if there is a new packet, it extracts the data values of the individual channels, and pushes them into the per-channel data buffers.</title><tspan
+             id="text3-2"
+             onmouseover="style.cursor=&quot;help&quot;"><title
+               id="title6">This class implements the algorithm to extract data from the UDP packets. Its 'run' member function continuously waits for new packets in the network buffer, and if there is a new packet, it extracts the data values of the individual channels, and pushes them into the per-channel data buffers.</title><tspan
                sodipodi:role="line"
                id="tspan3-9"
                style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
                x="53.938599"
                y="27.7892">channel_data_extractor</tspan></text>
-          <a target="channel_data_extractor.h" xlink:href="channel_data_extractor.h.html"><text
-             xml:space="preserve"
-             style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
-             x="85.688629"
-             y="27.7892"
-             id="text4-1"><tspan
-               sodipodi:role="line"
-               id="tspan4-2"
-               style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+          <a
+             target="channel_data_extractor.h"
+             xlink:href="channel_data_extractor.h.html"
+             id="a6">
+            <text
+               xml:space="preserve"
+               style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
                x="85.688629"
-               y="27.7892">.h</tspan></text></a>
-          <a target="channel_data_extractor.C" xlink:href="channel_data_extractor.C.html"><text
-             xml:space="preserve"
-             style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
-             x="89.392799"
-             y="27.7892"
-             id="text5-7"><tspan
-               sodipodi:role="line"
-               id="tspan5-0"
-               style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+               y="27.7892"
+               id="text4-1"><tspan
+                 sodipodi:role="line"
+                 id="tspan4-2"
+                 style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+                 x="85.688629"
+                 y="27.7892">.h</tspan></text>
+          </a>
+          <a
+             target="channel_data_extractor.C"
+             xlink:href="channel_data_extractor.C.html"
+             id="a7">
+            <text
+               xml:space="preserve"
+               style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
                x="89.392799"
-               y="27.7892">.C</tspan></text></a>
+               y="27.7892"
+               id="text5-7"><tspan
+                 sodipodi:role="line"
+                 id="tspan5-0"
+                 style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+                 x="89.392799"
+                 y="27.7892">.C</tspan></text>
+          </a>
         </g>
         <rect
            style="fill:none;fill-opacity:1;stroke:#0000ff;stroke-width:0.499999;stroke-linecap:round;stroke-opacity:1"
@@ -260,7 +274,7 @@
     </g>
     <g
        id="g11"
-       transform="translate(59.289101,49.337759)">
+       transform="translate(59.289101,55.687763)">
       <text
          xml:space="preserve"
          style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
@@ -268,7 +282,7 @@
          y="25.672531"
          id="text7"
          onmouseover="style.cursor=&quot;help&quot;"><title
-           id="title5">These variables are vectors, or vector of vectors, of pointers pointing to the data buffers and other info (such as channel number, etc) asociated with the channels. These different vectors provide access to the channels in different ways, but the pointers point to the same objects.</title><tspan
+           id="title7">These variables are vectors, or vector of vectors, of pointers pointing to the data buffers and other info (such as channel number, etc) asociated with the channels. These different vectors provide access to the channels in different ways, but the pointers point to the same objects.</title><tspan
            sodipodi:role="line"
            id="tspan7"
            style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
@@ -294,7 +308,7 @@
            y="27.7892"
            id="text8"
            onmouseover="style.cursor=&quot;help&quot;"><title
-             id="title6">The objects pointed to by the pointers in these vectors are 'ring_buffer's, which derive from the class 'channel_info' so that they do not only contain the sampled values from the channels, but also other channel-related info such as channel number, board number, etc.</title><tspan
+             id="title8">The objects pointed to by the pointers in these vectors are 'ring_buffer's, which derive from the class 'channel_info' so that they do not only contain the sampled values from the channels, but also other channel-related info such as channel number, board number, etc.</title><tspan
              sodipodi:role="line"
              id="tspan8"
              style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
@@ -303,7 +317,7 @@
         <a
            target="ring_buffer.h"
            xlink:href="ring_buffer.h.html"
-           id="a6">
+           id="a8">
           <text
              xml:space="preserve"
              style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
@@ -319,7 +333,7 @@
         <a
            target="ring_buffer.C"
            xlink:href="ring_buffer.C.html"
-           id="a7">
+           id="a9">
           <text
              xml:space="preserve"
              style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
@@ -343,28 +357,23 @@
     </g>
     <g
        id="g13"
-       transform="translate(92.900082,5.7576061)">
-      <a
-         target="processor_thread.svg"
-         xlink:href="processor_thread.svg"
-         id="a8">
-        <text
-           xml:space="preserve"
-           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+       transform="translate(92.900082,3.6409393)">
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+         x="25.482409"
+         y="21.648413"
+         id="text13"><tspan
+           sodipodi:role="line"
+           id="tspan13"
+           style="fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
            x="25.482409"
-           y="21.648413"
-           id="text13"><tspan
-             sodipodi:role="line"
-             id="tspan13"
-             style="fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
-             x="25.482409"
-             y="21.648413">Processor thread</tspan></text>
-      </a>
+           y="21.648413">Processor thread</tspan></text>
       <rect
          style="fill:none;fill-opacity:1;stroke:#ff0000;stroke-width:0.499999;stroke-linecap:round;stroke-opacity:1"
          id="rect13"
-         width="54.493855"
-         height="37.705833"
+         width="57.984879"
+         height="47.023552"
          x="23.827917"
          y="18.640907" />
       <text
@@ -372,7 +381,8 @@
          style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;white-space:pre;inline-size:52.5702;display:inline;fill:#010000;fill-opacity:1;stroke-width:0.264583"
          x="25.482409"
          y="25.88175"
-         id="text14"><tspan
+         id="text14"
+         transform="translate(0,8.4666671)"><tspan
            x="25.482409"
            y="25.88175"
            id="tspan34">Runs the channel data processor tasks </tspan><tspan
@@ -401,10 +411,34 @@
            x="25.482409"
            y="54.104044"
            id="tspan54">processed by all tasks.</tspan></text>
+      <a xlink:href="processor_thread.svg" target="processor_thread.svg">
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#000000;fill-opacity:1;stroke-width:0.264583"
+         x="25.482409"
+         y="27.998419"
+         id="text45"><tspan
+           sodipodi:role="line"
+           id="tspan45"
+           style="fill:#000000;fill-opacity:1;stroke-width:0.264583"
+           x="25.482409"
+           y="27.998419">Flowchart</tspan></text></a>
+      <a xlink:href="C++-python-sync.svg" target="C++-python-sync.svg">
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#000000;fill-opacity:1;stroke-width:0.264583"
+         x="46.649094"
+         y="27.998419"
+         id="text46"><tspan
+           sodipodi:role="line"
+           id="tspan46"
+           style="fill:#000000;fill-opacity:1;stroke-width:0.264583"
+           x="46.649094"
+           y="27.998419">C++/Python sync.</tspan></text></a>
     </g>
     <g
        id="g19"
-       transform="translate(59.289101,40.823527)">
+       transform="translate(59.289101,47.702698)">
       <text
          xml:space="preserve"
          style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
@@ -412,7 +446,7 @@
          y="24.614197"
          id="text15"
          onmouseover="style.cursor=&quot;help&quot;"><title
-           id="title8">Member variable of the class 'daq', which stores the data processor tasks added by the user.</title><tspan
+           id="title10">Member variable of the class 'daq', which stores the data processor tasks added by the user.</title><tspan
            sodipodi:role="line"
            id="tspan15"
            style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
@@ -510,7 +544,7 @@
            y="27.7892"
            id="text22"
            onmouseover="style.cursor=&quot;help&quot;"><title
-             id="title10">A C++ wrapper class over the low-level socket functions, using UDP protocol</title><tspan
+             id="title11">A C++ wrapper class over the low-level socket functions, using UDP protocol</title><tspan
              sodipodi:role="line"
              id="tspan22"
              style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
@@ -519,7 +553,7 @@
         <a
            target="udp.h"
            xlink:href="udp.h.html"
-           id="a10">
+           id="a11">
           <text
              xml:space="preserve"
              style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
@@ -535,7 +569,7 @@
         <a
            target="udp.C"
            xlink:href="udp.C.html"
-           id="a11">
+           id="a12">
           <text
              xml:space="preserve"
              style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
@@ -586,7 +620,7 @@
          y="29.693575"
          id="text19"
          onmouseover="style.cursor=&quot;help&quot;"><title
-           id="title11">This thread simply calls the 'receive' function of 'network_buffers_[0]' repeatedly, until stopped or when no more data is coming.</title><tspan
+           id="title12">This thread simply calls the 'receive' function of 'network_buffers_[0]' repeatedly, until stopped or when no more data is coming.</title><tspan
            sodipodi:role="line"
            id="tspan19"
            style="fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
@@ -703,7 +737,9 @@
            style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
            x="58.701103"
            y="24.614197"
-           id="text30" onmouseover='style.cursor="help"'><title>Local variable of the thread, of type 'channel_data_extractor'</title><tspan
+           id="text30"
+           onmouseover="style.cursor=&quot;help&quot;"><title
+             id="title13">Local variable of the thread, of type 'channel_data_extractor'</title><tspan
              sodipodi:role="line"
              id="tspan30"
              style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
@@ -717,34 +753,46 @@
              style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
              x="53.938599"
              y="27.7892"
-             id="text31" onmouseover='style.cursor="help"'><title>This class implements the algorithm to extract data from the UDP packets. Its 'run' member function continuously waits for new packets in the network buffer, and if there is a new packet, it extracts the data values of the individual channels, and pushes them into the per-channel data buffers.</title><tspan
+             id="text31"
+             onmouseover="style.cursor=&quot;help&quot;"><title
+               id="title14">This class implements the algorithm to extract data from the UDP packets. Its 'run' member function continuously waits for new packets in the network buffer, and if there is a new packet, it extracts the data values of the individual channels, and pushes them into the per-channel data buffers.</title><tspan
                sodipodi:role="line"
                id="tspan31"
                style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
                x="53.938599"
                y="27.7892">channel_data_extractor</tspan></text>
-          <a target="channel_data_extractor.h" xlink:href="channel_data_extractor.h.html"><text
-             xml:space="preserve"
-             style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
-             x="85.688629"
-             y="27.7892"
-             id="text32"><tspan
-               sodipodi:role="line"
-               id="tspan32"
-               style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+          <a
+             target="channel_data_extractor.h"
+             xlink:href="channel_data_extractor.h.html"
+             id="a14">
+            <text
+               xml:space="preserve"
+               style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
                x="85.688629"
-               y="27.7892">.h</tspan></text></a>
-          <a target="channel_data_extractor.C" xlink:href="channel_data_extractor.C.html"><text
-             xml:space="preserve"
-             style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
-             x="89.392799"
-             y="27.7892"
-             id="text33"><tspan
-               sodipodi:role="line"
-               id="tspan33"
-               style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+               y="27.7892"
+               id="text32"><tspan
+                 sodipodi:role="line"
+                 id="tspan32"
+                 style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+                 x="85.688629"
+                 y="27.7892">.h</tspan></text>
+          </a>
+          <a
+             target="channel_data_extractor.C"
+             xlink:href="channel_data_extractor.C.html"
+             id="a15">
+            <text
+               xml:space="preserve"
+               style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
                x="89.392799"
-               y="27.7892">.C</tspan></text></a>
+               y="27.7892"
+               id="text33"><tspan
+                 sodipodi:role="line"
+                 id="tspan33"
+                 style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+                 x="89.392799"
+                 y="27.7892">.C</tspan></text>
+          </a>
         </g>
         <rect
            style="fill:none;fill-opacity:1;stroke:#0000ff;stroke-width:0.499999;stroke-linecap:round;stroke-opacity:1"

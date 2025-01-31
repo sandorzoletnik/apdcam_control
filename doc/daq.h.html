@@ -92,27 +92,43 @@ namespace apdcam10g
 
         ~daq_settings();
 
+        <a name='daq_settings::n_adc'></a>
+        // Return the number of active ADC boards (those which have enabled channels)
         unsigned int n_adc() const { std::shared_lock lck(board_enabled_channels_); return board_enabled_channels_.size(); }
+
+        <a name='daq_settings::n_channels'></a>
+        // Return the number of physically present channels
         unsigned int n_channels() const { std::shared_lock lck(all_channels_); return all_channels_.size(); }
 
+        <a name='daq_settings::n_enabled_channels'></a>
+        // Return the number of all enabled channels
+        unsigned int n_enabled_channels() { return all_enabled_channels_.size(); }
+        
         // get the MTU value (Maximum Transmission Unit, the biggest size of packet that can be sent
         // without fragmentation) used for all sockets
         unsigned int mtu() const { return mtu_; }
 
+        
         unsigned int octet() const { return octet_; }
 
+        // Set/get the network interface
         daq_settings &amp;interface(const std::string &amp;i) { std::unique_lock lck(interface_); interface_ = i; return *this; }
         const std::string &amp;interface() const { std::shared_lock lck(interface_); return interface_; }
+
+        // For the set network interface, get the MTU from the system settings, calculate octet, etc
         daq_settings &amp;get_net_parameters();
 
-        // Set the channel masks
+        // Set the channel masks. A vector of vector of bools, first index is the ADC board number (0-based), and
+        // the second index is the channel number (0..31) of that board
         daq_settings &amp;channel_masks(const std::vector&lt;std::vector&lt;bool&gt;&gt; &amp;m) { std::unique_lock lck(channel_masks_); channel_masks_ = m; return *this; }
+
         // Get the enabled/disabled status of a given channel
         bool channel_mask(unsigned int i_adc, unsigned int i_channel_of_board) { std::shared_lock lck(channel_masks_); return channel_masks_[i_adc][i_channel_of_board]; }
 
         // Set the resolutions for all ADC boards (the vector 'r' must have as many elements as there are ADC boards)
         daq_settings &amp;resolution_bits(const std::vector&lt;unsigned int&gt; &amp;r) { resolution_bits_ = r;  return *this; }
         daq_settings &amp;resolution_bits(std::initializer_list&lt;unsigned int&gt; r) {  resolution_bits(std::vector&lt;unsigned int&gt;{r}); return *this; }
+
         // Get the resolution in bits for the given ADC board (0-based)
         unsigned int resolution_bits(int i_adc) const { return resolution_bits_[i_adc]; }
 
@@ -121,18 +137,11 @@ namespace apdcam10g
         unsigned int chip_bytes_per_shot(int i_adc, int i_chip) { return chip_bytes_per_shot_[i_adc][i_chip]; }
         unsigned int chip_offset(int i_adc, int i_chip) { return chip_offset_[i_adc][i_chip]; }
 
-        // Return the number of all enabled channels
-        unsigned int enabled_channels() { return all_enabled_channels_.size(); }
-
-        // Return the number of enabled channels on board 'board_number' (0-based)
-//        unsigned int enabled_channels(unsigned int board_number) { return board_enabled_channels_[board_number].size(); }
-
         // Returns the maximum size of the packets: the CC header + the ADC data 
         // (but not including the UDP header, IPv4 header and Ethernet header)
         // If fewer samples are available at the end of a burst or data recording sequence,
         // the packet will be shorter.
         unsigned int max_udp_packet_size() const { return max_udp_packet_size_; }
-        
 
         // Read/write the configuration into a  file
         void write_settings(const std::filesystem::path &amp;filename);
@@ -268,7 +277,6 @@ namespace apdcam10g
         static std::string section_start(std::string text);
         static std::string section_end(std::string text);
 
-
         // A function to query the status of the python_analysis_stop_ flag. It will be called from the python
         // code within the processor loop to terminate if this is true
         bool python_analysis_stop();
@@ -353,7 +361,7 @@ namespace apdcam10g
         // Resume all diskdump processors (writing to disk continues)
         void diskdump_resume();
 
-        // Set a sampling number for all diskdump processors. That is, only shot numbers being an integer multiple
+        // Set a sampling number for all diskdump (exiting and future) processors. That is, only shot numbers being an integer multiple
         // of 's' will be written to disk (to save space). Currently it writes no markers in the file so the user
         // can not reconstruct the shot numbers from the file. This should be further developed. 
         void diskdump_sampling(unsigned int s);
@@ -456,20 +464,57 @@ extern "C"
 {
     using namespace apdcam10g;
 
+    <a name='n_adc'></a>
+    // Get the number of active ADC boards (those which have enabled channels)
+    // A wrapper around daq_settings::n_adc()
     unsigned int n_adc();
+
+    <a name='n_channels'></a>
+    // Return the number of physically present channels (Number of present ADC boards * 32)
+    // A wrapper around daq_settings::n_channels
     unsigned int n_channels();
 
+    <a name='n_enabled_channels'></a>
+    // Return the number of all enabled channels
+    // A wrapper around daq_ettings::n_enabled_channels
+    unsigned int n_enabled_channels();
+
+    <a name='start'></a>
+    // Start the DAQ, and optinally wait for it to finish, blocking execution
     void start(bool wait=false);
+
+    <a name='stop'></a>
+    // Signal the DAQ process to stop, and optinally wait until it does so
     void stop(bool wait=true);
-    void kill_all();  // both 'kill' and 'abort' would conflict with existing standard C library functions
+
+    // Kill all threads, and the DAQ process
+    // both 'kill' and 'abort' would conflict with existing standard C library functions
+    void kill_all();  
     void version(apdcam10g::version v);
     void dual_sata(bool d);
+
+    <a name='channel_masks'></a>
+    // C (low-level) wrapper around daq::channel_masks(vector&lt;vector&lt;bool&gt;&gt;)
+    // 'm' is a pointer of pointer to bool (i.e. a 2-level nested C array)
+    // containing 'true' for enabled channels. The top-most size of the
+    // array should be 'n_adc_boards', the 1st level size should be 32 (number
+    // of channels per board)
+    // 'n_adc_boards' is the number of present ADC boards, 
     void channel_masks(bool **m, int n_adc_boards);
+
+    // Set the resolution (number of bits) individually for each ADC board.
+    // First argument 'r' is a pointer to the array of values, which should have
+    // 'n_adc_boards' elements
     void resolution_bits(unsigned int *r, int n_adc_boards);
+
+
     void add_processor_diskdump(unsigned int process_period,unsigned int sampling);
     void add_processor_python();
     void debug(bool d);
+
+    // Initialize the DAQ system
     void init(bool safe);
+
     void write_settings(const char *filename);
     void wait_finish();        
     void dump();
@@ -489,9 +534,11 @@ extern "C"
     unsigned int get_mtu();
     unsigned int get_octet();
 
+    // Query statistics about UDP packets
     size_t received_packets(unsigned int i_stream);
     size_t lost_packets(unsigned int i_stream);
 
+    // Query the fill statistics of the buffers
     size_t network_buffer_content(unsigned int i_stream);
     size_t max_network_buffer_content(unsigned int i_stream);
     size_t channel_buffer_content(unsigned int i_channel);
@@ -502,19 +549,25 @@ extern "C"
     // Returns the number of extracted shots for the given channel (absolute channel number)
     size_t extracted_shots(unsigned int i_channel);
 
-    // REturns hte number of extracted shots for the last enabled channel of the
+    // Returns hte number of extracted shots for the last enabled channel of the
     // given board (previous channels of the same board have at least this many
     // shots extracted)
     size_t extracted_shots_of_board(unsigned int i_stream);
 
+    // Return the number of active threads
     unsigned int network_threads();
     unsigned int extractor_threads();
     unsigned int processor_threads();
 
+    // Query the status of the threads
     bool network_thread_active(unsigned int i_stream);
     bool extractor_thread_active(unsigned int i_stream);
     bool processor_thread_active();
 
+    <a name='diskdump_sampling'></a>
+    // Set the sampling interval for diskdump tasks (writing channel data to disk) for existing and
+    // future processor_diskdump tasks. A value 's' means everh sth value is written to disk
+    // A wrapper around daq::diskdump_sampling
     void diskdump_sampling(unsigned int s);
 
     void start_cmd_thread();
@@ -527,25 +580,28 @@ extern "C"
 //    void status(unsigned int *n_active_network_threads, unsigned int *n_active_extractor_threads, unsigned int *n_active_processor_thread);
 
 
-    // Return the channel #absolute_chnanel_number data's ring buffer's size and memory buffer
-    // in the 2nd and 3rd argument
+    <a name='get_buffer'></a>
+    // For the given channel, return the size of the ring buffer associated with this channel (in the variable 'buffersize'),
+    // and the underlying raw C memory array (in the variable 'buffer')
     void get_buffer(unsigned int absolute_channel_number, unsigned int *buffersize, apdcam10g::data_type **buffer);
 
     // To be called from a python analysis task: block the calling thread until data for the next python
     // analysis task becomes available
     void python_analysis_wait_for_data(size_t *from_counter, size_t *to_counter);
 
-    // From a python analysis task: set/communicate the earliest data counter to the C++ DAQ backend
+    // To be called from a python analysis task: set/communicate the earliest data counter to the C++ DAQ backend
     // that the task still requires to stay in the ring buffers, and set a flag to inform the C++
     // DAQ backend that the python task has finished analyzing the data
     void python_analysis_done(size_t from_counter);
 
+    <a name='python_analysis_stop'></a>
+    // Query the 'stop' flag by which the C++ backend communicates to the python analysis thread
+    // to stop
+    // A wrapper around daq::python_analysis_stop
     bool python_analysis_stop();
 
 
 }
-
-
 
 #endif
 

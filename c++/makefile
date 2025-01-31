@@ -76,4 +76,5 @@ include $(DEPS)
 doc:
 	@echo
 	@echo UPDATING SOURCE DOCUMENTATION FILES IN ../doc
-	for f in *.h *.C; do ./c2html "$$f" "../doc/$${f}.html"; done
+	for f in *.h *.C; do ../code2html "$$f" "../doc/$${f}.html"; done
+	cd ..; for f in *.py; do code2html "$$f" "doc/$${f}.html"; done

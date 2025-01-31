@@ -1,0 +1,767 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="206.21664mm"
+   height="148.85498mm"
+   viewBox="0 0 206.21664 148.85498"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25)"
+   sodipodi:docname="C++-python-sync.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="1.4142136"
+     inkscape:cx="472.70088"
+     inkscape:cy="295.57063"
+     inkscape:window-width="1912"
+     inkscape:window-height="1026"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g81" />
+  <defs
+     id="defs1">
+    <marker
+       style="overflow:visible"
+       id="marker83"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path83" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker81"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path81" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="ConcaveTriangle"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path7" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker78"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path78" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker74"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path74" />
+    </marker>
+    <marker
+       style="overflow:visible"
+       id="marker85"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       inkscape:stockid="Concave triangle arrow"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       inkscape:isstock="true"
+       inkscape:collect="always"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path85" />
+    </marker>
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-21.13876,-79.311196)">
+    <g
+       id="g6"
+       transform="translate(-0.52916663)">
+      <rect
+         style="fill:#ffffff;stroke:#fe0000;stroke-width:0.264999;stroke-linecap:round;stroke-opacity:1"
+         id="rect15"
+         width="98.954041"
+         height="129.41205"
+         x="24.466728"
+         y="92.325226" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+         x="31.199219"
+         y="96.142632"
+         id="text15"><tspan
+           sodipodi:role="line"
+           id="tspan15"
+           style="fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+           x="31.199219"
+           y="96.142632">C++ processor thread</tspan></text>
+      <g
+         id="g32"
+         transform="translate(-7.4890263,53.773151)">
+        <rect
+           style="fill:none;fill-opacity:1;stroke:#0000ff;stroke-width:0.264999;stroke-linecap:round;stroke-opacity:1"
+           id="rect16"
+           width="73.376595"
+           height="31.302303"
+           x="37.934685"
+           y="46.413445" />
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+           x="39.337101"
+           y="50.218693"
+           id="text16"
+           onmouseover="style.cursor=&quot;help&quot;"><title
+             id="title1">First member of the 'processors_' vector.</title><tspan
+             sodipodi:role="line"
+             id="tspan16"
+             style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+             x="39.337101"
+             y="50.218693">processors_[0]</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="39.205196"
+           y="57.662952"
+           id="text21"><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="57.662952"
+             id="tspan21">In this specific example, this is a 'processor_python'</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="61.190739"
+             id="tspan25">type of task, which does no real job, just synchronizes</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="64.718529"
+             id="tspan26">with the python thread</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="68.246315"
+             id="tspan27">1. raise the synchronization flag</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="71.774101"
+             id="tspan28">2. wait for the synchronization flag to be lowered</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="75.301888"
+             id="tspan29">3. obtain last shot needed by the python task</tspan></text>
+        <g
+           id="g31"
+           transform="translate(-0.31009333,-0.65463827)">
+          <text
+             xml:space="preserve"
+             style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+             x="39.519608"
+             y="54.411652"
+             id="text30"
+             onmouseover="style.cursor=&quot;help&quot;"><title
+               id="title2">It is a class derived from the base class 'processor', which does no real job, only synchronization with the task implemented in python.</title><tspan
+               sodipodi:role="line"
+               id="tspan30"
+               style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+               x="39.519608"
+               y="54.411652">processor_python</tspan></text>
+          <a
+             xlink:href="processor_python.h.html"
+             target="processor_python.h"
+             id="a2">
+            <text
+               xml:space="preserve"
+               style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+               x="64.378716"
+               y="54.635609"
+               id="text31"
+               onmouseover="style.cursor=&quot;pointer&quot;"><tspan
+                 sodipodi:role="line"
+                 id="tspan31"
+                 style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+                 x="64.378716"
+                 y="54.635609">.h</tspan></text>
+          </a>
+        </g>
+      </g>
+      <g
+         id="g41"
+         transform="translate(-7.4890263,89.399367)">
+        <rect
+           style="fill:none;fill-opacity:1;stroke:#0000ff;stroke-width:0.264999;stroke-linecap:round;stroke-opacity:1"
+           id="rect32"
+           width="73.376595"
+           height="17.244753"
+           x="37.934685"
+           y="46.413445" />
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+           x="39.337101"
+           y="50.218693"
+           id="text32"><tspan
+             sodipodi:role="line"
+             id="tspan32"
+             style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+             x="39.337101"
+             y="50.218693">processors_[1]</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="39.205196"
+           y="54.10593"
+           id="text38"><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="54.10593"
+             id="tspan38">In this specific example, this is some C++ task that we</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="57.633717"
+             id="tspan45">do not detail here. Can read/modify the data in the </tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="61.161507"
+             id="tspan46">channel buffer.</tspan></text>
+      </g>
+      <g
+         id="g56"
+         transform="translate(-7.4890263,112.34623)">
+        <rect
+           style="fill:none;fill-opacity:1;stroke:#0000ff;stroke-width:0.264999;stroke-linecap:round;stroke-opacity:1"
+           id="rect46"
+           width="73.376595"
+           height="31.302303"
+           x="37.934685"
+           y="46.413445" />
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+           x="39.337101"
+           y="50.218693"
+           id="text47"><tspan
+             sodipodi:role="line"
+             id="tspan47"
+             style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+             x="39.337101"
+             y="50.218693">processors_[2]</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="39.205196"
+           y="57.662952"
+           id="text53"><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="57.662952"
+             id="tspan48">In this specific example, this is a 'processor_python'</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="61.190739"
+             id="tspan49">type of task, which does no real job, just synchronizes</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="64.718529"
+             id="tspan50">with the python thread</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="68.246315"
+             id="tspan51">1. raise the synchronization flag</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="71.774101"
+             id="tspan52">2. wait for the synchronization flag to be lowered</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="75.301888"
+             id="tspan53">3. obtain last shot needed by the python task</tspan></text>
+        <g
+           id="g55"
+           transform="translate(-0.31009333,-0.65463827)">
+          <text
+             xml:space="preserve"
+             style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+             x="39.519608"
+             y="54.411652"
+             id="text54"
+             onmouseover="style.cursor=&quot;help&quot;"><title
+               id="title3">It is a class derived from the base class 'processor', which does no real job, only synchronization with the task implemented in python.</title><tspan
+               sodipodi:role="line"
+               id="tspan54"
+               style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+               x="39.519608"
+               y="54.411652">processor_python</tspan></text>
+          <a
+             xlink:href="processor_python.h.html"
+             target="processor_python.h"
+             id="a3">
+            <text
+               xml:space="preserve"
+               style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+               x="64.378716"
+               y="54.635609"
+               id="text55"
+               onmouseover="style.cursor=&quot;pointer&quot;"><tspan
+                 sodipodi:role="line"
+                 id="tspan55"
+                 style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+                 x="64.378716"
+                 y="54.635609">.h</tspan></text>
+          </a>
+        </g>
+      </g>
+      <g
+         id="g68"
+         transform="translate(-7.4890263,149.97083)">
+        <rect
+           style="fill:none;fill-opacity:1;stroke:#0000ff;stroke-width:0.264999;stroke-linecap:round;stroke-opacity:1"
+           id="rect59"
+           width="73.376595"
+           height="17.512732"
+           x="37.934685"
+           y="46.413445" />
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+           x="39.337101"
+           y="50.218693"
+           id="text59"><tspan
+             sodipodi:role="line"
+             id="tspan59"
+             style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+             x="39.337101"
+             y="50.218693">processors_[4]</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="39.205196"
+           y="57.662952"
+           id="text65"><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="57.662952"
+             id="tspan65">In this specific example, this task dumps the channel</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="39.205196"
+             y="61.190739"
+             id="tspan73">data into separate files</tspan></text>
+        <g
+           id="g67"
+           transform="translate(-0.31009333,-0.65463827)">
+          <text
+             xml:space="preserve"
+             style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+             x="39.519608"
+             y="54.411652"
+             id="text66"><tspan
+               sodipodi:role="line"
+               id="tspan66"
+               style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+               x="39.519608"
+               y="54.411652">processor_diskdump</tspan></text>
+          <a
+             xlink:href="processor_diskdump.h.html"
+             target="processor_diskdump.h"
+             id="a4">
+            <text
+               xml:space="preserve"
+               style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+               x="67.44519"
+               y="54.635609"
+               id="text67"
+               onmouseover="style.cursor=&quot;pointer&quot;"><tspan
+                 sodipodi:role="line"
+                 id="tspan67"
+                 style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+                 x="67.44519"
+                 y="54.635609">.h</tspan></text>
+          </a>
+          <a
+             xlink:href="processor_diskdump.C.html"
+             target="processor_python.C"
+             id="a5">
+            <text
+               xml:space="preserve"
+               style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+               x="70.890663"
+               y="54.635609"
+               id="text68"
+               onmouseover="style.cursor=&quot;pointer&quot;"><tspan
+                 sodipodi:role="line"
+                 id="tspan68"
+                 style="fill:#0000ff;fill-opacity:1;stroke-width:0.264583"
+                 x="70.890663"
+                 y="54.635609">.C</tspan></text>
+          </a>
+        </g>
+      </g>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker78)"
+         d="m 63.112493,214.8977 v 4.33665 H 112.61849 V 95.664245 H 80.939864 v 2.338869"
+         id="path77"
+         sodipodi:nodetypes="cccccc" />
+      <a
+         target="daq.C"
+         xlink:href="daq.C.html#processor_thread"
+         id="a1"
+         transform="translate(-0.52916663)">
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+           x="62.949249"
+           y="96.142632"
+           id="text17"
+           onmouseover="style.cursor=&quot;pointer&quot;"><tspan
+             sodipodi:role="line"
+             id="tspan17"
+             style="fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+             x="62.949249"
+             y="96.142632">(code)</tspan></text>
+      </a>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker74)"
+         d="m 63.544208,132.06286 v 2.14857"
+         id="path73" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker74)"
+         d="m 63.544208,154.288 v 2.14857"
+         id="path75" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker74)"
+         d="m 63.544208,190.80073 v 2.14857"
+         id="path76" />
+    </g>
+    <g
+       id="g81">
+      <rect
+         style="fill:#ffffff;stroke:#fe0000;stroke-width:0.264999;stroke-linecap:round;stroke-opacity:1"
+         id="rect1"
+         width="86.464722"
+         height="100.01376"
+         x="135.04437"
+         y="92.027054" />
+      <text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+         x="139.53955"
+         y="97.908585"
+         id="text1"><tspan
+           sodipodi:role="line"
+           id="tspan1"
+           style="fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+           x="139.53955"
+           y="97.908585">Python processor thread</tspan></text>
+      <g
+         id="g7"
+         transform="translate(100.88353,56.367978)">
+        <rect
+           style="fill:none;fill-opacity:1;stroke:#0000ff;stroke-width:0.264999;stroke-linecap:round;stroke-opacity:1"
+           id="rect2"
+           width="65.65873"
+           height="23.756712"
+           x="37.934685"
+           y="46.413445" />
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+           x="39.337101"
+           y="50.218693"
+           id="text2"><tspan
+             sodipodi:role="line"
+             id="tspan2"
+             style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+             x="39.337101"
+             y="50.218693">DAQ.python_processors_[0]</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="40.297985"
+           y="53.804016"
+           id="text3"><tspan
+             sodipodi:role="line"
+             id="tspan3"
+             style="stroke-width:0.264583"
+             x="40.297985"
+             y="53.804016">1. wait for the synchronization flag to be raised</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="40.297985"
+             y="57.331802"
+             id="tspan6">    and obtain available range of shots</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="40.297985"
+             y="60.859592"
+             id="tspan4">2. do the job,</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="40.297985"
+             y="64.387383"
+             id="tspan5">3. lower the synchronization flag, and tell the </tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="40.297985"
+             y="67.915169"
+             id="tspan7">    C++ code which is the last shot we still need</tspan></text>
+        <a
+           xlink:href="RingBuffer.py.html"
+           target="RingBuffer.py.html"
+           id="a6">
+          <text
+             xml:space="preserve"
+             style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;stroke-width:0.264583"
+             x="57.722187"
+             y="60.77021"
+             id="text20"><tspan
+               sodipodi:role="line"
+               id="tspan20"
+               style="stroke-width:0.264583"
+               x="57.722187"
+               y="60.77021">read(write) the C++ data buffer</tspan></text>
+        </a>
+      </g>
+      <g
+         id="g13"
+         transform="translate(100.88353,89.720189)">
+        <rect
+           style="fill:none;fill-opacity:1;stroke:#0000ff;stroke-width:0.264999;stroke-linecap:round;stroke-opacity:1"
+           id="rect7"
+           width="65.65873"
+           height="23.756712"
+           x="37.934685"
+           y="46.413445" />
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+           x="39.337101"
+           y="50.218693"
+           id="text8"><tspan
+             sodipodi:role="line"
+             id="tspan8"
+             style="fill:#0000ff;fill-opacity:1;stroke:none;stroke-width:0.264583;stroke-opacity:1"
+             x="39.337101"
+             y="50.218693">DAQ.python_processors_[1]</tspan></text>
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+           x="40.827152"
+           y="53.804016"
+           id="text13"><tspan
+             sodipodi:role="line"
+             id="tspan9"
+             style="stroke-width:0.264583"
+             x="40.827152"
+             y="53.804016">1. wait for the synchronization flag to be raised</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="40.827152"
+             y="57.331802"
+             id="tspan10">    and obtain available range of shots</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="40.827152"
+             y="60.859592"
+             id="tspan11">2. do the job,</tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="40.827152"
+             y="64.387383"
+             id="tspan12">3. lower the synchronization flag, and tell the </tspan><tspan
+             sodipodi:role="line"
+             style="stroke-width:0.264583"
+             x="40.827152"
+             y="67.915169"
+             id="tspan13">    C++ code which is the last shot we still need</tspan></text>
+      </g>
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#ConcaveTriangle)"
+         d="m 171.68481,127.31564 v 6.82204"
+         id="path79" />
+      <path
+         style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker81)"
+         d="m 171.89153,160.92625 v 6.33968 h 41.55244 V 96.943777 h -24.1333 v 4.237933"
+         id="path80"
+         sodipodi:nodetypes="cccccc" />
+      <a
+         target="DAQ.py"
+         xlink:href="DAQ.py.html"
+         id="a7">
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+           x="174.81744"
+           y="97.908585"
+           id="text14"
+           onmouseover="style.cursor=&quot;pointer&quot;"><tspan
+             sodipodi:role="line"
+             id="tspan14"
+             style="fill:#ff0000;fill-opacity:1;stroke-width:0.264583"
+             x="174.81744"
+             y="97.908585">DAQ.py</tspan></text>
+      </a>
+      <a
+         xlink:href="RingBuffer.py.html"
+         target="RingBuffer.py.html"
+         id="a8">
+        <text
+           xml:space="preserve"
+           style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;stroke-width:0.264583"
+           x="159.48763"
+           y="150.63228"
+           id="text20-5"><tspan
+             sodipodi:role="line"
+             id="tspan20-3"
+             style="stroke-width:0.264583"
+             x="159.48763"
+             y="150.63228">read(write) the C++ data buffer</tspan></text>
+      </a>
+      <a target="Processor.py" xlink:href="Processor.py.html"><text
+         xml:space="preserve"
+         style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;text-decoration:underline;text-decoration-line:underline;stroke-width:0.264583"
+         x="137.72102"
+         y="183.9843"
+         id="text22"><tspan
+           sodipodi:role="line"
+           id="tspan22"
+           style="stroke-width:0.264583"
+           x="137.72102"
+           y="183.9843">Click here to see how to implement a channel data processor</tspan><tspan
+           sodipodi:role="line"
+           style="stroke-width:0.264583"
+           x="137.72102"
+           y="187.51208"
+           id="tspan23">task and add it to the DAQ task list in Python</tspan></text></a>
+    </g>
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker83)"
+       d="M 76.689801,121.56702 H 128.57867 V 109.37003 H 139.5257"
+       id="path82" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker85)"
+       d="m 140.53383,123.01854 h -9.85406 v 3.37657 H 98.464585"
+       id="path84" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker83)"
+       d="M 76.689801,180.02044 H 128.57867 V 142.51551 H 139.5257"
+       id="path86"
+       sodipodi:nodetypes="cccc" />
+    <path
+       style="fill:none;stroke:#000000;stroke-width:0.264583px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;marker-end:url(#marker85)"
+       d="m 140.53383,156.16402 h -9.85406 v 27.15035 H 98.464585"
+       id="path87"
+       sodipodi:nodetypes="cccc" />
+    <text
+       xml:space="preserve"
+       style="font-size:2.82223px;line-height:1.25;font-family:sans-serif;stroke-width:0.264583"
+       x="24.876942"
+       y="84.115074"
+       id="text18"><tspan
+         sodipodi:role="line"
+         id="tspan18"
+         style="stroke-width:0.264583"
+         x="24.876942"
+         y="84.115074">This example illustrates the synchronization between the C++ backend and the python data processor tasks. In this specific example there are</tspan><tspan
+         sodipodi:role="line"
+         style="stroke-width:0.264583"
+         x="24.876942"
+         y="87.64286"
+         id="tspan19">4 tasks, 2 of which are implemented in C++, and 2 are implemented in python.</tspan></text>
+  </g>
+</svg>

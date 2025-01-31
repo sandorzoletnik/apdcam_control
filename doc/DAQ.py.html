@@ -1,3 +1,4 @@
+<html><body><pre>
 import ctypes
 import os
 import threading
@@ -57,7 +58,7 @@ def convertToCArray(l,ctype):
         return result
 
 
-#html-target DAQ.DAQ
+<a name='DAQ.DAQ'></a>
 # This function is the interface to the DAQ C++ code. It returns a reference to the CDLL.
 # If thiiiis shared library has not been loaded yet, it loads first, and make some setup:
 # it defines the arguments and return values of the functions defined therein, and in addition,
@@ -210,7 +211,7 @@ def DAQ():
         # set the new one
         DAQ.instance_.clear_processors = clear_processors
 
-        #html-target DAQ.start
+        <a name='DAQ.start'></a>
         # Now modify the 'start' function of the DLL, add extra functionality (running the python processors in a
         # new thread if we have defined such processors)
         # The new wrapper 'start' member function of DAQ will run all activities in separate threads - including
@@ -223,7 +224,7 @@ def DAQ():
             dummy = DAQ.instance_.python_analysis_done(0)
 
             # If the user has added any python processor tasks, 
-            if len(DAQ.python_processors_) > 0:
+            if len(DAQ.python_processors_) &gt; 0:
                 
                 buffers = [None]*Config.max_channels
                 for i_abs_channel in range(len(buffers)):
@@ -297,3 +298,4 @@ def DAQ():
 DAQ.instance_ = None        # the singleton instance of the C++ DAQ DLL (shared library) object
 DAQ.python_processors_ = [] # a list to hold the python channel data processors.
         
+</pre></body></html>

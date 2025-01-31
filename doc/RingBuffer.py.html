@@ -1,3 +1,4 @@
+<html><body><pre>
 import ctypes
 
 '''
@@ -22,7 +23,7 @@ b(3) = 123  # this does not work in python, but the [] operator can do it
 class RingBuffer:
     def __init__(self,type,size,buffer):
 
-        if size&(size-1)!=0 or size==0:
+        if size&amp;(size-1)!=0 or size==0:
             print("RingBuffer size must be non-zero and a power of two")
             return
 
@@ -43,10 +44,11 @@ class RingBuffer:
     it accesses the element at the provided 'counter': buffer[counter modulo buffersize]
     '''
     def __getitem__(self,counter):
-        return self.buffer_[counter&self.mask_]
+        return self.buffer_[counter&amp;self.mask_]
 
     def __setitem__(self,counter,newvalue):
-        self.buffer_[counter&self.mask_] = newvalue
+        self.buffer_[counter&amp;self.mask_] = newvalue
 
     
     
+</pre></body></html>

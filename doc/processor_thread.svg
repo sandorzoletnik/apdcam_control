@@ -11,6 +11,7 @@
    sodipodi:docname="processor_thread.svg"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
    xmlns="http://www.w3.org/2000/svg"
    xmlns:svg="http://www.w3.org/2000/svg">
   <sodipodi:namedview
@@ -23,9 +24,9 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
-     inkscape:zoom="1"
-     inkscape:cx="291.5"
-     inkscape:cy="325"
+     inkscape:zoom="2"
+     inkscape:cx="262.25"
+     inkscape:cy="328.5"
      inkscape:window-width="1912"
      inkscape:window-height="1026"
      inkscape:window-x="0"
@@ -718,5 +719,16 @@
          style="stroke-width:0.264583"
          x="86.267487"
          y="139.95244">no</tspan></text>
+    <a xlink:href="C++-python-sync.svg" target="C++-python-sync.svg"><text
+       xml:space="preserve"
+       style="text-decoration:underline;stroke-width:0.264583;font-family:sans-serif;line-height:1.25;font-size:2.82223px;"
+       x="66.222481"
+       y="113.838"
+       id="text8"><tspan
+         sodipodi:role="line"
+         id="tspan8"
+         style="stroke-width:0.264583"
+         x="66.222481"
+         y="113.838">Click to see C++/Python synchronization</tspan></text></a>
   </g>
 </svg>

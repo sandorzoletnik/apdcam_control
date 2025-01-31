@@ -32,7 +32,6 @@ namespace apdcam10g
 
     void terminate_with_stacktrace() throw()
     {
-#ifdef STACKTRACE
         try
         {
             print_backtrace();
@@ -41,7 +40,6 @@ namespace apdcam10g
         {
             cerr<<"Unexpected exception caught in 'terminate_with_stacktrace()'"<<endl;
         }
-#endif
         abort();
     }
 
@@ -54,6 +52,8 @@ namespace apdcam10g
         ~flag_locker() {flag_->clear();}
     };
 
+    // A utility class to make sure a given file (specified by a path) is deleted whenever a scope quits
+    // by whatever means
     class file_deleter
     {
     private:
@@ -68,6 +68,7 @@ namespace apdcam10g
     class signal2exception
     {
     private:
+        // Store a user-specified name for the threads, to give an informative report on the screen
         static std::map<std::jthread::id,std::string> thread_names_;
 
         // The signal-handler routine which can be set for POSIX signals. It simply throws an apdcam_error exception
@@ -595,9 +596,6 @@ namespace apdcam10g
         return result;
     }
 
-    
-    
-
     bool daq::python_analysis_stop()
     {
         return python_analysis_stop_.test(std::memory_order_acquire);
@@ -946,6 +944,7 @@ stop [timeout]
                 output_lock lck;
                 cerr<<"[DAQ] Starting processor thread"<<endl;
             }
+            //html-target processor_thread
             processor_thread_ = std::jthread( [this](std::stop_token stok)
                 {
                     flag_locker flk(processor_thread_active_);
@@ -1497,6 +1496,10 @@ extern "C"
     {
         return daq::instance().n_channels();
     }
+    unsigned int n_enabled_channels()
+    {
+        return daq::instance().n_enabled_channels();
+    }
 
     void         start(bool wait) 
     { 
@@ -1681,6 +1684,7 @@ extern "C"
         catch(...) { cerr<<"Unhandled expection"<<endl; }            
     }
 
+    //html-target get_buffer
     void get_buffer(unsigned int absolute_channel_number, unsigned int *buffersize, apdcam10g::data_type **buffer)
     {
         try

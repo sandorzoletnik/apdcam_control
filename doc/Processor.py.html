@@ -1,3 +1,4 @@
+<html><body><pre>
 '''
 The ProcessorTest class demonstrates how to write a channel data processor task in Python.
 The class must define a 'run' function with the following arguments
@@ -30,7 +31,7 @@ class ProcessorTest:
     
         # Even if data is (still) available in the ring buffers starting from counter 'from_counter',
         # we only want to analyze from 'next' because we analyzed all previous shots so far
-        if self.next_ > from_counter:
+        if self.next_ &gt; from_counter:
             from_counter = self.next_
 
         # loop over all shots
@@ -52,3 +53,4 @@ class ProcessorTest:
         # range, so that all shots can be removed from the buffer by the DAQ C++ process loop.
         # Other analysis tasks may request earlier shots to stay in the buffer...
         return self.next_
+</pre></body></html>
